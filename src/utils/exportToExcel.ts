@@ -14,7 +14,7 @@ function formatDate(dateString: string): string {
 function escapeCSV(value: string | number | undefined): string {
   if (value === undefined || value === null) return '';
   const stringValue = String(value);
-  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+  if (stringValue.includes(';') || stringValue.includes('"') || stringValue.includes('\n')) {
     return `"${stringValue.replace(/"/g, '""')}"`;
   }
   return stringValue;
@@ -54,8 +54,8 @@ export function exportMateriaisToCSV(materiais: Material[]): void {
   ]);
 
   const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => row.join(',')),
+    headers.join(';'),
+    ...rows.map((row) => row.join(';')),
   ].join('\n');
 
   // Adiciona BOM para suporte a caracteres especiais no Excel
@@ -105,8 +105,8 @@ export function exportMovimentacoesToCSV(
   });
 
   const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => row.join(',')),
+    headers.join(';'),
+    ...rows.map((row) => row.join(';')),
   ].join('\n');
 
   const BOM = '\uFEFF';
