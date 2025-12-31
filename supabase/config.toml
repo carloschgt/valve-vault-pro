@@ -1,1 +1,7 @@
 project_id = "bdetejjahokasedpghlp"
+
+[functions.google-sheets]
+verify_jwt = false
+
+[functions.auth]
+verify_jwt = false
