@@ -27,8 +27,8 @@ const TestConnection = () => {
     const fabricantes = await getData('FABRICANTES');
     setFabricantesData(fabricantes);
     
-    // Test 4: Get usuários data
-    const usuarios = await getData('usuários');
+    // Test 4: Get USUARIOS data
+    const usuarios = await getData('USUARIOS');
     setUsuariosData(usuarios);
   };
 
@@ -141,7 +141,7 @@ const TestConnection = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Usuários (aba "usuários")</CardTitle>
+                <CardTitle>Usuários (aba "USUARIOS")</CardTitle>
               </CardHeader>
               <CardContent>
                 {usuariosData.length === 0 ? (
