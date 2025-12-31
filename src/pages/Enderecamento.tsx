@@ -86,7 +86,7 @@ const Enderecamento = () => {
 
     setIsSearching(true);
     try {
-      const product = await getProductByCode(codigo, 'Base de Produtos');
+      const product = await getProductByCode(codigo, 'Bdados');
       
       if (product) {
         setDescricao(product.descricao);
