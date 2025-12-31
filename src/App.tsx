@@ -8,7 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Home from "./pages/Home";
 import Enderecamento from "./pages/Enderecamento";
 import Inventario from "./pages/Inventario";
-import Configuracoes from "./pages/Configuracoes";
+import Fabricantes from "./pages/Fabricantes";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -26,7 +26,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/enderecamento" element={<ProtectedRoute><Enderecamento /></ProtectedRoute>} />
             <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
-            <Route path="/configuracoes" element={<ProtectedRoute adminOnly><Configuracoes /></ProtectedRoute>} />
+            <Route path="/fabricantes" element={<ProtectedRoute adminOnly><Fabricantes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
