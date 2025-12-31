@@ -18,21 +18,12 @@ serve(async (req) => {
       throw new Error("Google Sheets API key not configured");
     }
 
-    const { action, sheetName, range } = await req.json();
+    const { action, sheetName, range, email, senha } = await req.json();
 
-    let url: string;
-    
-    if (range) {
-      // Fetch specific range
-      url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}!${range}?key=${apiKey}`;
-    } else {
-      // Fetch entire sheet
-      url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}?key=${apiKey}`;
-    }
+    console.log(`Action: ${action}, Sheet: ${sheetName}`);
 
     if (action === "getSheets") {
-      // Get spreadsheet metadata to list all sheets
-      url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?key=${apiKey}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?key=${apiKey}`;
       const response = await fetch(url);
       const data = await response.json();
       
@@ -47,6 +38,13 @@ serve(async (req) => {
     }
 
     if (action === "getData") {
+      let url: string;
+      if (range) {
+        url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}!${range}?key=${apiKey}`;
+      } else {
+        url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}?key=${apiKey}`;
+      }
+
       const response = await fetch(url);
       const data = await response.json();
 
@@ -57,6 +55,23 @@ serve(async (req) => {
       return new Response(JSON.stringify({ values: data.values || [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (action === "setPassword") {
+      // For setting password, we need to use a service account with write access
+      // Since we're using API key (read-only), we'll store passwords locally
+      // This is a limitation - for full Google Sheets write access, you'd need OAuth2
+      
+      // For now, return an error explaining this limitation
+      return new Response(
+        JSON.stringify({ 
+          error: "Escrita no Google Sheets requer configuração OAuth2. Por favor, configure a senha diretamente na planilha." 
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     throw new Error("Invalid action");

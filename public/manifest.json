@@ -1,7 +1,7 @@
 {
-  "name": "MRX Estoque",
-  "short_name": "MRX Estoque",
-  "description": "Sistema de Gestão de Armazenamento de Materiais - MRX Solutions",
+  "name": "IMEX Solutions",
+  "short_name": "IMEX",
+  "description": "Sistema de Gestão de Armazenamento de Materiais - IMEX Solutions",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8f8f8",

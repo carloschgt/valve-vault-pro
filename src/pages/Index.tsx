@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Search, Filter, Package, Settings } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Filter, Package } from 'lucide-react';
 import { MobileLayout } from '@/components/layout/MobileLayout';
 import { MaterialCard } from '@/components/MaterialCard';
 import { MaterialForm } from '@/components/forms/MaterialForm';
@@ -62,14 +61,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Test Connection Button */}
-        <Link 
-          to="/test-connection" 
-          className="flex items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 p-3 text-primary hover:bg-primary/20 transition-colors"
-        >
-          <Settings className="h-4 w-4" />
-          <span className="text-sm font-medium">Testar Conexão com Google Sheets</span>
-        </Link>
 
         {/* Search */}
         <div className="relative">
