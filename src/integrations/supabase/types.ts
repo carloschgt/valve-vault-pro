@@ -14,7 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      fabricantes: {
+        Row: {
+          cadastrado_por: string
+          codigo: string
+          data_cadastro: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          cadastrado_por?: string
+          codigo: string
+          data_cadastro?: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          cadastrado_por?: string
+          codigo?: string
+          data_cadastro?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

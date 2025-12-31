@@ -1,8 +1,9 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Package, ArrowRightLeft, BarChart3, Settings, Plus } from 'lucide-react';
+import { Package, ArrowRightLeft, BarChart3, Settings, Plus, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import logo from '@/assets/logo-mrx.png';
+import { useAuth } from '@/contexts/AuthContext';
+import logoImex from '@/assets/logo-imex.png';
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -15,12 +16,22 @@ const navItems = [
   { path: '/', icon: Package, label: 'Estoque' },
   { path: '/movimentacoes', icon: ArrowRightLeft, label: 'Movimentações' },
   { path: '/relatorios', icon: BarChart3, label: 'Relatórios' },
-  { path: '/configuracoes', icon: Settings, label: 'Config' },
+  { path: '/configuracoes', icon: Settings, label: 'Config', adminOnly: true },
 ];
 
 export function MobileLayout({ children, title, showAddButton, onAddClick }: MobileLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const filteredNavItems = navItems.filter(item => 
+    !item.adminOnly || user?.tipo === 'admin'
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-background safe-area-inset">
@@ -28,20 +39,28 @@ export function MobileLayout({ children, title, showAddButton, onAddClick }: Mob
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm">
         <div className="flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="MRX Solutions" className="h-9 w-auto" />
+            <img src={logoImex} alt="IMEX Solutions" className="h-9 w-auto" />
           </div>
           {title && (
             <h1 className="font-display text-lg font-semibold text-foreground">{title}</h1>
           )}
-          {showAddButton && (
+          <div className="flex items-center gap-2">
+            {showAddButton && (
+              <button
+                onClick={onAddClick}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground shadow-md transition-all hover:shadow-glow active:scale-95"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            )}
             <button
-              onClick={onAddClick}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary text-primary-foreground shadow-md transition-all hover:shadow-glow active:scale-95"
+              onClick={handleLogout}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              title="Sair"
             >
-              <Plus className="h-5 w-5" />
+              <LogOut className="h-5 w-5" />
             </button>
-          )}
-          {!showAddButton && <div className="w-10" />}
+          </div>
         </div>
       </header>
 
@@ -53,7 +72,7 @@ export function MobileLayout({ children, title, showAddButton, onAddClick }: Mob
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-sm">
         <div className="flex h-16 items-center justify-around px-2">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
             
