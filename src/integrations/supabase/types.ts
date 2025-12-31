@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      enderecos_materiais: {
+        Row: {
+          codigo: string
+          coluna: number
+          created_at: string
+          created_by: string
+          descricao: string
+          fabricante_id: string | null
+          id: string
+          nivel: number
+          peso: number
+          posicao: number
+          rua: number
+          tipo_material: string
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          coluna: number
+          created_at?: string
+          created_by: string
+          descricao: string
+          fabricante_id?: string | null
+          id?: string
+          nivel: number
+          peso: number
+          posicao: number
+          rua: number
+          tipo_material: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          coluna?: number
+          created_at?: string
+          created_by?: string
+          descricao?: string
+          fabricante_id?: string | null
+          id?: string
+          nivel?: number
+          peso?: number
+          posicao?: number
+          rua?: number
+          tipo_material?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enderecos_materiais_fabricante_id_fkey"
+            columns: ["fabricante_id"]
+            isOneToOne: false
+            referencedRelation: "fabricantes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fabricantes: {
         Row: {
           cadastrado_por: string
@@ -37,6 +93,41 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      inventario: {
+        Row: {
+          contado_por: string
+          created_at: string
+          endereco_material_id: string
+          id: string
+          quantidade: number
+          updated_at: string
+        }
+        Insert: {
+          contado_por: string
+          created_at?: string
+          endereco_material_id: string
+          id?: string
+          quantidade?: number
+          updated_at?: string
+        }
+        Update: {
+          contado_por?: string
+          created_at?: string
+          endereco_material_id?: string
+          id?: string
+          quantidade?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventario_endereco_material_id_fkey"
+            columns: ["endereco_material_id"]
+            isOneToOne: false
+            referencedRelation: "enderecos_materiais"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       usuarios: {
         Row: {
