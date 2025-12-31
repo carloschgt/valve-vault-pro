@@ -47,15 +47,17 @@ export function useGoogleSheets() {
     }
   };
 
-  const getProductByCode = async (code: string, productSheetName: string = 'Base de Produtos'): Promise<{ descricao: string } | null> => {
+  const getProductByCode = async (code: string, productSheetName: string = 'Bdados'): Promise<{ descricao: string } | null> => {
     const data = await getData(productSheetName);
     
     if (data.length === 0) return null;
 
     // Assume first row is header, find column indexes
     const headers = data[0].map(h => h.toLowerCase().trim());
-    const codeIndex = headers.findIndex(h => h.includes('codigo') || h.includes('código') || h.includes('code'));
-    const descIndex = headers.findIndex(h => h.includes('descricao') || h.includes('descrição') || h.includes('description'));
+    // Look for code column: "item", "codigo", "código", "code"
+    const codeIndex = headers.findIndex(h => h === 'item' || h.includes('codigo') || h.includes('código') || h.includes('code'));
+    // Look for description column: prioritize exact "descrição" or "descricao" (column C), not "descrição imex"
+    const descIndex = headers.findIndex(h => h === 'descrição' || h === 'descricao' || h === 'description');
 
     if (codeIndex === -1 || descIndex === -1) return null;
 
