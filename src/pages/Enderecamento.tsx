@@ -193,6 +193,8 @@ const Enderecamento = () => {
               placeholder="Digite o código"
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9]*"
               className="flex-1"
             />
             <Button
