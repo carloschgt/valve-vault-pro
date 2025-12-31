@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Movimentacoes from "./pages/Movimentacoes";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
+import TestConnection from "./pages/TestConnection";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/movimentacoes" element={<Movimentacoes />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
+          <Route path="/test-connection" element={<TestConnection />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
