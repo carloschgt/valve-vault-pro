@@ -5,11 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Index from "./pages/Index";
-import Movimentacoes from "./pages/Movimentacoes";
-import Relatorios from "./pages/Relatorios";
+import Home from "./pages/Home";
+import Enderecamento from "./pages/Enderecamento";
+import Inventario from "./pages/Inventario";
 import Configuracoes from "./pages/Configuracoes";
-import TestConnection from "./pages/TestConnection";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -24,11 +23,10 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/movimentacoes" element={<ProtectedRoute><Movimentacoes /></ProtectedRoute>} />
-            <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/enderecamento" element={<ProtectedRoute><Enderecamento /></ProtectedRoute>} />
+            <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute adminOnly><Configuracoes /></ProtectedRoute>} />
-            <Route path="/test-connection" element={<ProtectedRoute adminOnly><TestConnection /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
