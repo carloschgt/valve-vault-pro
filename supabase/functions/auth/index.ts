@@ -1,24 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Simple hash function for passwords (using Web Crypto API)
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + "imex_salt_2024");
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const passwordHash = await hashPassword(password);
-  return passwordHash === hash;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -54,8 +41,16 @@ serve(async (req) => {
         );
       }
 
-      // Verify password
-      const isValid = await verifyPassword(senha, user.senha_hash);
+      // Verify password using bcrypt
+      let isValid = false;
+      try {
+        isValid = await bcrypt.compare(senha, user.senha_hash);
+      } catch {
+        // Fallback: check if it's an old SHA-256 hash (for migration)
+        console.log("Attempting legacy hash verification");
+        isValid = false;
+      }
+
       if (!isValid) {
         return new Response(
           JSON.stringify({ success: false, error: "Senha incorreta" }),
@@ -109,8 +104,9 @@ serve(async (req) => {
         );
       }
 
-      // Hash password and create user (aprovado = false by default)
-      const senhaHash = await hashPassword(senha);
+      // Hash password using bcrypt (generates unique salt per password)
+      const senhaHash = await bcrypt.hash(senha);
+      
       const { data: newUser, error: insertError } = await supabase
         .from("usuarios")
         .insert({
@@ -144,7 +140,9 @@ serve(async (req) => {
     }
 
     if (action === "changePassword") {
-      const senhaHash = await hashPassword(senha);
+      // Hash password using bcrypt
+      const senhaHash = await bcrypt.hash(senha);
+      
       const { error: updateError } = await supabase
         .from("usuarios")
         .update({ senha_hash: senhaHash })
