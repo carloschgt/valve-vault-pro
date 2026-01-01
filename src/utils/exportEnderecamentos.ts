@@ -47,39 +47,44 @@ function escapeCSV(value: string | number | undefined | null): string {
   return stringValue;
 }
 
+// Remove accents for better Excel compatibility
+function removeAccents(str: string | undefined | null): string {
+  if (!str) return '';
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 export function exportEnderecamentosToCSV(dados: EnderecoMaterial[]): void {
   const headers = [
-    'Código',
-    'Descrição',
+    'Codigo',
+    'Descricao',
     'Tipo Material',
     'Fabricante',
     'Peso (kg)',
     'Rua',
     'Coluna',
-    'Nível',
-    'Posição',
+    'Nivel',
+    'Posicao',
     'Cadastrado Por',
     'Data Cadastro',
   ];
 
   const rows = dados.map((d) => [
     escapeCSV(d.codigo),
-    escapeCSV(d.descricao),
-    escapeCSV(d.tipo_material),
-    escapeCSV(d.fabricante_nome || 'N/A'),
+    escapeCSV(removeAccents(d.descricao)),
+    escapeCSV(removeAccents(d.tipo_material)),
+    escapeCSV(removeAccents(d.fabricante_nome || 'N/A')),
     d.peso,
     d.rua,
     d.coluna,
     d.nivel,
     d.posicao,
-    escapeCSV(d.created_by),
+    escapeCSV(removeAccents(d.created_by)),
     formatDate(d.created_at),
   ]);
 
-  const csvContent = [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
+  const csvContent = [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\r\n');
 
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
@@ -94,14 +99,14 @@ export function exportEnderecamentosToCSV(dados: EnderecoMaterial[]): void {
 
 export function exportInventarioToCSV(dados: InventarioItem[]): void {
   const headers = [
-    'Código',
-    'Descrição',
+    'Codigo',
+    'Descricao',
     'Fabricante',
     'Peso (kg)',
     'Rua',
     'Coluna',
-    'Nível',
-    'Posição',
+    'Nivel',
+    'Posicao',
     'Quantidade',
     'Contado Por',
     'Data Contagem',
@@ -109,22 +114,21 @@ export function exportInventarioToCSV(dados: InventarioItem[]): void {
 
   const rows = dados.map((d) => [
     escapeCSV(d.codigo),
-    escapeCSV(d.descricao),
-    escapeCSV(d.fabricante_nome || 'N/A'),
+    escapeCSV(removeAccents(d.descricao)),
+    escapeCSV(removeAccents(d.fabricante_nome || 'N/A')),
     d.peso,
     d.rua,
     d.coluna,
     d.nivel,
     d.posicao,
     d.quantidade,
-    escapeCSV(d.contado_por),
+    escapeCSV(removeAccents(d.contado_por)),
     formatDate(d.data_contagem),
   ]);
 
-  const csvContent = [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\n');
+  const csvContent = [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\r\n');
 
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 

@@ -231,10 +231,10 @@ const Home = () => {
               Gerenciamento de Dados
             </Button>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
               <Button
                 variant="outline"
-                className="flex-1"
+                className="w-full"
                 onClick={handleExportEnderecamentos}
                 disabled={isExporting !== null}
               >
@@ -247,7 +247,7 @@ const Home = () => {
               </Button>
               <Button
                 variant="outline"
-                className="flex-1"
+                className="w-full"
                 onClick={handleExportInventario}
                 disabled={isExporting !== null}
               >
