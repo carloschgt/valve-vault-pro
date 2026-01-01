@@ -50,6 +50,7 @@ const Enderecamento = () => {
   const [coluna, setColuna] = useState('');
   const [nivel, setNivel] = useState('');
   const [posicao, setPosicao] = useState('');
+  const [comentario, setComentario] = useState('');
   
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -142,6 +143,7 @@ const Enderecamento = () => {
           coluna: parseInt(coluna),
           nivel: parseInt(nivel),
           posicao: parseInt(posicao),
+          comentario: comentario.trim() || null,
           created_by: user?.nome || 'Sistema',
         });
 
@@ -187,6 +189,7 @@ const Enderecamento = () => {
       setColuna('');
       setNivel('');
       setPosicao('');
+      setComentario('');
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -343,6 +346,18 @@ const Enderecamento = () => {
               onChange={(e) => setPosicao(e.target.value)}
             />
           </div>
+        </div>
+
+        {/* Comentário */}
+        <div className="space-y-2">
+          <Label htmlFor="comentario">Comentário (opcional)</Label>
+          <Input
+            id="comentario"
+            placeholder="Observações sobre o material"
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            maxLength={500}
+          />
         </div>
 
         {/* Botão Salvar */}

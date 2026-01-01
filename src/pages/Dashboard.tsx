@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import logoImex from '@/assets/logo-imex.png';
 
 interface EnderecoMaterial {
@@ -42,6 +43,8 @@ interface InventarioItem {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.tipo === 'admin';
   
   const [enderecos, setEnderecos] = useState<EnderecoMaterial[]>([]);
   const [inventario, setInventario] = useState<InventarioItem[]>([]);
@@ -226,10 +229,12 @@ const Dashboard = () => {
         <TabsContent value="enderecos" className="flex-1 p-4">
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">{enderecos.length} registros</p>
-            <Button variant="outline" size="sm" onClick={() => exportToCSV('enderecos')}>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar Excel
-            </Button>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => exportToCSV('enderecos')}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar Excel
+              </Button>
+            )}
           </div>
           
           <div className="space-y-3">
@@ -270,10 +275,12 @@ const Dashboard = () => {
         <TabsContent value="inventario" className="flex-1 p-4">
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">{inventario.length} registros</p>
-            <Button variant="outline" size="sm" onClick={() => exportToCSV('inventario')}>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar Excel
-            </Button>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => exportToCSV('inventario')}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar Excel
+              </Button>
+            )}
           </div>
           
           <div className="space-y-3">
