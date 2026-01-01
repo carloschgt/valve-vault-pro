@@ -425,6 +425,83 @@ serve(async (req) => {
       );
     }
 
+    if (action === "resetPassword") {
+      // Validate email domain
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: emailValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate password format
+      const passwordValidation = validatePassword(senha);
+      if (!passwordValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: passwordValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if user exists
+      const { data: user, error: findError } = await supabase
+        .from("usuarios")
+        .select("id, nome, email, tipo, aprovado")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (findError) {
+        console.error("Find error:", findError);
+        throw new Error("Erro ao verificar usuário");
+      }
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Email não encontrado" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Hash password
+      const senhaHash = await hashPassword(senha);
+      
+      // For admin users: reset password directly, keep approved
+      // For regular users: reset password and set aprovado=false (needs admin re-approval)
+      const isAdmin = user.tipo === 'admin';
+      
+      const updateData: { senha_hash: string; aprovado?: boolean } = {
+        senha_hash: senhaHash,
+      };
+      
+      if (!isAdmin) {
+        updateData.aprovado = false;
+      }
+      
+      const { error: updateError } = await supabase
+        .from("usuarios")
+        .update(updateData)
+        .eq("email", email.toLowerCase().trim());
+
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw new Error("Erro ao atualizar senha");
+      }
+
+      console.log(`Password reset for ${email}. Admin: ${isAdmin}. Requires approval: ${!isAdmin}`);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          requiresApproval: !isAdmin,
+          message: isAdmin 
+            ? "Senha redefinida com sucesso! Você já pode fazer login."
+            : "Senha redefinida! Aguarde aprovação do administrador para acessar."
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "changePassword") {
       // Validate password format
       const passwordValidation = validatePassword(senha);

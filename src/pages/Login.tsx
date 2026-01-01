@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, UserPlus, Check, X } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, UserPlus, Check, X, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import logoImex from '@/assets/logo-imex.png';
 
-type Step = 'email' | 'login' | 'register';
+type Step = 'email' | 'login' | 'register' | 'resetPassword';
 
 // Password validation
 function validatePassword(senha: string): { valid: boolean; errors: string[] } {
@@ -131,9 +132,60 @@ const Login = () => {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!passwordValidation.valid) {
+      toast.error('A senha não atende aos requisitos');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('auth', {
+        body: { action: 'resetPassword', email: email.trim(), senha },
+      });
+
+      if (error) {
+        console.error('Reset password error:', error);
+        toast.error('Erro ao redefinir senha');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!data.success) {
+        toast.error(data.error || 'Erro ao redefinir senha');
+        setIsLoading(false);
+        return;
+      }
+
+      toast.success(data.message);
+      
+      // Reset form
+      setStep('email');
+      setSenha('');
+      
+      // If admin, they can login immediately
+      if (!data.requiresApproval) {
+        setStep('login');
+      }
+    } catch (err) {
+      console.error('Reset password error:', err);
+      toast.error('Erro ao redefinir senha');
+    }
+    
+    setIsLoading(false);
+  };
+
   const goBack = () => {
     setStep('email');
     setSenha('');
+  };
+
+  const goToResetPassword = () => {
+    setSenha('');
+    setStep('resetPassword');
   };
 
   const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
@@ -176,6 +228,14 @@ const Login = () => {
                 <h1 className="text-xl font-bold text-foreground">Novo Cadastro</h1>
                 <p className="text-sm text-muted-foreground mt-1">
                   Complete seu cadastro para acessar
+                </p>
+              </>
+            )}
+            {step === 'resetPassword' && (
+              <>
+                <h1 className="text-xl font-bold text-foreground">Redefinir Senha</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Crie uma nova senha para sua conta
                 </p>
               </>
             )}
@@ -259,6 +319,92 @@ const Login = () => {
                   )}
                 </Button>
               </div>
+
+              <button
+                type="button"
+                onClick={goToResetPassword}
+                className="w-full text-sm text-primary hover:underline pt-2"
+              >
+                Esqueci minha senha
+              </button>
+            </form>
+          )}
+
+          {/* Step: Reset Password */}
+          {step === 'resetPassword' && (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  Redefinindo senha para:
+                </p>
+                <p className="text-sm font-medium">{email}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="novaSenhaReset">Nova Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="novaSenhaReset"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Mínimo 8 caracteres"
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    autoComplete="new-password"
+                    disabled={isLoading}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                
+                {/* Password requirements */}
+                <div className="space-y-1 pt-1">
+                  <PasswordRequirement 
+                    met={senha.length >= 8} 
+                    text="Mínimo 8 caracteres" 
+                  />
+                  <PasswordRequirement 
+                    met={/[a-zA-Z]/.test(senha)} 
+                    text="Pelo menos uma letra" 
+                  />
+                  <PasswordRequirement 
+                    met={/\d/.test(senha)} 
+                    text="Pelo menos um número" 
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={goBack} disabled={isLoading}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1" 
+                  disabled={isLoading || !passwordValidation.valid}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Redefinindo...
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="mr-2 h-4 w-4" />
+                      Redefinir Senha
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Usuários comuns precisarão de aprovação do admin após redefinir a senha.
+              </p>
             </form>
           )}
 
