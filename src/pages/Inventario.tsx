@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { insertInventario, updateInventario } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
 
@@ -147,30 +148,18 @@ const Inventario = () => {
 
     setIsSaving(true);
     try {
+      let result;
+      
       if (inventarioExistente) {
         // Atualizar existente (apenas admin)
-        const { error } = await supabase
-          .from('inventario')
-          .update({
-            quantidade: parseInt(quantidade),
-            comentario: comentario.trim() || null,
-            contado_por: user?.nome || 'Sistema',
-          })
-          .eq('id', inventarioExistente.id);
-
-        if (error) throw error;
+        result = await updateInventario(inventarioExistente.id, quantidade, comentario.trim() || undefined);
       } else {
         // Inserir novo
-        const { error } = await supabase
-          .from('inventario')
-          .insert({
-            endereco_material_id: selectedEndereco.id,
-            quantidade: parseInt(quantidade),
-            comentario: comentario.trim() || null,
-            contado_por: user?.nome || 'Sistema',
-          });
+        result = await insertInventario(selectedEndereco.id, quantidade, comentario.trim() || undefined);
+      }
 
-        if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       toast({

@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { deleteEndereco, deleteInventario, deleteCatalogo } from '@/hooks/useDataOperations';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
@@ -136,11 +137,13 @@ const Admin = () => {
   });
 
   // Deletar endereço
-  const deleteEndereco = useMutation({
+  const deleteEnderecoMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from('inventario').delete().eq('endereco_material_id', id);
-      const { error } = await supabase.from('enderecos_materiais').delete().eq('id', id);
-      if (error) throw error;
+      const result = await deleteEndereco(id);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin_enderecos'] });
@@ -153,10 +156,13 @@ const Admin = () => {
   });
 
   // Deletar inventário
-  const deleteInventario = useMutation({
+  const deleteInventarioMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('inventario').delete().eq('id', id);
-      if (error) throw error;
+      const result = await deleteInventario(id);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin_inventario'] });
@@ -168,10 +174,13 @@ const Admin = () => {
   });
 
   // Deletar catálogo
-  const deleteCatalogo = useMutation({
+  const deleteCatalogoMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('catalogo_produtos').delete().eq('id', id);
-      if (error) throw error;
+      const result = await deleteCatalogo(id);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin_catalogo'] });
@@ -181,6 +190,7 @@ const Admin = () => {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     },
   });
+
 
   // Aprovar/Rejeitar usuário
   const updateUserApproval = useMutation({
@@ -459,7 +469,7 @@ const Admin = () => {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteEndereco.mutate(e.id)}>
+                              <AlertDialogAction onClick={() => deleteEnderecoMutation.mutate(e.id)}>
                                 Excluir
                               </AlertDialogAction>
                             </AlertDialogFooter>
@@ -525,7 +535,7 @@ const Admin = () => {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteInventario.mutate(i.id)}>
+                          <AlertDialogAction onClick={() => deleteInventarioMutation.mutate(i.id)}>
                             Excluir
                           </AlertDialogAction>
                         </AlertDialogFooter>
@@ -582,7 +592,7 @@ const Admin = () => {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteCatalogo.mutate(c.id)}>
+                        <AlertDialogAction onClick={() => deleteCatalogoMutation.mutate(c.id)}>
                           Excluir
                         </AlertDialogAction>
                       </AlertDialogFooter>
