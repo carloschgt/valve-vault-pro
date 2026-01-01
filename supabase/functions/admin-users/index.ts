@@ -137,8 +137,6 @@ serve(async (req) => {
     }
 
     if (action === "updateRole") {
-      const { tipo } = await req.json().catch(() => ({}));
-      
       if (!userId || !tipo || !['user', 'admin'].includes(tipo)) {
         return new Response(
           JSON.stringify({ success: false, error: "Parâmetros inválidos" }),

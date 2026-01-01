@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, UserPlus, Check, X, KeyRound } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, UserPlus, Check, X, KeyRound, Fingerprint } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useWebAuthn } from '@/hooks/useWebAuthn';
 import logoImex from '@/assets/logo-imex.png';
 
 type Step = 'email' | 'login' | 'register' | 'resetPassword';
@@ -32,6 +33,7 @@ function validatePassword(senha: string): { valid: boolean; errors: string[] } {
 const Login = () => {
   const navigate = useNavigate();
   const { login, register, checkEmail } = useAuth();
+  const { isSupported: isBiometricSupported, checkBiometric, loginWithBiometric, isLoading: isBiometricLoading } = useWebAuthn();
   
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -40,6 +42,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [userName, setUserName] = useState('');
+  const [hasBiometric, setHasBiometric] = useState(false);
 
   const passwordValidation = validatePassword(senha);
 
@@ -72,11 +75,33 @@ const Login = () => {
         return;
       }
       setUserName(result.userName || '');
+      
+      // Check for biometric
+      if (isBiometricSupported()) {
+        const biometricCheck = await checkBiometric(email.trim());
+        setHasBiometric(biometricCheck.hasBiometric);
+      }
+      
       setStep('login');
     } else {
       // User doesn't exist, go to registration
       setNome(email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
       setStep('register');
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    const deviceInfo = `${navigator.platform} | ${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'}`;
+    const result = await loginWithBiometric(email.trim(), deviceInfo);
+    
+    if (result.success && result.user && result.sessionToken) {
+      // Store in localStorage
+      localStorage.setItem('auth_user', JSON.stringify(result.user));
+      localStorage.setItem('session_token', result.sessionToken);
+      toast.success('Login realizado com sucesso!');
+      navigate('/');
+    } else {
+      toast.error(result.error || 'Erro na autenticação biométrica');
     }
   };
 
@@ -305,10 +330,10 @@ const Login = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={goBack} disabled={isLoading}>
+                <Button type="button" variant="outline" onClick={goBack} disabled={isLoading || isBiometricLoading}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <Button type="submit" className="flex-1" disabled={isLoading || !senha}>
+                <Button type="submit" className="flex-1" disabled={isLoading || isBiometricLoading || !senha}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -319,6 +344,32 @@ const Login = () => {
                   )}
                 </Button>
               </div>
+
+              {/* Biometric login option */}
+              {hasBiometric && isBiometricSupported() && (
+                <div className="pt-2">
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <span className="relative bg-card px-2 text-xs text-muted-foreground">ou</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full mt-3"
+                    onClick={handleBiometricLogin}
+                    disabled={isBiometricLoading || isLoading}
+                  >
+                    {isBiometricLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Fingerprint className="mr-2 h-4 w-4" />
+                    )}
+                    Entrar com Digital
+                  </Button>
+                </div>
+              )}
 
               <button
                 type="button"

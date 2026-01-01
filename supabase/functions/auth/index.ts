@@ -531,6 +531,296 @@ serve(async (req) => {
       );
     }
 
+    // WebAuthn: Check if user has biometric credentials
+    if (action === "checkBiometric") {
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: emailValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Find user
+      const { data: user } = await supabase
+        .from("usuarios")
+        .select("id, aprovado")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ success: false, hasBiometric: false }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check for WebAuthn credentials
+      const { data: credentials } = await supabase
+        .from("webauthn_credentials")
+        .select("id, device_name")
+        .eq("user_id", user.id);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          hasBiometric: credentials && credentials.length > 0,
+          devices: credentials?.map(c => c.device_name) || []
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // WebAuthn: Generate registration challenge
+    if (action === "biometricRegisterStart") {
+      const { sessionToken } = await req.json().catch(() => ({}));
+      
+      if (!sessionToken) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão inválida" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verify session
+      const { data: session } = await supabase
+        .from("session_tokens")
+        .select("user_id, user_email")
+        .eq("token", sessionToken)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+
+      if (!session) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão expirada" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Generate challenge
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const challengeBase64 = btoa(String.fromCharCode(...challenge));
+
+      // Get user info
+      const { data: user } = await supabase
+        .from("usuarios")
+        .select("id, nome, email")
+        .eq("id", session.user_id)
+        .single();
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário não encontrado" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          challenge: challengeBase64,
+          userId: user.id,
+          userName: user.nome,
+          userEmail: user.email,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // WebAuthn: Complete registration
+    if (action === "biometricRegisterComplete") {
+      const { sessionToken, credentialId, publicKey, deviceName } = await req.json().catch(() => ({}));
+      
+      if (!sessionToken || !credentialId || !publicKey) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Dados inválidos" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verify session
+      const { data: session } = await supabase
+        .from("session_tokens")
+        .select("user_id")
+        .eq("token", sessionToken)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+
+      if (!session) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão expirada" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store credential
+      const { error: insertError } = await supabase
+        .from("webauthn_credentials")
+        .insert({
+          user_id: session.user_id,
+          credential_id: credentialId,
+          public_key: publicKey,
+          device_name: deviceName || "Dispositivo desconhecido",
+        });
+
+      if (insertError) {
+        console.error("WebAuthn insert error:", insertError);
+        return new Response(
+          JSON.stringify({ success: false, error: "Erro ao salvar credencial" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`WebAuthn credential registered for user ${session.user_id}`);
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Biometria cadastrada com sucesso!" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // WebAuthn: Start authentication
+    if (action === "biometricLoginStart") {
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: emailValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Find user
+      const { data: user } = await supabase
+        .from("usuarios")
+        .select("id, aprovado")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário não encontrado" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!user.aprovado) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário aguardando aprovação" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get credentials
+      const { data: credentials } = await supabase
+        .from("webauthn_credentials")
+        .select("credential_id")
+        .eq("user_id", user.id);
+
+      if (!credentials || credentials.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Nenhuma biometria cadastrada" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Generate challenge
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const challengeBase64 = btoa(String.fromCharCode(...challenge));
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          challenge: challengeBase64,
+          credentialIds: credentials.map(c => c.credential_id),
+          userId: user.id,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // WebAuthn: Complete authentication
+    if (action === "biometricLoginComplete") {
+      const { credentialId, deviceInfo: biometricDeviceInfo } = await req.json().catch(() => ({}));
+      
+      if (!email || !credentialId) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Dados inválidos" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Find user
+      const { data: user } = await supabase
+        .from("usuarios")
+        .select("*")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (!user || !user.aprovado) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário não encontrado ou não aprovado" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verify credential exists for this user
+      const { data: credential } = await supabase
+        .from("webauthn_credentials")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("credential_id", credentialId)
+        .maybeSingle();
+
+      if (!credential) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Credencial não reconhecida" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Update counter
+      await supabase
+        .from("webauthn_credentials")
+        .update({ counter: credential.counter + 1 })
+        .eq("id", credential.id);
+
+      // Log the login
+      await supabase.from("login_logs").insert({
+        user_id: user.id,
+        user_email: user.email,
+        user_nome: user.nome,
+        device_info: biometricDeviceInfo ? `${biometricDeviceInfo} (Biometria)` : "Biometria",
+      });
+
+      // Generate session token
+      const sessionToken = crypto.randomUUID() + '-' + crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await supabase.from("session_tokens").insert({
+        user_id: user.id,
+        user_email: user.email,
+        token: sessionToken,
+        expires_at: expiresAt.toISOString(),
+        device_info: biometricDeviceInfo || null,
+      });
+
+      console.log(`WebAuthn login successful for ${user.email}`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          user: {
+            id: user.id,
+            nome: user.nome,
+            email: user.email,
+            tipo: user.tipo,
+          },
+          sessionToken,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error("Ação inválida");
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";
