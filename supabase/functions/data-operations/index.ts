@@ -282,7 +282,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from("fabricantes")
         .insert({
-          nome: nome.trim(),
+          nome: nome.trim().toUpperCase(),
           codigo: codigo.trim().toUpperCase(),
           cadastrado_por: user.nome,
         })
@@ -326,7 +326,11 @@ serve(async (req) => {
       const { codigo, descricao } = params;
       const { data, error } = await supabase
         .from("catalogo_produtos")
-        .insert({ codigo: codigo.trim(), descricao: descricao.trim() })
+        .insert({ 
+          codigo: codigo.trim().toUpperCase(), 
+          descricao: descricao.trim().toUpperCase(),
+          ativo: true,
+        })
         .select()
         .single();
 
@@ -391,8 +395,8 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from("enderecos_materiais")
         .insert({
-          codigo: codigo.trim(),
-          descricao: descricao.trim(),
+          codigo: codigo.trim().toUpperCase(),
+          descricao: descricao.trim().toUpperCase(),
           tipo_material,
           fabricante_id,
           peso: parseFloat(peso),
@@ -400,8 +404,9 @@ serve(async (req) => {
           coluna: parseInt(coluna),
           nivel: parseInt(nivel),
           posicao: parseInt(posicao),
-          comentario: comentario?.trim() || null,
+          comentario: comentario?.trim().toUpperCase() || null,
           created_by: user.nome,
+          ativo: true,
         })
         .select()
         .single();
@@ -498,6 +503,175 @@ serve(async (req) => {
       
       return new Response(
         JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== CLEAR TABLE (ADMIN ONLY) ==========
+    if (action === "clear_table") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem limpar dados' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { table } = params;
+      const allowedTables = ['fabricantes', 'catalogo_produtos', 'enderecos_materiais', 'inventario'];
+      
+      if (!allowedTables.includes(table)) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Tabela não permitida' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Para enderecos_materiais, primeiro deletar inventário relacionado
+      if (table === 'enderecos_materiais') {
+        await supabase.from("inventario").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      }
+
+      const { error } = await supabase.from(table).delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) throw error;
+      
+      console.log(`Table ${table} cleared by ${user.email}`);
+      
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== INATIVAR/ATIVAR ENDERECO ==========
+    if (action === "enderecos_toggle_ativo") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem inativar/ativar endereços' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { id, ativo } = params;
+      const updateData: Record<string, any> = { ativo };
+      
+      if (!ativo) {
+        updateData.inativado_por = user.nome;
+        updateData.data_inativacao = new Date().toISOString();
+      } else {
+        updateData.inativado_por = null;
+        updateData.data_inativacao = null;
+      }
+
+      const { data, error } = await supabase
+        .from("enderecos_materiais")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== ATUALIZAR ENDERECO ==========
+    if (action === "enderecos_update") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem editar endereços' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { id, codigo, descricao, tipo_material, fabricante_id, peso, rua, coluna, nivel, posicao, comentario } = params;
+      
+      const updateData: Record<string, any> = {};
+      if (codigo !== undefined) updateData.codigo = codigo.trim().toUpperCase();
+      if (descricao !== undefined) updateData.descricao = descricao.trim().toUpperCase();
+      if (tipo_material !== undefined) updateData.tipo_material = tipo_material;
+      if (fabricante_id !== undefined) updateData.fabricante_id = fabricante_id;
+      if (peso !== undefined) updateData.peso = parseFloat(peso);
+      if (rua !== undefined) updateData.rua = parseInt(rua);
+      if (coluna !== undefined) updateData.coluna = parseInt(coluna);
+      if (nivel !== undefined) updateData.nivel = parseInt(nivel);
+      if (posicao !== undefined) updateData.posicao = parseInt(posicao);
+      if (comentario !== undefined) updateData.comentario = comentario?.trim().toUpperCase() || null;
+
+      const { data, error } = await supabase
+        .from("enderecos_materiais")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== INATIVAR/ATIVAR CATALOGO ==========
+    if (action === "catalogo_toggle_ativo") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem inativar/ativar produtos' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { id, ativo } = params;
+      const updateData: Record<string, any> = { ativo };
+      
+      if (!ativo) {
+        updateData.inativado_por = user.nome;
+        updateData.data_inativacao = new Date().toISOString();
+      } else {
+        updateData.inativado_por = null;
+        updateData.data_inativacao = null;
+      }
+
+      const { data, error } = await supabase
+        .from("catalogo_produtos")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== ATUALIZAR CATALOGO ==========
+    if (action === "catalogo_update") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem editar produtos' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { id, codigo, descricao } = params;
+      
+      const updateData: Record<string, any> = {};
+      if (codigo !== undefined) updateData.codigo = codigo.trim().toUpperCase();
+      if (descricao !== undefined) updateData.descricao = descricao.trim().toUpperCase();
+
+      const { data, error } = await supabase
+        .from("catalogo_produtos")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

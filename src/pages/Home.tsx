@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield } from 'lucide-react';
+import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -221,6 +221,16 @@ const Home = () => {
             >
               <BookOpen className="mr-2 h-4 w-4" />
               Importar Catálogo de Produtos
+            </Button>
+
+            {/* Gerenciamento de Dados */}
+            <Button
+              variant="outline"
+              className="w-full border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => navigate('/gerenciamento-dados')}
+            >
+              <Database className="mr-2 h-4 w-4" />
+              Gerenciamento de Dados
             </Button>
 
             <div className="flex gap-3">

@@ -16,38 +16,50 @@ export type Database = {
     Tables: {
       catalogo_produtos: {
         Row: {
+          ativo: boolean
           codigo: string
           created_at: string
+          data_inativacao: string | null
           descricao: string
           id: string
+          inativado_por: string | null
           updated_at: string
         }
         Insert: {
+          ativo?: boolean
           codigo: string
           created_at?: string
+          data_inativacao?: string | null
           descricao: string
           id?: string
+          inativado_por?: string | null
           updated_at?: string
         }
         Update: {
+          ativo?: boolean
           codigo?: string
           created_at?: string
+          data_inativacao?: string | null
           descricao?: string
           id?: string
+          inativado_por?: string | null
           updated_at?: string
         }
         Relationships: []
       }
       enderecos_materiais: {
         Row: {
+          ativo: boolean
           codigo: string
           coluna: number
           comentario: string | null
           created_at: string
           created_by: string
+          data_inativacao: string | null
           descricao: string
           fabricante_id: string | null
           id: string
+          inativado_por: string | null
           nivel: number
           peso: number
           posicao: number
@@ -56,14 +68,17 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ativo?: boolean
           codigo: string
           coluna: number
           comentario?: string | null
           created_at?: string
           created_by: string
+          data_inativacao?: string | null
           descricao: string
           fabricante_id?: string | null
           id?: string
+          inativado_por?: string | null
           nivel: number
           peso: number
           posicao: number
@@ -72,14 +87,17 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ativo?: boolean
           codigo?: string
           coluna?: number
           comentario?: string | null
           created_at?: string
           created_by?: string
+          data_inativacao?: string | null
           descricao?: string
           fabricante_id?: string | null
           id?: string
+          inativado_por?: string | null
           nivel?: number
           peso?: number
           posicao?: number
