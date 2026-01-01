@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +7,41 @@ const corsHeaders = {
 };
 
 const ALLOWED_DOMAIN = "@imexsolutions.com.br";
+
+// Simple but secure password hashing using Web Crypto API with salt
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  const encoder = new TextEncoder();
+  const data = encoder.encode(saltHex + password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  return `${saltHex}:${hashHex}`;
+}
+
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  // Handle new salted format
+  if (storedHash.includes(':')) {
+    const [salt, hash] = storedHash.split(':');
+    const encoder = new TextEncoder();
+    const data = encoder.encode(salt + password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex === hash;
+  }
+  
+  // Handle legacy unsalted format (SHA-256 only)
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex === storedHash;
+}
 
 function validateEmail(email: string): { valid: boolean; error?: string } {
   const trimmedEmail = email.toLowerCase().trim();
@@ -122,14 +156,8 @@ serve(async (req) => {
         );
       }
 
-      // Verify password using bcrypt
-      let isValid = false;
-      try {
-        isValid = await bcrypt.compare(senha, user.senha_hash);
-      } catch {
-        console.log("Attempting legacy hash verification");
-        isValid = false;
-      }
+      // Verify password
+      const isValid = await verifyPassword(senha, user.senha_hash);
 
       if (!isValid) {
         return new Response(
@@ -202,8 +230,8 @@ serve(async (req) => {
         );
       }
 
-      // Hash password using bcrypt
-      const senhaHash = await bcrypt.hash(senha);
+      // Hash password
+      const senhaHash = await hashPassword(senha);
       
       const { data: newUser, error: insertError } = await supabase
         .from("usuarios")
@@ -247,8 +275,8 @@ serve(async (req) => {
         );
       }
 
-      // Hash password using bcrypt
-      const senhaHash = await bcrypt.hash(senha);
+      // Hash password
+      const senhaHash = await hashPassword(senha);
       
       const { error: updateError } = await supabase
         .from("usuarios")
