@@ -1,10 +1,29 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * SECURITY MODEL DOCUMENTATION:
+ * 
+ * The user data stored in localStorage (including 'tipo') is used for UI/UX purposes ONLY.
+ * Client-side authorization checks should NEVER be relied upon for security.
+ * 
+ * ACTUAL SECURITY is enforced server-side through:
+ * 1. Edge Functions (admin-users/index.ts) - verifyAdminUser() validates admin status
+ *    against the database before any privileged operation
+ * 2. RLS Policies - All write operations use is_admin_user() function that queries
+ *    the database directly, ignoring any client-supplied role information
+ * 
+ * If an attacker modifies localStorage to set tipo='admin':
+ * - They can see admin UI elements (cosmetic only)
+ * - All actual operations will fail with 403 errors
+ * - No data can be modified/accessed beyond their real permissions
+ */
+
 interface User {
   id: string;
   nome: string;
   email: string;
+  /** NOTE: This is for UI display only. Actual authorization uses server-side validation. */
   tipo: 'admin' | 'user';
 }
 
