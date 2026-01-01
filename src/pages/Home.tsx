@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut } from 'lucide-react';
+import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -175,6 +175,22 @@ const Home = () => {
               <h2 className="text-xl font-bold text-foreground">Inventário</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Realizar contagem de materiais
+              </p>
+            </div>
+          </button>
+
+          {/* Dashboard Button */}
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-4 rounded-2xl border-2 border-accent bg-accent/5 p-4 transition-all hover:bg-accent/10 hover:shadow-lg active:scale-[0.98]"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent shadow-md">
+              <Activity className="h-6 w-6 text-accent-foreground" />
+            </div>
+            <div className="text-left">
+              <h2 className="text-lg font-bold text-foreground">Dashboard Tempo Real</h2>
+              <p className="text-sm text-muted-foreground">
+                Ver lançamentos e exportar Excel
               </p>
             </div>
           </button>
