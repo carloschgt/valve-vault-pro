@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { X, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,11 +10,29 @@ interface QRScannerProps {
 
 export function QRScanner({ onScan, onClose }: QRScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isStoppedRef = useRef(false);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const stopScanner = useCallback(async () => {
+    if (isStoppedRef.current || !scannerRef.current) return;
+    
+    try {
+      isStoppedRef.current = true;
+      const state = scannerRef.current.getState();
+      // Only stop if scanner is running (state 2) or paused (state 3)
+      if (state === 2 || state === 3) {
+        await scannerRef.current.stop();
+      }
+    } catch (err) {
+      // Ignore stop errors
+      console.debug('Stop scanner:', err);
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
+    isStoppedRef.current = false;
 
     const startScanner = async () => {
       try {
@@ -38,7 +56,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
             camera.label.toLowerCase().includes('environment')
         ) || cameras[cameras.length - 1]; // Usually last camera is back camera
 
-        if (!mounted) return;
+        if (!mounted || isStoppedRef.current) return;
 
         // Start scanning with back camera directly
         await scannerRef.current.start(
@@ -48,11 +66,9 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1,
           },
-          (decodedText) => {
+          async (decodedText) => {
             // Stop scanning after successful read
-            if (scannerRef.current) {
-              scannerRef.current.stop().catch(console.error);
-            }
+            await stopScanner();
             onScan(decodedText);
           },
           () => {
@@ -60,7 +76,7 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
           }
         );
 
-        if (mounted) {
+        if (mounted && !isStoppedRef.current) {
           setIsReady(true);
         }
       } catch (err) {
@@ -75,11 +91,9 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
 
     return () => {
       mounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(console.error);
-      }
+      stopScanner();
     };
-  }, [onScan]);
+  }, [onScan, stopScanner]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
