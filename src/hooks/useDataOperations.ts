@@ -163,3 +163,12 @@ export async function toggleCatalogoAtivo(id: string, ativo: boolean): Promise<D
 export async function updateCatalogo(id: string, codigo: string, descricao: string): Promise<DataOperationResult> {
   return invokeDataOperation('catalogo_update', { id, codigo, descricao });
 }
+
+// ========== EXPORT OPERATIONS (ADMIN ONLY) ==========
+export async function exportEnderecos(): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_export');
+}
+
+export async function exportInventario(): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_export');
+}

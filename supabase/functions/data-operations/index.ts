@@ -676,6 +676,95 @@ serve(async (req) => {
       );
     }
 
+    // ========== EXPORT ENDERECOS (ADMIN ONLY) ==========
+    if (action === "enderecos_export") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem exportar dados' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("enderecos_materiais")
+        .select("*, fabricantes(nome)")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      const formatted = (data || []).map((d: any) => ({
+        id: d.id,
+        codigo: d.codigo,
+        descricao: d.descricao,
+        tipo_material: d.tipo_material,
+        fabricante_nome: d.fabricantes?.nome || 'N/A',
+        peso: d.peso,
+        rua: d.rua,
+        coluna: d.coluna,
+        nivel: d.nivel,
+        posicao: d.posicao,
+        created_by: d.created_by,
+        created_at: d.created_at,
+      }));
+      
+      return new Response(
+        JSON.stringify({ success: true, data: formatted }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== EXPORT INVENTARIO (ADMIN ONLY) ==========
+    if (action === "inventario_export") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem exportar dados' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("inventario")
+        .select(`
+          id,
+          quantidade,
+          contado_por,
+          created_at,
+          enderecos_materiais (
+            codigo,
+            descricao,
+            peso,
+            rua,
+            coluna,
+            nivel,
+            posicao,
+            fabricantes (nome)
+          )
+        `)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      const formatted = (data || []).map((d: any) => ({
+        id: d.id,
+        codigo: d.enderecos_materiais?.codigo || '',
+        descricao: d.enderecos_materiais?.descricao || '',
+        fabricante_nome: d.enderecos_materiais?.fabricantes?.nome || 'N/A',
+        peso: d.enderecos_materiais?.peso || 0,
+        rua: d.enderecos_materiais?.rua || 0,
+        coluna: d.enderecos_materiais?.coluna || 0,
+        nivel: d.enderecos_materiais?.nivel || 0,
+        posicao: d.enderecos_materiais?.posicao || 0,
+        quantidade: d.quantidade,
+        contado_por: d.contado_por,
+        data_contagem: d.created_at,
+      }));
+      
+      return new Response(
+        JSON.stringify({ success: true, data: formatted }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error(`Ação inválida: ${action}`);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";
