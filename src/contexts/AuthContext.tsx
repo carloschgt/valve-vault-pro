@@ -27,10 +27,26 @@ interface User {
   tipo: 'admin' | 'user';
 }
 
+interface CheckEmailResult {
+  success: boolean;
+  error?: string;
+  exists?: boolean;
+  approved?: boolean;
+  userName?: string;
+}
+
+interface LoginResult {
+  success: boolean;
+  error?: string;
+  pendingApproval?: boolean;
+}
+
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, senha: string) => Promise<{ success: boolean; error?: string }>;
+  checkEmail: (email: string) => Promise<CheckEmailResult>;
+  login: (email: string, senha: string) => Promise<LoginResult>;
+  register: (email: string, senha: string, nome: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -63,7 +79,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return `${platform} | ${browser} | ${isMobile ? 'Mobile' : 'Desktop'}`;
   };
 
-  const login = async (email: string, senha: string): Promise<{ success: boolean; error?: string }> => {
+  const checkEmail = async (email: string): Promise<CheckEmailResult> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('auth', {
+        body: { action: 'checkEmail', email },
+      });
+
+      if (error) {
+        console.error('Check email invoke error:', error);
+        return { success: false, error: 'Erro ao conectar com o servidor' };
+      }
+
+      if (!data.success) {
+        return { success: false, error: data.error || 'Erro ao verificar email' };
+      }
+
+      return {
+        success: true,
+        exists: data.exists,
+        approved: data.approved,
+        userName: data.userName,
+      };
+    } catch (err) {
+      console.error('Check email error:', err);
+      return { success: false, error: 'Erro ao verificar email' };
+    }
+  };
+
+  const login = async (email: string, senha: string): Promise<LoginResult> => {
     try {
       const deviceInfo = getDeviceInfo();
       const { data, error } = await supabase.functions.invoke('auth', {
@@ -76,7 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!data.success) {
-        return { success: false, error: data.error || 'Erro ao fazer login' };
+        return { 
+          success: false, 
+          error: data.error || 'Erro ao fazer login',
+          pendingApproval: data.pendingApproval,
+        };
       }
 
       const userData: User = {
@@ -96,13 +143,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const register = async (email: string, senha: string, nome: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('auth', {
+        body: { action: 'register', email, senha, nome },
+      });
+
+      if (error) {
+        console.error('Register invoke error:', error);
+        return { success: false, error: 'Erro ao conectar com o servidor' };
+      }
+
+      if (!data.success) {
+        return { success: false, error: data.error || 'Erro ao cadastrar' };
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('Register error:', err);
+      return { success: false, error: 'Erro ao cadastrar' };
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem(AUTH_KEY);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, checkEmail, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

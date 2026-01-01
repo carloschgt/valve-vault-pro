@@ -7,6 +7,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ALLOWED_DOMAIN = "@imexsolutions.com.br";
+
+function validateEmail(email: string): { valid: boolean; error?: string } {
+  const trimmedEmail = email.toLowerCase().trim();
+  
+  if (!trimmedEmail.endsWith(ALLOWED_DOMAIN)) {
+    return { valid: false, error: `Somente emails ${ALLOWED_DOMAIN} são permitidos` };
+  }
+  
+  // Basic email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(trimmedEmail)) {
+    return { valid: false, error: "Formato de email inválido" };
+  }
+  
+  return { valid: true };
+}
+
+function validatePassword(senha: string): { valid: boolean; error?: string } {
+  if (!senha || senha.length !== 6) {
+    return { valid: false, error: "A senha deve ter exatamente 6 dígitos" };
+  }
+  
+  if (!/^\d{6}$/.test(senha)) {
+    return { valid: false, error: "A senha deve conter apenas números" };
+  }
+  
+  return { valid: true };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -21,7 +51,58 @@ serve(async (req) => {
 
     console.log(`Auth action: ${action}, email: ${email}`);
 
+    if (action === "checkEmail") {
+      // Validate email domain
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: emailValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if user exists
+      const { data: user, error: findError } = await supabase
+        .from("usuarios")
+        .select("id, nome, aprovado")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (findError) {
+        console.error("Find error:", findError);
+        throw new Error("Erro ao verificar email");
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          exists: !!user,
+          approved: user?.aprovado ?? false,
+          userName: user?.nome ?? null,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "login") {
+      // Validate email domain
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: emailValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate password format
+      const passwordValidation = validatePassword(senha);
+      if (!passwordValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: passwordValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Find user by email
       const { data: user, error: findError } = await supabase
         .from("usuarios")
@@ -36,7 +117,7 @@ serve(async (req) => {
 
       if (!user) {
         return new Response(
-          JSON.stringify({ success: false, error: "Email não encontrado" }),
+          JSON.stringify({ success: false, error: "Email não encontrado", notRegistered: true }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -46,7 +127,6 @@ serve(async (req) => {
       try {
         isValid = await bcrypt.compare(senha, user.senha_hash);
       } catch {
-        // Fallback: check if it's an old SHA-256 hash (for migration)
         console.log("Attempting legacy hash verification");
         isValid = false;
       }
@@ -58,10 +138,10 @@ serve(async (req) => {
         );
       }
 
-      // Check if user is approved (admins are always approved)
-      if (user.tipo !== 'admin' && !user.aprovado) {
+      // Check if user is approved
+      if (!user.aprovado) {
         return new Response(
-          JSON.stringify({ success: false, error: "Seu cadastro está aguardando aprovação do administrador" }),
+          JSON.stringify({ success: false, error: "Seu cadastro está aguardando aprovação do administrador", pendingApproval: true }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -90,6 +170,24 @@ serve(async (req) => {
     }
 
     if (action === "register") {
+      // Validate email domain
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: emailValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate password format
+      const passwordValidation = validatePassword(senha);
+      if (!passwordValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: passwordValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Check if email already exists
       const { data: existing } = await supabase
         .from("usuarios")
@@ -104,7 +202,7 @@ serve(async (req) => {
         );
       }
 
-      // Hash password using bcrypt (generates unique salt per password)
+      // Hash password using bcrypt
       const senhaHash = await bcrypt.hash(senha);
       
       const { data: newUser, error: insertError } = await supabase
@@ -140,6 +238,15 @@ serve(async (req) => {
     }
 
     if (action === "changePassword") {
+      // Validate password format
+      const passwordValidation = validatePassword(senha);
+      if (!passwordValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: passwordValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Hash password using bcrypt
       const senhaHash = await bcrypt.hash(senha);
       

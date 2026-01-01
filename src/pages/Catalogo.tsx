@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Plus, Trash2, Loader2, Search, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Upload, Plus, Trash2, Loader2, Search, FileSpreadsheet, Download, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,25 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Produto {
   id: string;
   codigo: string;
   descricao: string;
+}
+
+interface DuplicateItem {
+  codigo: string;
+  descricao: string;
+  existingDescricao: string;
 }
 
 const Catalogo = () => {
@@ -29,6 +43,9 @@ const Catalogo = () => {
   const [novoCodigo, setNovoCodigo] = useState('');
   const [novaDescricao, setNovaDescricao] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [duplicates, setDuplicates] = useState<DuplicateItem[]>([]);
+  const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{ codigo: string; descricao: string }[]>([]);
 
   // Buscar produtos
   const { data: produtos = [], isLoading } = useQuery({
@@ -49,9 +66,44 @@ const Catalogo = () => {
     },
   });
 
-  // Adicionar produto
+  // Download template
+  const handleDownloadTemplate = () => {
+    const templateContent = 'Codigo;Descricao\n12345;Exemplo de produto 1\n67890;Exemplo de produto 2';
+    const blob = new Blob(['\ufeff' + templateContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'template_catalogo_produtos.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: 'Template baixado',
+      description: 'Preencha o arquivo e faça upload para importar os produtos.',
+    });
+  };
+
+  // Verificar duplicados antes de adicionar individualmente
+  const checkDuplicateBeforeAdd = async (codigo: string): Promise<Produto | null> => {
+    const { data } = await supabase
+      .from('catalogo_produtos')
+      .select('*')
+      .eq('codigo', codigo.trim())
+      .maybeSingle();
+    return data as Produto | null;
+  };
+
+  // Adicionar produto com verificação de duplicado
   const addMutation = useMutation({
     mutationFn: async ({ codigo, descricao }: { codigo: string; descricao: string }) => {
+      // Check for duplicate first
+      const existing = await checkDuplicateBeforeAdd(codigo);
+      if (existing) {
+        throw new Error(`DUPLICATE:${existing.descricao}`);
+      }
+      
       const { error } = await supabase
         .from('catalogo_produtos')
         .insert({ codigo: codigo.trim(), descricao: descricao.trim() });
@@ -64,13 +116,22 @@ const Catalogo = () => {
       toast({ title: 'Sucesso', description: 'Produto adicionado!' });
     },
     onError: (error: any) => {
-      toast({
-        title: 'Erro',
-        description: error.message?.includes('unique') 
-          ? 'Código já existe no catálogo' 
-          : error.message,
-        variant: 'destructive',
-      });
+      if (error.message?.startsWith('DUPLICATE:')) {
+        const existingDesc = error.message.replace('DUPLICATE:', '');
+        toast({
+          title: 'Produto já existe',
+          description: `Código já cadastrado com descrição: "${existingDesc}"`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Erro',
+          description: error.message?.includes('unique') 
+            ? 'Código já existe no catálogo' 
+            : error.message,
+          variant: 'destructive',
+        });
+      }
     },
   });
 
@@ -92,7 +153,7 @@ const Catalogo = () => {
     },
   });
 
-  // Importar CSV
+  // Importar CSV com verificação de duplicados
   const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -105,7 +166,7 @@ const Catalogo = () => {
       // Pular cabeçalho se existir
       const startIndex = lines[0]?.toLowerCase().includes('codigo') ? 1 : 0;
       
-      const produtos: { codigo: string; descricao: string }[] = [];
+      const produtosToImport: { codigo: string; descricao: string }[] = [];
       
       for (let i = startIndex; i < lines.length; i++) {
         const line = lines[i];
@@ -117,30 +178,96 @@ const Catalogo = () => {
           const descricao = parts[1]?.trim().replace(/"/g, '');
           
           if (codigo && descricao) {
-            produtos.push({ codigo, descricao });
+            produtosToImport.push({ codigo, descricao });
           }
         }
       }
 
-      if (produtos.length === 0) {
+      if (produtosToImport.length === 0) {
         throw new Error('Nenhum produto válido encontrado no arquivo');
       }
 
-      // Inserir em lotes de 100
+      // Verificar duplicados
+      const codigos = produtosToImport.map(p => p.codigo);
+      const { data: existingProducts } = await supabase
+        .from('catalogo_produtos')
+        .select('codigo, descricao')
+        .in('codigo', codigos);
+
+      const existingMap = new Map((existingProducts || []).map(p => [p.codigo, p.descricao]));
+      
+      const duplicateItems: DuplicateItem[] = [];
+      const newItems: { codigo: string; descricao: string }[] = [];
+
+      for (const item of produtosToImport) {
+        if (existingMap.has(item.codigo)) {
+          duplicateItems.push({
+            codigo: item.codigo,
+            descricao: item.descricao,
+            existingDescricao: existingMap.get(item.codigo)!,
+          });
+        } else {
+          newItems.push(item);
+        }
+      }
+
+      if (duplicateItems.length > 0) {
+        setDuplicates(duplicateItems);
+        setPendingImport(produtosToImport);
+        setShowDuplicatesDialog(true);
+        setIsImporting(false);
+        return;
+      }
+
+      // Se não houver duplicados, importar diretamente
+      await performImport(newItems, false);
+      
+    } catch (error: any) {
+      toast({
+        title: 'Erro na importação',
+        description: error.message,
+        variant: 'destructive',
+      });
+      setIsImporting(false);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const performImport = async (items: { codigo: string; descricao: string }[], overwrite: boolean) => {
+    setIsImporting(true);
+    try {
       const batchSize = 100;
       let inserted = 0;
+      let updated = 0;
       let errors = 0;
 
-      for (let i = 0; i < produtos.length; i += batchSize) {
-        const batch = produtos.slice(i, i + batchSize);
-        const { error } = await supabase
-          .from('catalogo_produtos')
-          .upsert(batch, { onConflict: 'codigo', ignoreDuplicates: false });
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
         
-        if (error) {
-          errors += batch.length;
+        if (overwrite) {
+          const { error } = await supabase
+            .from('catalogo_produtos')
+            .upsert(batch, { onConflict: 'codigo', ignoreDuplicates: false });
+          
+          if (error) {
+            errors += batch.length;
+          } else {
+            inserted += batch.length;
+          }
         } else {
-          inserted += batch.length;
+          // Only insert new items
+          const { error } = await supabase
+            .from('catalogo_produtos')
+            .insert(batch);
+          
+          if (error) {
+            errors += batch.length;
+          } else {
+            inserted += batch.length;
+          }
         }
       }
 
@@ -148,7 +275,7 @@ const Catalogo = () => {
       
       toast({
         title: 'Importação concluída',
-        description: `${inserted} produtos importados${errors > 0 ? `, ${errors} erros` : ''}`,
+        description: `${inserted} produtos ${overwrite ? 'importados/atualizados' : 'importados'}${errors > 0 ? `, ${errors} erros` : ''}`,
       });
     } catch (error: any) {
       toast({
@@ -158,10 +285,20 @@ const Catalogo = () => {
       });
     } finally {
       setIsImporting(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      setShowDuplicatesDialog(false);
+      setDuplicates([]);
+      setPendingImport([]);
     }
+  };
+
+  const handleConfirmOverwrite = () => {
+    performImport(pendingImport, true);
+  };
+
+  const handleSkipDuplicates = () => {
+    const duplicateCodes = new Set(duplicates.map(d => d.codigo));
+    const newItems = pendingImport.filter(p => !duplicateCodes.has(p.codigo));
+    performImport(newItems, false);
   };
 
   const handleAddProduct = () => {
@@ -197,31 +334,41 @@ const Catalogo = () => {
       </div>
 
       <div className="flex-1 space-y-4 p-4">
-        {/* Importar CSV */}
+        {/* Download Template e Importar CSV */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h2 className="mb-3 font-semibold">Importar do Excel/CSV</h2>
           <p className="mb-3 text-sm text-muted-foreground">
-            Arquivo deve ter colunas: <strong>Código;Descrição</strong> (separado por ; ou ,)
+            Baixe o template, preencha os dados e faça o upload. Colunas: <strong>Codigo;Descricao</strong>
           </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,.txt"
-            onChange={handleImportCSV}
-            className="hidden"
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-            variant="outline"
-          >
-            {isImporting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-            )}
-            {isImporting ? 'Importando...' : 'Selecionar Arquivo CSV'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={handleDownloadTemplate}
+              variant="outline"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Baixar Template
+            </Button>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt"
+              onChange={handleImportCSV}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              variant="default"
+            >
+              {isImporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
+              {isImporting ? 'Importando...' : 'Fazer Upload'}
+            </Button>
+          </div>
         </div>
 
         {/* Adicionar manualmente */}
@@ -311,6 +458,68 @@ const Catalogo = () => {
           )}
         </div>
       </div>
+
+      {/* Dialog para duplicados */}
+      <Dialog open={showDuplicatesDialog} onOpenChange={setShowDuplicatesDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Produtos Duplicados Encontrados
+            </DialogTitle>
+            <DialogDescription>
+              {duplicates.length} produto(s) já existem no catálogo. O que deseja fazer?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-60">
+            <div className="space-y-2">
+              {duplicates.map((dup, idx) => (
+                <div key={idx} className="rounded border border-border p-2 text-sm">
+                  <p className="font-medium">Código: {dup.codigo}</p>
+                  <p className="text-muted-foreground">
+                    <span className="text-destructive">Existente:</span> {dup.existingDescricao}
+                  </p>
+                  <p className="text-muted-foreground">
+                    <span className="text-primary">Novo:</span> {dup.descricao}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="destructive"
+              onClick={handleConfirmOverwrite}
+              disabled={isImporting}
+              className="flex-1"
+            >
+              {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Sobrescrever Todos
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleSkipDuplicates}
+              disabled={isImporting}
+              className="flex-1"
+            >
+              Pular Duplicados
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowDuplicatesDialog(false);
+                setDuplicates([]);
+                setPendingImport([]);
+              }}
+              disabled={isImporting}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
