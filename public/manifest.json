@@ -1,10 +1,10 @@
 {
-  "name": "IMEX Solutions",
-  "short_name": "IMEX",
-  "description": "Sistema de Gestão de Armazenamento de Materiais - IMEX Solutions",
+  "name": "Estoque IMEX",
+  "short_name": "Estoque IMEX",
+  "description": "Sistema de Gestão de Estoque - IMEX Solutions",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8f8f8",
+  "background_color": "#0f172a",
   "theme_color": "#04816E",
   "orientation": "portrait-primary",
   "icons": [
