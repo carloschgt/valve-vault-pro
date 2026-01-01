@@ -17,9 +17,9 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icon-192.png", "icon-512.png"],
       manifest: {
-        name: "IMEX Solutions - Gestão de Armazenamento",
-        short_name: "IMEX",
-        description: "Sistema de Gestão de Armazenamento de Materiais",
+        name: "Estoque IMEX",
+        short_name: "Estoque IMEX",
+        description: "Sistema de Gestão de Estoque - IMEX Solutions",
         theme_color: "#04816E",
         background_color: "#0f172a",
         display: "standalone",
