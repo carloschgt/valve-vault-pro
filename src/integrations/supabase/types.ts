@@ -159,8 +159,36 @@ export type Database = {
           },
         ]
       }
+      login_logs: {
+        Row: {
+          device_info: string | null
+          id: string
+          logged_at: string
+          user_email: string
+          user_id: string
+          user_nome: string
+        }
+        Insert: {
+          device_info?: string | null
+          id?: string
+          logged_at?: string
+          user_email: string
+          user_id: string
+          user_nome: string
+        }
+        Update: {
+          device_info?: string | null
+          id?: string
+          logged_at?: string
+          user_email?: string
+          user_id?: string
+          user_nome?: string
+        }
+        Relationships: []
+      }
       usuarios: {
         Row: {
+          aprovado: boolean
           created_at: string
           email: string
           id: string
@@ -170,6 +198,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aprovado?: boolean
           created_at?: string
           email: string
           id?: string
@@ -179,6 +208,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aprovado?: boolean
           created_at?: string
           email?: string
           id?: string

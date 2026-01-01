@@ -36,10 +36,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  const getDeviceInfo = () => {
+    const ua = navigator.userAgent;
+    const platform = navigator.platform || 'Unknown';
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+    const browser = /Chrome/i.test(ua) ? 'Chrome' : /Firefox/i.test(ua) ? 'Firefox' : /Safari/i.test(ua) ? 'Safari' : 'Other';
+    return `${platform} | ${browser} | ${isMobile ? 'Mobile' : 'Desktop'}`;
+  };
+
   const login = async (email: string, senha: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      const deviceInfo = getDeviceInfo();
       const { data, error } = await supabase.functions.invoke('auth', {
-        body: { action: 'login', email, senha },
+        body: { action: 'login', email, senha, deviceInfo },
       });
 
       if (error) {

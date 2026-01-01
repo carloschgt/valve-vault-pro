@@ -30,7 +30,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, email, senha, nome } = await req.json();
+    const { action, email, senha, nome, deviceInfo } = await req.json();
 
     console.log(`Auth action: ${action}, email: ${email}`);
 
@@ -63,6 +63,22 @@ serve(async (req) => {
         );
       }
 
+      // Check if user is approved (admins are always approved)
+      if (user.tipo !== 'admin' && !user.aprovado) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Seu cadastro está aguardando aprovação do administrador" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Log the login
+      await supabase.from("login_logs").insert({
+        user_id: user.id,
+        user_email: user.email,
+        user_nome: user.nome,
+        device_info: deviceInfo || null,
+      });
+
       // Return user data (without password hash)
       return new Response(
         JSON.stringify({
@@ -93,7 +109,7 @@ serve(async (req) => {
         );
       }
 
-      // Hash password and create user
+      // Hash password and create user (aprovado = false by default)
       const senhaHash = await hashPassword(senha);
       const { data: newUser, error: insertError } = await supabase
         .from("usuarios")
@@ -102,6 +118,7 @@ serve(async (req) => {
           email: email.toLowerCase().trim(),
           senha_hash: senhaHash,
           tipo: "user",
+          aprovado: false,
         })
         .select()
         .single();
@@ -114,6 +131,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
+          message: "Cadastro realizado! Aguarde aprovação do administrador.",
           user: {
             id: newUser.id,
             nome: newUser.nome,
