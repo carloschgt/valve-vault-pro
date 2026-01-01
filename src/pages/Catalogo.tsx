@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
+import { sanitizeSearchTerm } from '@/lib/security';
 import {
   Dialog,
   DialogContent,
@@ -57,7 +58,10 @@ const Catalogo = () => {
         .order('codigo');
       
       if (searchTerm) {
-        query = query.or(`codigo.ilike.%${searchTerm}%,descricao.ilike.%${searchTerm}%`);
+        const safeSearch = sanitizeSearchTerm(searchTerm);
+        if (safeSearch) {
+          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
+        }
       }
       
       const { data, error } = await query.limit(100);
