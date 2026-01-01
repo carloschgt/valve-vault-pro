@@ -11,6 +11,7 @@ import Inventario from "./pages/Inventario";
 import Fabricantes from "./pages/Fabricantes";
 import Dashboard from "./pages/Dashboard";
 import Catalogo from "./pages/Catalogo";
+import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/fabricantes" element={<ProtectedRoute adminOnly><Fabricantes /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/catalogo" element={<ProtectedRoute adminOnly><Catalogo /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
