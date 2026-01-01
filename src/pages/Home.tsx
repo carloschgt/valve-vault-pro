@@ -197,16 +197,30 @@ const Home = () => {
 
           {/* Etiquetas Button */}
           <button
-            onClick={() => navigate('/etiquetas')}
-            className="flex items-center gap-4 rounded-2xl border-2 border-muted bg-muted/5 p-4 transition-all hover:bg-muted/10 hover:shadow-lg active:scale-[0.98]"
+            onClick={() => isAdmin && navigate('/etiquetas')}
+            disabled={!isAdmin}
+            className={`flex items-center gap-4 rounded-2xl border-2 p-4 transition-all active:scale-[0.98] ${
+              isAdmin 
+                ? 'border-muted bg-muted/5 hover:bg-muted/10 hover:shadow-lg cursor-pointer' 
+                : 'border-muted/50 bg-muted/5 cursor-not-allowed opacity-70'
+            }`}
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted shadow-md">
-              <QrCode className="h-6 w-6 text-muted-foreground" />
+            <div className={`flex h-12 w-12 items-center justify-center rounded-full shadow-md ${
+              isAdmin ? 'bg-muted' : 'bg-muted/50'
+            }`}>
+              <QrCode className={`h-6 w-6 ${isAdmin ? 'text-muted-foreground' : 'text-muted-foreground/50'}`} />
             </div>
-            <div className="text-left">
-              <h2 className="text-lg font-bold text-foreground">Gerar Etiquetas</h2>
+            <div className="flex-1 text-left">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-foreground">Gerar Etiquetas</h2>
+                {!isAdmin && (
+                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-600">
+                    Em desenvolvimento
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
-                Imprimir etiquetas com QR Code
+                {isAdmin ? 'Imprimir etiquetas com QR Code' : 'Em breve disponível para todos'}
               </p>
             </div>
           </button>
