@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen } from 'lucide-react';
+import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -203,6 +203,16 @@ const Home = () => {
               Ações Administrativas
             </p>
             
+            {/* Painel Admin */}
+            <Button
+              variant="default"
+              className="w-full"
+              onClick={() => navigate('/admin')}
+            >
+              <Shield className="mr-2 h-4 w-4" />
+              Painel Administrativo
+            </Button>
+            
             {/* Catálogo de Produtos */}
             <Button
               variant="outline"
@@ -210,7 +220,7 @@ const Home = () => {
               onClick={() => navigate('/catalogo')}
             >
               <BookOpen className="mr-2 h-4 w-4" />
-              Gerenciar Catálogo de Produtos
+              Importar Catálogo de Produtos
             </Button>
 
             <div className="flex gap-3">
