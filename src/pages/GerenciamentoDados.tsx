@@ -77,8 +77,22 @@ const GerenciamentoDados = () => {
     setLoadingType(dataType.id);
     
     try {
-      // Get session token
-      const sessionToken = localStorage.getItem('session_token');
+      // Get session token from auth storage
+      const AUTH_KEY = 'imex_auth_user';
+      let sessionToken = null;
+      try {
+        const stored = localStorage.getItem(AUTH_KEY);
+        if (stored) {
+          const userData = JSON.parse(stored);
+          sessionToken = userData.sessionToken || null;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+      
+      if (!sessionToken) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
       
       const { data, error } = await supabase.functions.invoke('data-operations', {
         body: {
