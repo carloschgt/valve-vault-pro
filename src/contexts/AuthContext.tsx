@@ -25,6 +25,8 @@ interface User {
   email: string;
   /** NOTE: This is for UI display only. Actual authorization uses server-side validation. */
   tipo: 'admin' | 'user';
+  /** Secure session token for API authentication */
+  sessionToken?: string;
 }
 
 interface CheckEmailResult {
@@ -131,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nome: data.user.nome,
         email: data.user.email,
         tipo: data.user.tipo as 'admin' | 'user',
+        sessionToken: data.sessionToken,
       };
 
       setUser(userData);

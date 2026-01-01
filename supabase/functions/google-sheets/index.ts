@@ -32,7 +32,7 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 
 const SPREADSHEET_ID = "1l64AeqmSyFrd-dEj0Ol5tK7ts2wmLdEgCzHKKfbnwFw";
 
-// Verify user authentication and optionally check admin status
+// Verify user authentication using secure session tokens
 async function verifyAuth(req: Request, requireAdmin: boolean = false): Promise<{ success: boolean; error?: string; userEmail?: string }> {
   const authHeader = req.headers.get('Authorization');
   
@@ -43,67 +43,70 @@ async function verifyAuth(req: Request, requireAdmin: boolean = false): Promise<
   const token = authHeader.substring(7);
   
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  
+  // First try Supabase Auth (for future migration)
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  
-  // Verify the token
   const { data: { user }, error } = await supabase.auth.getUser(token);
   
-  if (error || !user) {
-    // Try to verify against our custom usuarios table using service role
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Extract email from JWT payload if possible
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const userEmail = payload.email;
+  if (!error && user) {
+    // Supabase Auth user - check admin status if required
+    if (requireAdmin) {
+      const { data: usuario } = await supabaseAdmin
+        .from("usuarios")
+        .select("tipo")
+        .eq("email", user.email?.toLowerCase())
+        .maybeSingle();
       
-      if (userEmail) {
-        const { data: usuario, error: findError } = await supabaseAdmin
-          .from("usuarios")
-          .select("email, tipo, aprovado")
-          .eq("email", userEmail.toLowerCase())
-          .maybeSingle();
-        
-        if (findError || !usuario) {
-          return { success: false, error: 'Usuário não encontrado' };
-        }
-        
-        if (!usuario.aprovado) {
-          return { success: false, error: 'Usuário não aprovado' };
-        }
-        
-        if (requireAdmin && usuario.tipo !== 'admin') {
-          return { success: false, error: 'Acesso restrito a administradores' };
-        }
-        
-        return { success: true, userEmail: usuario.email };
+      if (!usuario || usuario.tipo !== 'admin') {
+        return { success: false, error: 'Acesso restrito a administradores' };
       }
-    } catch {
-      // Token parsing failed
     }
-    
+    return { success: true, userEmail: user.email };
+  }
+  
+  // Validate session token against database (secure approach)
+  const { data: session, error: sessionError } = await supabaseAdmin
+    .from("session_tokens")
+    .select("user_id, user_email, expires_at")
+    .eq("token", token)
+    .maybeSingle();
+  
+  if (sessionError || !session) {
+    console.log("Session token not found in database");
     return { success: false, error: 'Token inválido ou expirado' };
   }
   
-  // For Supabase Auth users, check admin status if required
-  if (requireAdmin) {
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    
-    const { data: usuario } = await supabaseAdmin
-      .from("usuarios")
-      .select("tipo")
-      .eq("email", user.email?.toLowerCase())
-      .maybeSingle();
-    
-    if (!usuario || usuario.tipo !== 'admin') {
-      return { success: false, error: 'Acesso restrito a administradores' };
-    }
+  // Check if token is expired
+  if (new Date(session.expires_at) < new Date()) {
+    console.log("Session token expired");
+    // Clean up expired token
+    await supabaseAdmin.from("session_tokens").delete().eq("token", token);
+    return { success: false, error: 'Token expirado. Faça login novamente.' };
   }
   
-  return { success: true, userEmail: user.email };
+  // Verify user still exists and is approved
+  const { data: usuario, error: findError } = await supabaseAdmin
+    .from("usuarios")
+    .select("email, tipo, aprovado")
+    .eq("email", session.user_email.toLowerCase())
+    .maybeSingle();
+  
+  if (findError || !usuario) {
+    return { success: false, error: 'Usuário não encontrado' };
+  }
+  
+  if (!usuario.aprovado) {
+    return { success: false, error: 'Usuário não aprovado' };
+  }
+  
+  if (requireAdmin && usuario.tipo !== 'admin') {
+    return { success: false, error: 'Acesso restrito a administradores' };
+  }
+  
+  return { success: true, userEmail: usuario.email };
 }
 
 // Parse the service account JSON from environment variable
