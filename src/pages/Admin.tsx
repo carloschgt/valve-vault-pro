@@ -579,11 +579,11 @@ const Admin = () => {
             <div className="space-y-2">
               {enderecos.map((e: any) => (
                 <div key={e.id} className={`rounded-lg border bg-card ${!e.ativo ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
-                  <div 
-                    className="flex cursor-pointer items-center justify-between p-3"
-                    onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
-                  >
-                    <div className="flex-1">
+                  <div className="flex items-center justify-between p-3">
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
+                    >
                       <div className="flex items-center gap-2">
                         <span className={`font-medium ${!e.ativo ? 'text-muted-foreground line-through' : 'text-primary'}`}>
                           {e.codigo}
@@ -602,11 +602,77 @@ const Admin = () => {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <span className="mr-2 text-xs text-muted-foreground">
                         R{e.rua}.C{e.coluna}.N{e.nivel}.P{e.posicao}
                       </span>
-                      {expandedId === e.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      
+                      {/* Botão Editar */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditEndereco({
+                          id: e.id,
+                          codigo: e.codigo,
+                          descricao: e.descricao,
+                          tipo_material: e.tipo_material,
+                          fabricante_id: e.fabricante_id || '',
+                          peso: String(e.peso),
+                          rua: String(e.rua),
+                          coluna: String(e.coluna),
+                          nivel: String(e.nivel),
+                          posicao: String(e.posicao),
+                          comentario: e.comentario || '',
+                        })}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      
+                      {/* Botão Inativar/Ativar */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => toggleEnderecoAtivoMutation.mutate({ id: e.id, ativo: !e.ativo })}
+                        disabled={toggleEnderecoAtivoMutation.isPending}
+                        title={e.ativo ? 'Inativar' : 'Ativar'}
+                      >
+                        {e.ativo ? (
+                          <Ban className="h-4 w-4 text-orange-500" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        )}
+                      </Button>
+                      
+                      {/* Botão Excluir */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir endereçamento?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Isso também excluirá as contagens de inventário relacionadas. Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteEnderecoMutation.mutate(e.id)}>
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
+                      >
+                        {expandedId === e.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
                     </div>
                   </div>
                   
@@ -618,73 +684,6 @@ const Admin = () => {
                         <p><strong>Cadastrado por:</strong> {e.created_by}</p>
                         <p>Data: {formatDate(e.created_at)}</p>
                         {e.comentario && <p className="col-span-2">Obs: {e.comentario}</p>}
-                      </div>
-                      <div className="mt-3 flex flex-wrap justify-end gap-2">
-                        {/* Botão Editar */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditEndereco({
-                            id: e.id,
-                            codigo: e.codigo,
-                            descricao: e.descricao,
-                            tipo_material: e.tipo_material,
-                            fabricante_id: e.fabricante_id || '',
-                            peso: String(e.peso),
-                            rua: String(e.rua),
-                            coluna: String(e.coluna),
-                            nivel: String(e.nivel),
-                            posicao: String(e.posicao),
-                            comentario: e.comentario || '',
-                          })}
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Editar
-                        </Button>
-                        
-                        {/* Botão Inativar/Ativar */}
-                        <Button
-                          variant={e.ativo ? "outline" : "default"}
-                          size="sm"
-                          onClick={() => toggleEnderecoAtivoMutation.mutate({ id: e.id, ativo: !e.ativo })}
-                          disabled={toggleEnderecoAtivoMutation.isPending}
-                        >
-                          {e.ativo ? (
-                            <>
-                              <Ban className="mr-2 h-4 w-4" />
-                              Inativar
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Ativar
-                            </>
-                          )}
-                        </Button>
-                        
-                        {/* Botão Excluir */}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir endereçamento?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Isso também excluirá as contagens de inventário relacionadas. Esta ação não pode ser desfeita.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteEnderecoMutation.mutate(e.id)}>
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
                       </div>
                     </div>
                   )}

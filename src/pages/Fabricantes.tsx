@@ -1,9 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Loader2, Trash2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { InputUppercase } from '@/components/ui/input-uppercase';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { listFabricantes, insertFabricante, deleteFabricante } from '@/hooks/useDataOperations';
@@ -87,8 +98,6 @@ const Fabricantes = () => {
   };
 
   const handleExcluir = async (id: string) => {
-    if (!confirm('Deseja realmente excluir este fabricante?')) return;
-
     try {
       const result = await deleteFabricante(id);
 
@@ -131,7 +140,7 @@ const Fabricantes = () => {
         <div className="flex flex-col gap-4 sm:flex-row">
           <div className="flex-1 space-y-2">
             <Label htmlFor="codigo">Código</Label>
-            <Input
+            <InputUppercase
               id="codigo"
               placeholder="Ex: ABB"
               value={codigo}
@@ -140,7 +149,7 @@ const Fabricantes = () => {
           </div>
           <div className="flex-[2] space-y-2">
             <Label htmlFor="nome">Nome</Label>
-            <Input
+            <InputUppercase
               id="nome"
               placeholder="Ex: ABB Ltda"
               value={nome}
@@ -184,14 +193,31 @@ const Fabricantes = () => {
                     Código: {fab.codigo}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleExcluir(fab.id)}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir fabricante?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Deseja realmente excluir o fabricante "{fab.nome}"? Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleExcluir(fab.id)}>
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             ))}
           </div>
