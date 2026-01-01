@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      catalogo_produtos: {
+        Row: {
+          codigo: string
+          created_at: string
+          descricao: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          descricao: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       enderecos_materiais: {
         Row: {
           codigo: string

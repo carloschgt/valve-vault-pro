@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,7 @@ const Enderecamento = () => {
   const [comentario, setComentario] = useState('');
   
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Carregar fabricantes do banco
@@ -70,6 +71,51 @@ const Enderecamento = () => {
     
     loadFabricantes();
   }, []);
+
+  // Buscar descrição no catálogo
+  const handleBuscarDescricao = async () => {
+    if (!codigo.trim()) {
+      toast({
+        title: 'Atenção',
+        description: 'Digite um código para buscar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const { data, error } = await supabase
+        .from('catalogo_produtos')
+        .select('descricao')
+        .eq('codigo', codigo.trim())
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setDescricao(data.descricao);
+        toast({
+          title: 'Sucesso',
+          description: 'Descrição encontrada!',
+        });
+      } else {
+        toast({
+          title: 'Não encontrado',
+          description: 'Código não encontrado no catálogo',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao buscar descrição',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleSalvar = async () => {
     // Validar campos obrigatórios
@@ -146,17 +192,35 @@ const Enderecamento = () => {
 
       {/* Form */}
       <div className="flex-1 space-y-4 p-4">
-        {/* Código */}
+        {/* Código + Buscar */}
         <div className="space-y-2">
           <Label htmlFor="codigo">Código do Material *</Label>
-          <Input
-            id="codigo"
-            placeholder="Digite o código"
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
-            inputMode="numeric"
-            pattern="[0-9]*"
-          />
+          <div className="flex gap-2">
+            <Input
+              id="codigo"
+              placeholder="Digite o código"
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleBuscarDescricao()}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="flex-1"
+            />
+            <Button
+              onClick={handleBuscarDescricao}
+              disabled={isSearching}
+              variant="secondary"
+            >
+              {isSearching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Clique na lupa para buscar a descrição no catálogo
+          </p>
         </div>
 
         {/* Descrição */}
