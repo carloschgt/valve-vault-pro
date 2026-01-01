@@ -4,7 +4,7 @@ import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, B
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { exportEnderecos, exportInventario } from '@/hooks/useDataOperations';
 import { exportEnderecamentosToCSV, exportInventarioToCSV } from '@/utils/exportEnderecamentos';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -19,33 +19,23 @@ const Home = () => {
   const handleExportEnderecamentos = async () => {
     setIsExporting('enderecamentos');
     try {
-      const { data, error } = await supabase
-        .from('enderecos_materiais')
-        .select(`
-          id,
-          codigo,
-          descricao,
-          tipo_material,
-          peso,
-          rua,
-          coluna,
-          nivel,
-          posicao,
-          created_by,
-          created_at,
-          fabricantes (nome)
-        `)
-        .order('created_at', { ascending: false });
+      const result = await exportEnderecos();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      if (error) throw error;
+      if (!result.data || result.data.length === 0) {
+        toast({
+          title: 'Aviso',
+          description: 'Nenhum endereçamento encontrado para exportar',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-      const formatted = (data || []).map((d: any) => ({
-        ...d,
-        fabricante_nome: d.fabricantes?.nome || 'N/A',
-      }));
-
-      exportEnderecamentosToCSV(formatted);
-      toast({ title: 'Sucesso', description: 'Endereçamentos exportados!' });
+      exportEnderecamentosToCSV(result.data);
+      toast({ title: 'Sucesso', description: `${result.data.length} endereçamentos exportados!` });
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -60,45 +50,23 @@ const Home = () => {
   const handleExportInventario = async () => {
     setIsExporting('inventario');
     try {
-      const { data, error } = await supabase
-        .from('inventario')
-        .select(`
-          id,
-          quantidade,
-          contado_por,
-          created_at,
-          enderecos_materiais (
-            codigo,
-            descricao,
-            peso,
-            rua,
-            coluna,
-            nivel,
-            posicao,
-            fabricantes (nome)
-          )
-        `)
-        .order('created_at', { ascending: false });
+      const result = await exportInventario();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      if (error) throw error;
+      if (!result.data || result.data.length === 0) {
+        toast({
+          title: 'Aviso',
+          description: 'Nenhum inventário encontrado para exportar',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-      const formatted = (data || []).map((d: any) => ({
-        id: d.id,
-        codigo: d.enderecos_materiais?.codigo || '',
-        descricao: d.enderecos_materiais?.descricao || '',
-        fabricante_nome: d.enderecos_materiais?.fabricantes?.nome || 'N/A',
-        peso: d.enderecos_materiais?.peso || 0,
-        rua: d.enderecos_materiais?.rua || 0,
-        coluna: d.enderecos_materiais?.coluna || 0,
-        nivel: d.enderecos_materiais?.nivel || 0,
-        posicao: d.enderecos_materiais?.posicao || 0,
-        quantidade: d.quantidade,
-        contado_por: d.contado_por,
-        data_contagem: d.created_at,
-      }));
-
-      exportInventarioToCSV(formatted);
-      toast({ title: 'Sucesso', description: 'Inventário exportado!' });
+      exportInventarioToCSV(result.data);
+      toast({ title: 'Sucesso', description: `${result.data.length} registros de inventário exportados!` });
     } catch (error: any) {
       toast({
         title: 'Erro',
