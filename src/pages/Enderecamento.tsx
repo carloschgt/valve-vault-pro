@@ -39,7 +39,7 @@ const Enderecamento = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { getProductByCode, isLoading: isLoadingSheet } = useGoogleSheets();
+  const { getProductByCode, appendData, isLoading: isLoadingSheet } = useGoogleSheets();
   
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -125,6 +125,11 @@ const Enderecamento = () => {
 
     setIsSaving(true);
     try {
+      // Buscar nome do fabricante
+      const fabricanteSelecionado = fabricantes.find(f => f.id === fabricanteId);
+      const nomeFabricante = fabricanteSelecionado?.nome || '';
+
+      // Salvar no Supabase
       const { error } = await supabase
         .from('enderecos_materiais')
         .insert({
@@ -142,9 +147,34 @@ const Enderecamento = () => {
 
       if (error) throw error;
 
+      // Salvar na planilha Google Sheets (aba ITENS_CADASTRO)
+      // Formato: Código, Descrição, Tipo, Fabricante, Peso, Rua, Coluna, Nível, Posição, Data, Usuário
+      const dataAtual = new Date().toLocaleString('pt-BR');
+      const rowData = [
+        codigo.trim(),
+        descricao.trim(),
+        tipoMaterial,
+        nomeFabricante,
+        peso,
+        rua,
+        coluna,
+        nivel,
+        posicao,
+        dataAtual,
+        user?.nome || 'Sistema'
+      ];
+
+      const sheetSuccess = await appendData('ITENS_CADASTRO', [rowData]);
+      
+      if (!sheetSuccess) {
+        console.warn('Dados salvos no banco, mas houve erro ao salvar na planilha');
+      }
+
       toast({
         title: 'Sucesso',
-        description: 'Endereçamento salvo com sucesso!',
+        description: sheetSuccess 
+          ? 'Endereçamento salvo no banco e na planilha!' 
+          : 'Salvo no banco, mas erro ao salvar na planilha',
       });
 
       // Limpar formulário

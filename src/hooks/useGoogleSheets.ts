@@ -47,6 +47,28 @@ export function useGoogleSheets() {
     }
   };
 
+  const appendData = async (sheetName: string, values: string[][]): Promise<boolean> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('google-sheets', {
+        body: { action: 'appendData', sheetName, values },
+      });
+
+      if (fnError) throw fnError;
+      if (data.error) throw new Error(data.error);
+      
+      return true;
+    } catch (err: any) {
+      console.error('Error appending to sheet:', err);
+      setError(err.message);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getProductByCode = async (code: string, productSheetName: string = 'Bdados'): Promise<{ descricao: string } | null> => {
     const data = await getData(productSheetName);
     
@@ -74,6 +96,7 @@ export function useGoogleSheets() {
   return {
     getSheets,
     getData,
+    appendData,
     getProductByCode,
     isLoading,
     error,
