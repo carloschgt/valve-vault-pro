@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import logoImex from '@/assets/logo-imex.png';
+import { sanitizeSearchTerm } from '@/lib/security';
 
 interface EnderecoMaterial {
   id: string;
@@ -73,7 +74,7 @@ const Inventario = () => {
           *,
           fabricantes (nome)
         `)
-        .ilike('codigo', `%${codigo.trim()}%`);
+        .ilike('codigo', `%${sanitizeSearchTerm(codigo)}%`);
 
       if (error) throw error;
 

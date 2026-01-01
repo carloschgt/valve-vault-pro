@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
+import { sanitizeSearchTerm } from '@/lib/security';
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -54,7 +55,10 @@ const Admin = () => {
         .order('created_at', { ascending: false });
       
       if (searchEnderecos) {
-        query = query.or(`codigo.ilike.%${searchEnderecos}%,descricao.ilike.%${searchEnderecos}%`);
+        const safeSearch = sanitizeSearchTerm(searchEnderecos);
+        if (safeSearch) {
+          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
+        }
       }
       
       const { data, error } = await query.limit(100);
@@ -95,7 +99,10 @@ const Admin = () => {
         .order('codigo');
       
       if (searchCatalogo) {
-        query = query.or(`codigo.ilike.%${searchCatalogo}%,descricao.ilike.%${searchCatalogo}%`);
+        const safeSearch = sanitizeSearchTerm(searchCatalogo);
+        if (safeSearch) {
+          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
+        }
       }
       
       const { data, error } = await query.limit(100);
