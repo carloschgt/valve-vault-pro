@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,6 +7,80 @@ const corsHeaders = {
 };
 
 const SPREADSHEET_ID = "1l64AeqmSyFrd-dEj0Ol5tK7ts2wmLdEgCzHKKfbnwFw";
+
+// Verify user authentication and optionally check admin status
+async function verifyAuth(req: Request, requireAdmin: boolean = false): Promise<{ success: boolean; error?: string; userEmail?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { success: false, error: 'Token de autenticação não fornecido' };
+  }
+  
+  const token = authHeader.substring(7);
+  
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  
+  // Verify the token
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+    // Try to verify against our custom usuarios table using service role
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Extract email from JWT payload if possible
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const userEmail = payload.email;
+      
+      if (userEmail) {
+        const { data: usuario, error: findError } = await supabaseAdmin
+          .from("usuarios")
+          .select("email, tipo, aprovado")
+          .eq("email", userEmail.toLowerCase())
+          .maybeSingle();
+        
+        if (findError || !usuario) {
+          return { success: false, error: 'Usuário não encontrado' };
+        }
+        
+        if (!usuario.aprovado) {
+          return { success: false, error: 'Usuário não aprovado' };
+        }
+        
+        if (requireAdmin && usuario.tipo !== 'admin') {
+          return { success: false, error: 'Acesso restrito a administradores' };
+        }
+        
+        return { success: true, userEmail: usuario.email };
+      }
+    } catch {
+      // Token parsing failed
+    }
+    
+    return { success: false, error: 'Token inválido ou expirado' };
+  }
+  
+  // For Supabase Auth users, check admin status if required
+  if (requireAdmin) {
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: usuario } = await supabaseAdmin
+      .from("usuarios")
+      .select("tipo")
+      .eq("email", user.email?.toLowerCase())
+      .maybeSingle();
+    
+    if (!usuario || usuario.tipo !== 'admin') {
+      return { success: false, error: 'Acesso restrito a administradores' };
+    }
+  }
+  
+  return { success: true, userEmail: user.email };
+}
 
 // Parse the service account JSON from environment variable
 function getServiceAccountCredentials() {
@@ -104,6 +179,24 @@ serve(async (req) => {
     const { action, sheetName, range, values } = await req.json();
 
     console.log(`Action: ${action}, Sheet: ${sheetName}`);
+
+    // Verify authentication for all operations
+    // Read operations require authentication, write operations require admin
+    const requireAdmin = action === "appendData";
+    const authResult = await verifyAuth(req, requireAdmin);
+    
+    if (!authResult.success) {
+      console.log(`Auth failed: ${authResult.error}`);
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
+      );
+    }
+    
+    console.log(`Authenticated user: ${authResult.userEmail}`);
 
     // For read operations, use API key
     const apiKey = Deno.env.get("GOOGLE_SHEETS_API_KEY");
