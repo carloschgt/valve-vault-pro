@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { insertCatalogo, deleteCatalogo, upsertCatalogo } from '@/hooks/useDataOperations';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
@@ -108,10 +109,11 @@ const Catalogo = () => {
         throw new Error(`DUPLICATE:${existing.descricao}`);
       }
       
-      const { error } = await supabase
-        .from('catalogo_produtos')
-        .insert({ codigo: codigo.trim(), descricao: descricao.trim() });
-      if (error) throw error;
+      const result = await insertCatalogo(codigo.trim(), descricao.trim());
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalogo_produtos'] });
@@ -142,11 +144,11 @@ const Catalogo = () => {
   // Deletar produto
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('catalogo_produtos')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      const result = await deleteCatalogo(id);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalogo_produtos'] });
@@ -245,33 +247,17 @@ const Catalogo = () => {
     try {
       const batchSize = 100;
       let inserted = 0;
-      let updated = 0;
       let errors = 0;
 
       for (let i = 0; i < items.length; i += batchSize) {
         const batch = items.slice(i, i + batchSize);
         
-        if (overwrite) {
-          const { error } = await supabase
-            .from('catalogo_produtos')
-            .upsert(batch, { onConflict: 'codigo', ignoreDuplicates: false });
-          
-          if (error) {
-            errors += batch.length;
-          } else {
-            inserted += batch.length;
-          }
+        const result = await upsertCatalogo(batch, overwrite);
+        
+        if (!result.success) {
+          errors += batch.length;
         } else {
-          // Only insert new items
-          const { error } = await supabase
-            .from('catalogo_produtos')
-            .insert(batch);
-          
-          if (error) {
-            errors += batch.length;
-          } else {
-            inserted += batch.length;
-          }
+          inserted += result.count || batch.length;
         }
       }
 

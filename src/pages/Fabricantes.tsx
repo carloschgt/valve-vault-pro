@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { insertFabricante, deleteFabricante } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
 
 interface Fabricante {
@@ -64,13 +65,11 @@ const Fabricantes = () => {
 
     setIsSaving(true);
     try {
-      const { error } = await supabase.from('fabricantes').insert({
-        nome: nome.trim(),
-        codigo: codigo.trim().toUpperCase(),
-        cadastrado_por: user?.nome || 'Sistema',
-      });
+      const result = await insertFabricante(nome.trim(), codigo.trim().toUpperCase());
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       toast({
         title: 'Sucesso',
@@ -95,9 +94,11 @@ const Fabricantes = () => {
     if (!confirm('Deseja realmente excluir este fabricante?')) return;
 
     try {
-      const { error } = await supabase.from('fabricantes').delete().eq('id', id);
+      const result = await deleteFabricante(id);
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       toast({
         title: 'Sucesso',

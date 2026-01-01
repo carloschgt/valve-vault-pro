@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { insertEndereco } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
 
 const TIPOS_MATERIAL = [
@@ -130,24 +131,22 @@ const Enderecamento = () => {
 
     setIsSaving(true);
     try {
-      // Salvar no Supabase
-      const { error } = await supabase
-        .from('enderecos_materiais')
-        .insert({
-          codigo: codigo.trim(),
-          descricao: descricao.trim(),
-          tipo_material: tipoMaterial,
-          fabricante_id: fabricanteId,
-          peso: parseFloat(peso),
-          rua: parseInt(rua),
-          coluna: parseInt(coluna),
-          nivel: parseInt(nivel),
-          posicao: parseInt(posicao),
-          comentario: comentario.trim() || null,
-          created_by: user?.nome || 'Sistema',
-        });
+      const result = await insertEndereco({
+        codigo: codigo.trim(),
+        descricao: descricao.trim(),
+        tipo_material: tipoMaterial,
+        fabricante_id: fabricanteId,
+        peso,
+        rua,
+        coluna,
+        nivel,
+        posicao,
+        comentario: comentario.trim() || undefined,
+      });
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       toast({
         title: 'Sucesso',
