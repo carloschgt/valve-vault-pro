@@ -8,6 +8,60 @@ const corsHeaders = {
 
 const ALLOWED_DOMAIN = "@imexsolutions.com.br";
 
+// Rate limiting configuration
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+// In-memory rate limiting store (resets on function restart, but sufficient for basic protection)
+// For production, consider using KV store or database
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(email: string): { allowed: boolean; error?: string; remainingAttempts?: number } {
+  const key = email.toLowerCase().trim();
+  const now = Date.now();
+  const attempts = loginAttempts.get(key);
+  
+  if (!attempts) {
+    return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS };
+  }
+  
+  // Reset if lockout period has passed
+  if (now > attempts.resetAt) {
+    loginAttempts.delete(key);
+    return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS };
+  }
+  
+  // Check if locked out
+  if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
+    const minutesLeft = Math.ceil((attempts.resetAt - now) / 60000);
+    return { 
+      allowed: false, 
+      error: `Muitas tentativas incorretas. Tente novamente em ${minutesLeft} minuto(s).`,
+      remainingAttempts: 0
+    };
+  }
+  
+  return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS - attempts.count };
+}
+
+function recordFailedAttempt(email: string): void {
+  const key = email.toLowerCase().trim();
+  const now = Date.now();
+  const attempts = loginAttempts.get(key);
+  
+  if (!attempts || now > attempts.resetAt) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOCKOUT_DURATION_MS });
+  } else {
+    attempts.count++;
+    loginAttempts.set(key, attempts);
+  }
+}
+
+function clearFailedAttempts(email: string): void {
+  const key = email.toLowerCase().trim();
+  loginAttempts.delete(key);
+}
+
 // Simple but secure password hashing using Web Crypto API with salt
 async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -119,6 +173,19 @@ serve(async (req) => {
     }
 
     if (action === "login") {
+      // Check rate limit FIRST
+      const rateCheck = checkRateLimit(email);
+      if (!rateCheck.allowed) {
+        console.log(`Rate limit exceeded for: ${email}`);
+        return new Response(
+          JSON.stringify({ success: false, error: rateCheck.error, rateLimited: true }),
+          { 
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" } 
+          }
+        );
+      }
+
       // Validate email domain
       const emailValidation = validateEmail(email);
       if (!emailValidation.valid) {
@@ -150,6 +217,7 @@ serve(async (req) => {
       }
 
       if (!user) {
+        // Don't record failed attempt for non-existent users to prevent enumeration
         return new Response(
           JSON.stringify({ success: false, error: "Email não encontrado", notRegistered: true }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -160,11 +228,25 @@ serve(async (req) => {
       const isValid = await verifyPassword(senha, user.senha_hash);
 
       if (!isValid) {
+        // Record failed attempt
+        recordFailedAttempt(email);
+        const remainingAttempts = MAX_LOGIN_ATTEMPTS - (loginAttempts.get(email.toLowerCase().trim())?.count || 0);
+        
+        console.log(`Failed login attempt for: ${email}. Remaining attempts: ${remainingAttempts}`);
+        
         return new Response(
-          JSON.stringify({ success: false, error: "Senha incorreta" }),
+          JSON.stringify({ 
+            success: false, 
+            error: remainingAttempts > 0 
+              ? `Senha incorreta. ${remainingAttempts} tentativa(s) restante(s).`
+              : "Senha incorreta. Conta temporariamente bloqueada."
+          }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      // Clear failed attempts on successful login
+      clearFailedAttempts(email);
 
       // Check if user is approved
       if (!user.aprovado) {
