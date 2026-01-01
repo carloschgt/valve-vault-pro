@@ -36,12 +36,19 @@ interface InventarioItem {
 }
 
 interface QRData {
-  codigo: string;
+  // Full field names
+  codigo?: string;
   descricao?: string;
   fabricante?: string;
   tipo?: string;
   endereco?: string;
   endereco_id?: string;
+  // Abbreviated field names (from QR codes)
+  cod?: string;
+  desc?: string;
+  fab?: string;
+  end?: string;
+  peso?: number;
 }
 
 const Inventario = () => {
@@ -141,7 +148,11 @@ const Inventario = () => {
         qrData = { codigo: data };
       }
       
-      if (!qrData?.codigo) {
+      // Normalize field names (support both abbreviated and full names)
+      const materialCode = qrData?.codigo || qrData?.cod;
+      const endereco = qrData?.endereco || qrData?.end;
+      
+      if (!materialCode) {
         toast({
           title: 'QR Code inválido',
           description: 'O QR Code não contém um código de material válido',
@@ -150,11 +161,11 @@ const Inventario = () => {
         return;
       }
 
-      setCodigo(qrData.codigo);
+      setCodigo(materialCode);
       
-      // If we have endereco_id from QR, try to find and auto-select
+      // Search for material addresses
       setIsSearching(true);
-      const result = await listEnderecos(qrData.codigo);
+      const result = await listEnderecos(materialCode);
       setIsSearching(false);
 
       if (!result.success) {
@@ -165,17 +176,19 @@ const Inventario = () => {
         setEnderecos(result.data);
         
         // If QR has endereco info, try to auto-select the matching one
-        if (qrData.endereco && result.data.length > 1) {
+        if (endereco && result.data.length > 1) {
           const matchingEndereco = result.data.find((e: EnderecoMaterial) => {
             const enderecoStr = `R${e.rua}.C${e.coluna}.N${e.nivel}.P${e.posicao}`;
-            return enderecoStr === qrData?.endereco;
+            // Support both formats: "R08.C08.N08.P08" or "R8.C8.N8.P8"
+            const enderecoStrPadded = `R${String(e.rua).padStart(2, '0')}.C${String(e.coluna).padStart(2, '0')}.N${String(e.nivel).padStart(2, '0')}.P${String(e.posicao).padStart(2, '0')}`;
+            return enderecoStr === endereco || enderecoStrPadded === endereco;
           });
           
           if (matchingEndereco) {
             handleSelectEndereco(matchingEndereco);
             toast({
               title: 'Material identificado',
-              description: `${qrData.codigo} - ${qrData.endereco}`,
+              description: `${materialCode} - ${endereco}`,
             });
             return;
           }
@@ -186,7 +199,7 @@ const Inventario = () => {
           handleSelectEndereco(result.data[0]);
           toast({
             title: 'Material identificado',
-            description: `${qrData.codigo} encontrado`,
+            description: `${materialCode} encontrado`,
           });
         } else {
           toast({
