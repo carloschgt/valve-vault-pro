@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { insertFabricante, deleteFabricante } from '@/hooks/useDataOperations';
+import { listFabricantes, insertFabricante, deleteFabricante } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
 
 interface Fabricante {
@@ -32,19 +31,16 @@ const Fabricantes = () => {
 
   const loadFabricantes = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('fabricantes')
-      .select('*')
-      .order('nome');
+    const result = await listFabricantes();
 
-    if (error) {
+    if (!result.success) {
       toast({
         title: 'Erro',
-        description: 'Erro ao carregar fabricantes',
+        description: result.error || 'Erro ao carregar fabricantes',
         variant: 'destructive',
       });
     } else {
-      setFabricantes(data || []);
+      setFabricantes(result.data || []);
     }
     setIsLoading(false);
   };

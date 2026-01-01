@@ -13,8 +13,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { insertEndereco } from '@/hooks/useDataOperations';
+import { listFabricantes, getCatalogoDescricao, insertEndereco } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
 
 const TIPOS_MATERIAL = [
@@ -58,15 +57,12 @@ const Enderecamento = () => {
   // Carregar fabricantes do banco
   useEffect(() => {
     const loadFabricantes = async () => {
-      const { data, error } = await supabase
-        .from('fabricantes')
-        .select('*')
-        .order('nome');
+      const result = await listFabricantes();
       
-      if (error) {
-        console.error('Erro ao carregar fabricantes:', error);
+      if (!result.success) {
+        console.error('Erro ao carregar fabricantes:', result.error);
       } else {
-        setFabricantes(data || []);
+        setFabricantes(result.data || []);
       }
     };
     
@@ -86,16 +82,12 @@ const Enderecamento = () => {
 
     setIsSearching(true);
     try {
-      const { data, error } = await supabase
-        .from('catalogo_produtos')
-        .select('descricao')
-        .eq('codigo', codigo.trim())
-        .maybeSingle();
+      const result = await getCatalogoDescricao(codigo.trim());
 
-      if (error) throw error;
+      if (!result.success) throw new Error(result.error);
 
-      if (data) {
-        setDescricao(data.descricao);
+      if (result.data) {
+        setDescricao(result.data.descricao);
         toast({
           title: 'Sucesso',
           description: 'Descrição encontrada!',

@@ -30,6 +30,13 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
+// Sanitize search term to prevent ILIKE pattern injection
+function sanitizeSearchTerm(input: string, maxLength: number = 100): string {
+  if (!input || typeof input !== 'string') return '';
+  const cleaned = input.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, maxLength);
+  return cleaned.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
 // Verify session token and get user info
 async function verifySession(supabase: any, sessionToken: string): Promise<{ 
   success: boolean; 
@@ -124,6 +131,143 @@ serve(async (req) => {
     const isAdmin = user.tipo === 'admin';
 
     console.log(`User: ${user.email}, Admin: ${isAdmin}`);
+
+    // ========== READ OPERATIONS (available to all authenticated users) ==========
+    
+    if (action === "fabricantes_list") {
+      const { data, error } = await supabase
+        .from("fabricantes")
+        .select("*")
+        .order("nome");
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "catalogo_list") {
+      const { search, limit = 100 } = params;
+      let query = supabase
+        .from("catalogo_produtos")
+        .select("*")
+        .order("codigo");
+      
+      if (search) {
+        const safeSearch = sanitizeSearchTerm(search);
+        if (safeSearch) {
+          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
+        }
+      }
+      
+      const { data, error } = await query.limit(limit);
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "catalogo_get") {
+      const { codigo } = params;
+      const { data, error } = await supabase
+        .from("catalogo_produtos")
+        .select("descricao")
+        .eq("codigo", codigo?.trim())
+        .maybeSingle();
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "catalogo_check_duplicates") {
+      const { codigos } = params;
+      const { data, error } = await supabase
+        .from("catalogo_produtos")
+        .select("codigo, descricao")
+        .in("codigo", codigos);
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "enderecos_list") {
+      const { search, limit = 100 } = params;
+      let query = supabase
+        .from("enderecos_materiais")
+        .select("*, fabricantes(nome)")
+        .order("created_at", { ascending: false });
+      
+      if (search) {
+        const safeSearch = sanitizeSearchTerm(search);
+        if (safeSearch) {
+          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
+        }
+      }
+      
+      const { data, error } = await query.limit(limit);
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "enderecos_get") {
+      const { id } = params;
+      const { data, error } = await supabase
+        .from("enderecos_materiais")
+        .select("*, fabricantes(nome)")
+        .eq("id", id)
+        .single();
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "inventario_list") {
+      const { search, limit = 100 } = params;
+      let query = supabase
+        .from("inventario")
+        .select("*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao)")
+        .order("created_at", { ascending: false });
+      
+      const { data, error } = await query.limit(limit);
+      if (error) throw error;
+      
+      let result = data;
+      if (search) {
+        result = data?.filter((i: any) => 
+          i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
+          i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "inventario_get") {
+      const { endereco_material_id } = params;
+      const { data, error } = await supabase
+        .from("inventario")
+        .select("*")
+        .eq("endereco_material_id", endereco_material_id)
+        .maybeSingle();
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // ========== FABRICANTES ==========
     if (action === "fabricantes_insert") {

@@ -48,6 +48,40 @@ async function invokeDataOperation<T = any>(
   }
 }
 
+// ========== READ OPERATIONS ==========
+
+export async function listFabricantes(): Promise<DataOperationResult> {
+  return invokeDataOperation('fabricantes_list');
+}
+
+export async function listCatalogo(search?: string, limit?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('catalogo_list', { search, limit });
+}
+
+export async function getCatalogoDescricao(codigo: string): Promise<DataOperationResult> {
+  return invokeDataOperation('catalogo_get', { codigo });
+}
+
+export async function checkCatalogoDuplicates(codigos: string[]): Promise<DataOperationResult> {
+  return invokeDataOperation('catalogo_check_duplicates', { codigos });
+}
+
+export async function listEnderecos(search?: string, limit?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_list', { search, limit });
+}
+
+export async function getEndereco(id: string): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_get', { id });
+}
+
+export async function listInventario(search?: string, limit?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_list', { search, limit });
+}
+
+export async function getInventarioByEndereco(endereco_material_id: string): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_get', { endereco_material_id });
+}
+
 // ========== FABRICANTES ==========
 export async function insertFabricante(nome: string, codigo: string): Promise<DataOperationResult> {
   return invokeDataOperation('fabricantes_insert', { nome, codigo });
