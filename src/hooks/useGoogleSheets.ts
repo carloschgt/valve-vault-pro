@@ -5,6 +5,21 @@ interface SheetData {
   values: string[][];
 }
 
+const AUTH_KEY = 'imex_auth_user';
+
+function getSessionToken(): string | null {
+  try {
+    const stored = localStorage.getItem(AUTH_KEY);
+    if (stored) {
+      const user = JSON.parse(stored);
+      return user.sessionToken || null;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
 export function useGoogleSheets() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,8 +29,10 @@ export function useGoogleSheets() {
     setError(null);
 
     try {
+      const sessionToken = getSessionToken();
       const { data, error: fnError } = await supabase.functions.invoke('google-sheets', {
         body: { action: 'getSheets' },
+        headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : undefined,
       });
 
       if (fnError) throw fnError;
@@ -33,8 +50,10 @@ export function useGoogleSheets() {
     setError(null);
 
     try {
+      const sessionToken = getSessionToken();
       const { data, error: fnError } = await supabase.functions.invoke('google-sheets', {
         body: { action: 'getData', sheetName, range },
+        headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : undefined,
       });
 
       if (fnError) throw fnError;
@@ -52,8 +71,10 @@ export function useGoogleSheets() {
     setError(null);
 
     try {
+      const sessionToken = getSessionToken();
       const { data, error: fnError } = await supabase.functions.invoke('google-sheets', {
         body: { action: 'appendData', sheetName, values },
+        headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : undefined,
       });
 
       if (fnError) throw fnError;

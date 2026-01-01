@@ -186,6 +186,36 @@ export type Database = {
         }
         Relationships: []
       }
+      session_tokens: {
+        Row: {
+          created_at: string
+          device_info: string | null
+          expires_at: string
+          id: string
+          token: string
+          user_email: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_info?: string | null
+          expires_at: string
+          id?: string
+          token: string
+          user_email: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_info?: string | null
+          expires_at?: string
+          id?: string
+          token?: string
+          user_email?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       usuarios: {
         Row: {
           aprovado: boolean
@@ -224,6 +254,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_sessions: { Args: never; Returns: undefined }
       is_admin_user: { Args: { user_email: string }; Returns: boolean }
     }
     Enums: {

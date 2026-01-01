@@ -313,7 +313,35 @@ serve(async (req) => {
         device_info: deviceInfo || null,
       });
 
-      // Return user data (without password hash)
+      // Generate a secure session token
+      const sessionToken = crypto.randomUUID() + '-' + crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      // Clean up old sessions for this user (keep only last 5)
+      const { data: existingSessions } = await supabase
+        .from("session_tokens")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (existingSessions && existingSessions.length >= 5) {
+        const idsToDelete = existingSessions.slice(4).map(s => s.id);
+        await supabase
+          .from("session_tokens")
+          .delete()
+          .in("id", idsToDelete);
+      }
+
+      // Store the session token
+      await supabase.from("session_tokens").insert({
+        user_id: user.id,
+        user_email: user.email,
+        token: sessionToken,
+        expires_at: expiresAt.toISOString(),
+        device_info: deviceInfo || null,
+      });
+
+      // Return user data with session token
       return new Response(
         JSON.stringify({
           success: true,
@@ -323,6 +351,7 @@ serve(async (req) => {
             email: user.email,
             tipo: user.tipo,
           },
+          sessionToken,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
