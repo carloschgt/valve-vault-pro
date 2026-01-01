@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Save, Loader2, MapPin, Edit2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -6,10 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { insertInventario, updateInventario } from '@/hooks/useDataOperations';
+import { listEnderecos, getInventarioByEndereco, insertInventario, updateInventario } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
-import { sanitizeSearchTerm } from '@/lib/security';
 
 interface EnderecoMaterial {
   id: string;
@@ -33,6 +31,7 @@ interface InventarioItem {
   quantidade: number;
   contado_por: string;
   updated_at: string;
+  comentario?: string;
 }
 
 const Inventario = () => {
@@ -69,21 +68,15 @@ const Inventario = () => {
     setInventarioExistente(null);
     
     try {
-      const { data, error } = await supabase
-        .from('enderecos_materiais')
-        .select(`
-          *,
-          fabricantes (nome)
-        `)
-        .ilike('codigo', `%${sanitizeSearchTerm(codigo)}%`);
+      const result = await listEnderecos(codigo);
 
-      if (error) throw error;
+      if (!result.success) throw new Error(result.error);
 
-      if (data && data.length > 0) {
-        setEnderecos(data);
+      if (result.data && result.data.length > 0) {
+        setEnderecos(result.data);
         toast({
           title: 'Sucesso',
-          description: `${data.length} endereço(s) encontrado(s)`,
+          description: `${result.data.length} endereço(s) encontrado(s)`,
         });
       } else {
         setEnderecos([]);
@@ -109,16 +102,12 @@ const Inventario = () => {
     setIsEditing(false);
     
     // Buscar inventário existente para este endereço
-    const { data } = await supabase
-      .from('inventario')
-      .select('*')
-      .eq('endereco_material_id', endereco.id)
-      .maybeSingle();
+    const result = await getInventarioByEndereco(endereco.id);
 
-    if (data) {
-      setInventarioExistente(data);
-      setQuantidade(data.quantidade.toString());
-      setComentario((data as any).comentario || '');
+    if (result.success && result.data) {
+      setInventarioExistente(result.data);
+      setQuantidade(result.data.quantidade.toString());
+      setComentario(result.data.comentario || '');
     } else {
       setInventarioExistente(null);
       setQuantidade('');

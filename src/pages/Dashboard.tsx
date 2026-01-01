@@ -4,9 +4,9 @@ import { ArrowLeft, Download, RefreshCw, MapPin, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { listEnderecos, listInventario } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
 
 interface EnderecoMaterial {
@@ -55,22 +55,23 @@ const Dashboard = () => {
     setIsLoading(true);
     try {
       const [enderecosRes, inventarioRes] = await Promise.all([
-        supabase
-          .from('enderecos_materiais')
-          .select('*, fabricantes(nome)')
-          .order('created_at', { ascending: false })
-          .limit(50),
-        supabase
-          .from('inventario')
-          .select('*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao)')
-          .order('created_at', { ascending: false })
-          .limit(50),
+        listEnderecos(undefined, 50),
+        listInventario(undefined, 50),
       ]);
 
-      if (enderecosRes.data) setEnderecos(enderecosRes.data);
-      if (inventarioRes.data) setInventario(inventarioRes.data as InventarioItem[]);
+      if (enderecosRes.success && enderecosRes.data) {
+        setEnderecos(enderecosRes.data);
+      }
+      if (inventarioRes.success && inventarioRes.data) {
+        setInventario(inventarioRes.data as InventarioItem[]);
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao carregar dados. Verifique sua sessão.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -79,69 +80,6 @@ const Dashboard = () => {
   useEffect(() => {
     loadData();
   }, []);
-
-  // Realtime subscriptions
-  useEffect(() => {
-    const enderecosChannel = supabase
-      .channel('enderecos-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'enderecos_materiais' },
-        async (payload) => {
-          // Buscar com fabricante
-          const { data } = await supabase
-            .from('enderecos_materiais')
-            .select('*, fabricantes(nome)')
-            .eq('id', payload.new.id)
-            .single();
-          
-          if (data) {
-            setEnderecos(prev => [data, ...prev.slice(0, 49)]);
-            toast({
-              title: '📍 Novo endereçamento',
-              description: `${data.codigo} - ${data.descricao.substring(0, 30)}...`,
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    const inventarioChannel = supabase
-      .channel('inventario-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'inventario' },
-        async (payload) => {
-          const newRecord = payload.new as { id: string };
-          // Buscar com endereço
-          const { data } = await supabase
-            .from('inventario')
-            .select('*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao)')
-            .eq('id', newRecord.id)
-            .single();
-          
-          if (data) {
-            if (payload.eventType === 'INSERT') {
-              setInventario(prev => [data as InventarioItem, ...prev.slice(0, 49)]);
-              toast({
-                title: '📦 Nova contagem',
-                description: `${(data as InventarioItem).enderecos_materiais.codigo} - Qtd: ${(data as InventarioItem).quantidade}`,
-              });
-            } else if (payload.eventType === 'UPDATE') {
-              setInventario(prev => 
-                prev.map(item => item.id === (data as InventarioItem).id ? data as InventarioItem : item)
-              );
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(enderecosChannel);
-      supabase.removeChannel(inventarioChannel);
-    };
-  }, [toast]);
 
   // Exportar para Excel/CSV
   const exportToCSV = (type: 'enderecos' | 'inventario') => {
@@ -197,19 +135,10 @@ const Dashboard = () => {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-8" />
-        <h1 className="flex-1 text-lg font-bold">Dashboard Tempo Real</h1>
+        <h1 className="flex-1 text-lg font-bold">Dashboard</h1>
         <Button variant="ghost" size="icon" onClick={loadData} disabled={isLoading}>
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
-      </div>
-
-      {/* Status indicator */}
-      <div className="flex items-center justify-center gap-2 border-b border-border bg-primary/5 py-2">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-        </span>
-        <span className="text-xs text-muted-foreground">Atualizações em tempo real ativas</span>
       </div>
 
       {/* Tabs */}
@@ -238,12 +167,10 @@ const Dashboard = () => {
           </div>
           
           <div className="space-y-3">
-            {enderecos.map((e, index) => (
+            {enderecos.map((e) => (
               <div 
                 key={e.id} 
-                className={`rounded-xl border border-border bg-card p-4 transition-all ${
-                  index === 0 ? 'ring-2 ring-primary/50 animate-pulse' : ''
-                }`}
+                className="rounded-xl border border-border bg-card p-4 transition-all"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -284,12 +211,10 @@ const Dashboard = () => {
           </div>
           
           <div className="space-y-3">
-            {inventario.map((i, index) => (
+            {inventario.map((i) => (
               <div 
                 key={i.id} 
-                className={`rounded-xl border border-border bg-card p-4 transition-all ${
-                  index === 0 ? 'ring-2 ring-primary/50 animate-pulse' : ''
-                }`}
+                className="rounded-xl border border-border bg-card p-4 transition-all"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
