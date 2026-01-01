@@ -28,6 +28,14 @@ const Admin = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
+  /**
+   * UI-ONLY CHECK: This client-side admin check controls what UI elements are displayed.
+   * 
+   * SECURITY NOTE: This does NOT provide actual security. Even if an attacker
+   * modifies localStorage to bypass this check, all admin operations will fail because:
+   * 1. Edge Functions validate adminEmail against the database server-side
+   * 2. RLS policies use is_admin_user() which queries the database directly
+   */
   const isAdmin = user?.tipo === 'admin';
   
   const [searchEnderecos, setSearchEnderecos] = useState('');
