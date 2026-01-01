@@ -42,6 +42,7 @@ const Inventario = () => {
   const [enderecos, setEnderecos] = useState<EnderecoMaterial[]>([]);
   const [selectedEndereco, setSelectedEndereco] = useState<EnderecoMaterial | null>(null);
   const [quantidade, setQuantidade] = useState('');
+  const [comentario, setComentario] = useState('');
   const [inventarioExistente, setInventarioExistente] = useState<InventarioItem | null>(null);
   
   const [isSearching, setIsSearching] = useState(false);
@@ -115,9 +116,11 @@ const Inventario = () => {
     if (data) {
       setInventarioExistente(data);
       setQuantidade(data.quantidade.toString());
+      setComentario((data as any).comentario || '');
     } else {
       setInventarioExistente(null);
       setQuantidade('');
+      setComentario('');
     }
   };
 
@@ -149,6 +152,7 @@ const Inventario = () => {
           .from('inventario')
           .update({
             quantidade: parseInt(quantidade),
+            comentario: comentario.trim() || null,
             contado_por: user?.nome || 'Sistema',
           })
           .eq('id', inventarioExistente.id);
@@ -161,6 +165,7 @@ const Inventario = () => {
           .insert({
             endereco_material_id: selectedEndereco.id,
             quantidade: parseInt(quantidade),
+            comentario: comentario.trim() || null,
             contado_por: user?.nome || 'Sistema',
           });
 
@@ -175,6 +180,7 @@ const Inventario = () => {
       // Resetar seleção
       setSelectedEndereco(null);
       setQuantidade('');
+      setComentario('');
       setInventarioExistente(null);
       setIsEditing(false);
       
@@ -345,6 +351,18 @@ const Inventario = () => {
                     value={quantidade}
                     onChange={(e) => setQuantidade(e.target.value)}
                     className="text-2xl font-bold"
+                  />
+                </div>
+
+                {/* Comentário */}
+                <div className="space-y-2">
+                  <Label htmlFor="comentario">Comentário (opcional)</Label>
+                  <Input
+                    id="comentario"
+                    placeholder="Observações sobre a contagem"
+                    value={comentario}
+                    onChange={(e) => setComentario(e.target.value)}
+                    maxLength={500}
                   />
                 </div>
 

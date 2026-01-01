@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           codigo: string
           coluna: number
+          comentario: string | null
           created_at: string
           created_by: string
           descricao: string
@@ -33,6 +34,7 @@ export type Database = {
         Insert: {
           codigo: string
           coluna: number
+          comentario?: string | null
           created_at?: string
           created_by: string
           descricao: string
@@ -48,6 +50,7 @@ export type Database = {
         Update: {
           codigo?: string
           coluna?: number
+          comentario?: string | null
           created_at?: string
           created_by?: string
           descricao?: string
@@ -96,6 +99,7 @@ export type Database = {
       }
       inventario: {
         Row: {
+          comentario: string | null
           contado_por: string
           created_at: string
           endereco_material_id: string
@@ -104,6 +108,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          comentario?: string | null
           contado_por: string
           created_at?: string
           endereco_material_id: string
@@ -112,6 +117,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          comentario?: string | null
           contado_por?: string
           created_at?: string
           endereco_material_id?: string
