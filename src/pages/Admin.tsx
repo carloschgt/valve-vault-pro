@@ -101,7 +101,7 @@ const Admin = () => {
     queryKey: ['admin_usuarios', searchUsuarios],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('admin-users', {
-        body: { action: 'list', search: searchUsuarios },
+        body: { action: 'list', search: searchUsuarios, adminEmail: user?.email },
       });
       if (error) throw error;
       return data.users || [];
@@ -113,7 +113,7 @@ const Admin = () => {
     queryKey: ['admin_login_logs'],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('admin-users', {
-        body: { action: 'logs' },
+        body: { action: 'logs', adminEmail: user?.email },
       });
       if (error) throw error;
       return data.logs || [];
@@ -171,7 +171,7 @@ const Admin = () => {
   const updateUserApproval = useMutation({
     mutationFn: async ({ userId, aprovado }: { userId: string; aprovado: boolean }) => {
       const { data, error } = await supabase.functions.invoke('admin-users', {
-        body: { action: 'approve', userId, aprovado },
+        body: { action: 'approve', userId, aprovado, adminEmail: user?.email },
       });
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
@@ -192,7 +192,7 @@ const Admin = () => {
   const deleteUsuario = useMutation({
     mutationFn: async (userId: string) => {
       const { data, error } = await supabase.functions.invoke('admin-users', {
-        body: { action: 'delete', userId },
+        body: { action: 'delete', userId, adminEmail: user?.email },
       });
       if (error) throw error;
       if (!data.success) throw new Error(data.error);

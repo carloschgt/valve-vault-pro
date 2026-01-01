@@ -6,6 +6,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Server-side admin verification - CRITICAL for security
+async function verifyAdminUser(supabase: any, userEmail: string): Promise<boolean> {
+  if (!userEmail) return false;
+  
+  const { data: user, error } = await supabase
+    .from("usuarios")
+    .select("tipo")
+    .eq("email", userEmail.toLowerCase().trim())
+    .maybeSingle();
+  
+  if (error || !user) return false;
+  return user.tipo === 'admin';
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -16,9 +30,26 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, userId, aprovado, search } = await req.json();
+    const { action, userId, aprovado, search, adminEmail } = await req.json();
 
-    console.log(`Admin users action: ${action}`);
+    console.log(`Admin users action: ${action}, adminEmail: ${adminEmail}`);
+
+    // CRITICAL: Server-side admin verification for ALL operations
+    if (!adminEmail) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Email do administrador não fornecido" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const isAdmin = await verifyAdminUser(supabase, adminEmail);
+    if (!isAdmin) {
+      console.error(`Unauthorized admin attempt by: ${adminEmail}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Acesso não autorizado. Apenas administradores podem executar esta ação." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (action === "list") {
       let query = supabase
