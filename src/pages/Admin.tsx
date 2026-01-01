@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Search, Loader2, MapPin, Package, BookOpen, Users, ChevronDown, ChevronUp, Check, X, Clock, UserCheck, Edit, Ban, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Trash2, Search, Loader2, MapPin, Package, BookOpen, Users, ChevronDown, ChevronUp, Check, X, Clock, UserCheck, Edit, Ban, CheckCircle, Shield, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { InputUppercase } from '@/components/ui/input-uppercase';
 import { Button } from '@/components/ui/button';
@@ -317,6 +317,27 @@ const Admin = () => {
     },
   });
 
+  // Alterar tipo de usuário
+  const updateUserRole = useMutation({
+    mutationFn: async ({ userId, tipo }: { userId: string; tipo: string }) => {
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'updateRole', userId, tipo, adminEmail: user?.email },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+    },
+    onSuccess: (_, { tipo }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin_usuarios'] });
+      toast({ 
+        title: 'Sucesso', 
+        description: `Usuário alterado para ${tipo === 'admin' ? 'Administrador' : 'Usuário comum'}!` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
+  });
+
   // Deletar usuário
   const deleteUsuario = useMutation({
     mutationFn: async (userId: string) => {
@@ -467,40 +488,71 @@ const Admin = () => {
           ) : (
             <div className="space-y-2">
               {usuarios.map((u: any) => (
-                <div key={u.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{u.nome}</span>
-                      {u.tipo === 'admin' && (
-                        <Badge variant="default" className="text-xs">Admin</Badge>
-                      )}
-                      {!u.aprovado && u.tipo !== 'admin' && (
-                        <Badge variant="destructive" className="text-xs">Pendente</Badge>
-                      )}
-                      {u.aprovado && u.tipo !== 'admin' && (
-                        <Badge variant="outline" className="text-xs text-green-600 border-green-600">Aprovado</Badge>
-                      )}
+                <div key={u.id} className="rounded-lg border border-border bg-card p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{u.nome}</span>
+                        {u.tipo === 'admin' && (
+                          <Badge variant="default" className="text-xs">Admin</Badge>
+                        )}
+                        {!u.aprovado && u.tipo !== 'admin' && (
+                          <Badge variant="destructive" className="text-xs">Pendente</Badge>
+                        )}
+                        {u.aprovado && u.tipo !== 'admin' && (
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-600">Aprovado</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">{u.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Cadastro: {formatDate(u.created_at)}
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground">{u.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Cadastro: {formatDate(u.created_at)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {u.tipo !== 'admin' && (
-                      <>
-                        <Button
-                          variant={u.aprovado ? "outline" : "default"}
-                          size="sm"
-                          onClick={() => updateUserApproval.mutate({ userId: u.id, aprovado: !u.aprovado })}
-                          disabled={updateUserApproval.isPending}
+                    <div className="flex items-center gap-2">
+                      {/* Seletor de tipo de usuário */}
+                      {u.email !== user?.email && (
+                        <Select
+                          value={u.tipo}
+                          onValueChange={(value) => updateUserRole.mutate({ userId: u.id, tipo: value })}
+                          disabled={updateUserRole.isPending}
                         >
-                          {u.aprovado ? (
-                            <X className="h-4 w-4" />
-                          ) : (
-                            <Check className="h-4 w-4" />
-                          )}
-                        </Button>
+                          <SelectTrigger className="w-[130px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="user">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                Usuário
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="admin">
+                              <div className="flex items-center gap-2">
+                                <Shield className="h-4 w-4" />
+                                Admin
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {u.tipo !== 'admin' && (
+                        <>
+                          <Button
+                            variant={u.aprovado ? "outline" : "default"}
+                            size="sm"
+                            onClick={() => updateUserApproval.mutate({ userId: u.id, aprovado: !u.aprovado })}
+                            disabled={updateUserApproval.isPending}
+                            title={u.aprovado ? "Remover aprovação" : "Aprovar usuário"}
+                          >
+                            {u.aprovado ? (
+                              <X className="h-4 w-4" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </>
+                      )}
+                      {u.email !== user?.email && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -522,8 +574,8 @@ const Admin = () => {
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
-                      </>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

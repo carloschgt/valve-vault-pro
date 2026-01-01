@@ -66,7 +66,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, userId, aprovado, search, adminEmail } = await req.json();
+    const { action, userId, aprovado, search, adminEmail, tipo } = await req.json();
 
     console.log(`Admin users action: ${action}, adminEmail: ${adminEmail}`);
 
@@ -129,6 +129,31 @@ serve(async (req) => {
         .eq("id", userId);
 
       if (error) throw error;
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "updateRole") {
+      const { tipo } = await req.json().catch(() => ({}));
+      
+      if (!userId || !tipo || !['user', 'admin'].includes(tipo)) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { error } = await supabase
+        .from("usuarios")
+        .update({ tipo })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      console.log(`User ${userId} role updated to ${tipo} by admin ${adminEmail}`);
 
       return new Response(
         JSON.stringify({ success: true }),
