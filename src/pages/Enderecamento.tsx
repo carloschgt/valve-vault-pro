@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import logoImex from '@/assets/logo-imex.png';
@@ -39,7 +38,6 @@ const Enderecamento = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { getProductByCode, appendData, isLoading: isLoadingSheet } = useGoogleSheets();
   
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -53,7 +51,6 @@ const Enderecamento = () => {
   const [comentario, setComentario] = useState('');
   
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Carregar fabricantes do banco
@@ -74,45 +71,6 @@ const Enderecamento = () => {
     loadFabricantes();
   }, []);
 
-  // Buscar descrição ao digitar código
-  const handleBuscarDescricao = async () => {
-    if (!codigo.trim()) {
-      toast({
-        title: 'Atenção',
-        description: 'Digite um código para buscar',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const product = await getProductByCode(codigo, 'Bdados');
-      
-      if (product) {
-        setDescricao(product.descricao);
-        toast({
-          title: 'Sucesso',
-          description: 'Descrição encontrada!',
-        });
-      } else {
-        toast({
-          title: 'Não encontrado',
-          description: 'Material não encontrado na base de produtos',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao buscar descrição',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
   const handleSalvar = async () => {
     // Validar campos obrigatórios
     if (!codigo || !descricao || !tipoMaterial || !fabricanteId || !peso || !rua || !coluna || !nivel || !posicao) {
@@ -126,10 +84,6 @@ const Enderecamento = () => {
 
     setIsSaving(true);
     try {
-      // Buscar nome do fabricante
-      const fabricanteSelecionado = fabricantes.find(f => f.id === fabricanteId);
-      const nomeFabricante = fabricanteSelecionado?.nome || '';
-
       // Salvar no Supabase
       const { error } = await supabase
         .from('enderecos_materiais')
@@ -149,34 +103,9 @@ const Enderecamento = () => {
 
       if (error) throw error;
 
-      // Salvar na planilha Google Sheets (aba ITENS_CADASTRO)
-      // Formato: Código, Descrição, Tipo, Fabricante, Peso, Rua, Coluna, Nível, Posição, Data, Usuário
-      const dataAtual = new Date().toLocaleString('pt-BR');
-      const rowData = [
-        codigo.trim(),
-        descricao.trim(),
-        tipoMaterial,
-        nomeFabricante,
-        peso,
-        rua,
-        coluna,
-        nivel,
-        posicao,
-        dataAtual,
-        user?.nome || 'Sistema'
-      ];
-
-      const sheetSuccess = await appendData('ITENS_CADASTRO', [rowData]);
-      
-      if (!sheetSuccess) {
-        console.warn('Dados salvos no banco, mas houve erro ao salvar na planilha');
-      }
-
       toast({
         title: 'Sucesso',
-        description: sheetSuccess 
-          ? 'Endereçamento salvo no banco e na planilha!' 
-          : 'Salvo no banco, mas erro ao salvar na planilha',
+        description: 'Endereçamento salvo com sucesso!',
       });
 
       // Limpar formulário
@@ -217,31 +146,17 @@ const Enderecamento = () => {
 
       {/* Form */}
       <div className="flex-1 space-y-4 p-4">
-        {/* Código + Buscar */}
+        {/* Código */}
         <div className="space-y-2">
           <Label htmlFor="codigo">Código do Material *</Label>
-          <div className="flex gap-2">
-            <Input
-              id="codigo"
-              placeholder="Digite o código"
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              className="flex-1"
-            />
-            <Button
-              onClick={handleBuscarDescricao}
-              disabled={isSearching || isLoadingSheet}
-              variant="secondary"
-            >
-              {isSearching ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
+          <Input
+            id="codigo"
+            placeholder="Digite o código"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
         </div>
 
         {/* Descrição */}
@@ -252,8 +167,6 @@ const Enderecamento = () => {
             placeholder="Descrição do material"
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
-            readOnly
-            className="bg-muted"
           />
         </div>
 
