@@ -126,6 +126,14 @@ export async function deleteEndereco(id: string): Promise<DataOperationResult> {
   return invokeDataOperation('enderecos_delete', { id });
 }
 
+export async function updateEndereco(id: string, params: Partial<EnderecoInsertParams>): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_update', { id, ...params });
+}
+
+export async function toggleEnderecoAtivo(id: string, ativo: boolean): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_toggle_ativo', { id, ativo });
+}
+
 // ========== INVENTARIO ==========
 export async function insertInventario(
   endereco_material_id: string,
@@ -145,4 +153,13 @@ export async function updateInventario(
 
 export async function deleteInventario(id: string): Promise<DataOperationResult> {
   return invokeDataOperation('inventario_delete', { id });
+}
+
+// ========== CATALOGO INATIVAR ==========
+export async function toggleCatalogoAtivo(id: string, ativo: boolean): Promise<DataOperationResult> {
+  return invokeDataOperation('catalogo_toggle_ativo', { id, ativo });
+}
+
+export async function updateCatalogo(id: string, codigo: string, descricao: string): Promise<DataOperationResult> {
+  return invokeDataOperation('catalogo_update', { id, codigo, descricao });
 }

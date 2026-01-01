@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Search, Loader2, MapPin, Package, BookOpen, Users, ChevronDown, ChevronUp, Check, X, Clock, UserCheck } from 'lucide-react';
+import { ArrowLeft, Trash2, Search, Loader2, MapPin, Package, BookOpen, Users, ChevronDown, ChevronUp, Check, X, Clock, UserCheck, Edit, Ban, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { InputUppercase } from '@/components/ui/input-uppercase';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,13 +18,68 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { deleteEndereco, deleteInventario, deleteCatalogo } from '@/hooks/useDataOperations';
+import { 
+  deleteEndereco, 
+  deleteInventario, 
+  deleteCatalogo, 
+  updateEndereco, 
+  toggleEnderecoAtivo,
+  toggleCatalogoAtivo,
+  updateCatalogo,
+  listFabricantes,
+} from '@/hooks/useDataOperations';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
+
+const TIPOS_MATERIAL = [
+  'Válvula',
+  'Atuador',
+  'Flange',
+  'Conexão',
+  'Tubo',
+  'Instrumento',
+  'Elétrico',
+  'Mecânico',
+  'Outro',
+];
+
+interface EditEnderecoData {
+  id: string;
+  codigo: string;
+  descricao: string;
+  tipo_material: string;
+  fabricante_id: string;
+  peso: string;
+  rua: string;
+  coluna: string;
+  nivel: string;
+  posicao: string;
+  comentario: string;
+}
+
+interface EditCatalogoData {
+  id: string;
+  codigo: string;
+  descricao: string;
+}
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -30,14 +87,6 @@ const Admin = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  /**
-   * UI-ONLY CHECK: This client-side admin check controls what UI elements are displayed.
-   * 
-   * SECURITY NOTE: This does NOT provide actual security. Even if an attacker
-   * modifies localStorage to bypass this check, all admin operations will fail because:
-   * 1. Edge Functions validate adminEmail against the database server-side
-   * 2. RLS policies use is_admin_user() which queries the database directly
-   */
   const isAdmin = user?.tipo === 'admin';
   
   const [searchEnderecos, setSearchEnderecos] = useState('');
@@ -45,6 +94,20 @@ const Admin = () => {
   const [searchCatalogo, setSearchCatalogo] = useState('');
   const [searchUsuarios, setSearchUsuarios] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  
+  // Edit modals
+  const [editEndereco, setEditEndereco] = useState<EditEnderecoData | null>(null);
+  const [editCatalogo, setEditCatalogo] = useState<EditCatalogoData | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Buscar fabricantes
+  const { data: fabricantes = [] } = useQuery({
+    queryKey: ['fabricantes'],
+    queryFn: async () => {
+      const result = await listFabricantes();
+      return result.data || [];
+    },
+  });
 
   // Buscar endereços
   const { data: enderecos = [], isLoading: loadingEnderecos } = useQuery({
@@ -74,7 +137,7 @@ const Admin = () => {
     queryFn: async () => {
       let query = supabase
         .from('inventario')
-        .select('*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao)')
+        .select('*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao, ativo, inativado_por)')
         .order('created_at', { ascending: false });
       
       const { data, error } = await query.limit(100);
@@ -155,6 +218,27 @@ const Admin = () => {
     },
   });
 
+  // Toggle endereço ativo
+  const toggleEnderecoAtivoMutation = useMutation({
+    mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
+      const result = await toggleEnderecoAtivo(id, ativo);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: (_, { ativo }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin_enderecos'] });
+      toast({ 
+        title: 'Sucesso', 
+        description: ativo ? 'Endereçamento reativado!' : 'Endereçamento inativado!' 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
+  });
+
   // Deletar inventário
   const deleteInventarioMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -191,6 +275,26 @@ const Admin = () => {
     },
   });
 
+  // Toggle catálogo ativo
+  const toggleCatalogoAtivoMutation = useMutation({
+    mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
+      const result = await toggleCatalogoAtivo(id, ativo);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: (_, { ativo }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin_catalogo'] });
+      toast({ 
+        title: 'Sucesso', 
+        description: ativo ? 'Produto reativado!' : 'Produto inativado!' 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
+  });
 
   // Aprovar/Rejeitar usuário
   const updateUserApproval = useMutation({
@@ -230,6 +334,57 @@ const Admin = () => {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     },
   });
+
+  // Salvar edição de endereço
+  const handleSaveEndereco = async () => {
+    if (!editEndereco) return;
+    
+    setIsSaving(true);
+    try {
+      const result = await updateEndereco(editEndereco.id, {
+        codigo: editEndereco.codigo,
+        descricao: editEndereco.descricao,
+        tipo_material: editEndereco.tipo_material,
+        fabricante_id: editEndereco.fabricante_id,
+        peso: editEndereco.peso,
+        rua: editEndereco.rua,
+        coluna: editEndereco.coluna,
+        nivel: editEndereco.nivel,
+        posicao: editEndereco.posicao,
+        comentario: editEndereco.comentario,
+      });
+      
+      if (!result.success) throw new Error(result.error);
+      
+      queryClient.invalidateQueries({ queryKey: ['admin_enderecos'] });
+      toast({ title: 'Sucesso', description: 'Endereçamento atualizado!' });
+      setEditEndereco(null);
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Salvar edição de catálogo
+  const handleSaveCatalogo = async () => {
+    if (!editCatalogo) return;
+    
+    setIsSaving(true);
+    try {
+      const result = await updateCatalogo(editCatalogo.id, editCatalogo.codigo, editCatalogo.descricao);
+      
+      if (!result.success) throw new Error(result.error);
+      
+      queryClient.invalidateQueries({ queryKey: ['admin_catalogo'] });
+      toast({ title: 'Sucesso', description: 'Produto atualizado!' });
+      setEditCatalogo(null);
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!isAdmin) {
     return (
@@ -423,17 +578,29 @@ const Admin = () => {
           ) : (
             <div className="space-y-2">
               {enderecos.map((e: any) => (
-                <div key={e.id} className="rounded-lg border border-border bg-card">
+                <div key={e.id} className={`rounded-lg border bg-card ${!e.ativo ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
                   <div 
                     className="flex cursor-pointer items-center justify-between p-3"
                     onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-primary">{e.codigo}</span>
+                        <span className={`font-medium ${!e.ativo ? 'text-muted-foreground line-through' : 'text-primary'}`}>
+                          {e.codigo}
+                        </span>
                         <Badge variant="outline" className="text-xs">{e.tipo_material}</Badge>
+                        {!e.ativo && (
+                          <Badge variant="destructive" className="text-xs">INATIVO</Badge>
+                        )}
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{e.descricao}</p>
+                      <p className={`text-sm line-clamp-1 ${!e.ativo ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+                        {e.descricao}
+                      </p>
+                      {!e.ativo && e.inativado_por && (
+                        <p className="text-xs text-destructive">
+                          Inativado por: {e.inativado_por}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">
@@ -452,7 +619,50 @@ const Admin = () => {
                         <p>Data: {formatDate(e.created_at)}</p>
                         {e.comentario && <p className="col-span-2">Obs: {e.comentario}</p>}
                       </div>
-                      <div className="mt-3 flex justify-end">
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        {/* Botão Editar */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditEndereco({
+                            id: e.id,
+                            codigo: e.codigo,
+                            descricao: e.descricao,
+                            tipo_material: e.tipo_material,
+                            fabricante_id: e.fabricante_id || '',
+                            peso: String(e.peso),
+                            rua: String(e.rua),
+                            coluna: String(e.coluna),
+                            nivel: String(e.nivel),
+                            posicao: String(e.posicao),
+                            comentario: e.comentario || '',
+                          })}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Editar
+                        </Button>
+                        
+                        {/* Botão Inativar/Ativar */}
+                        <Button
+                          variant={e.ativo ? "outline" : "default"}
+                          size="sm"
+                          onClick={() => toggleEnderecoAtivoMutation.mutate({ id: e.id, ativo: !e.ativo })}
+                          disabled={toggleEnderecoAtivoMutation.isPending}
+                        >
+                          {e.ativo ? (
+                            <>
+                              <Ban className="mr-2 h-4 w-4" />
+                              Inativar
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Ativar
+                            </>
+                          )}
+                        </Button>
+                        
+                        {/* Botão Excluir */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm">
@@ -503,9 +713,16 @@ const Admin = () => {
           ) : (
             <div className="space-y-2">
               {inventario.map((i: any) => (
-                <div key={i.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+                <div key={i.id} className={`flex items-center justify-between rounded-lg border bg-card p-3 ${!i.enderecos_materiais?.ativo ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
                   <div className="flex-1">
-                    <p className="font-medium text-primary">{i.enderecos_materiais?.codigo}</p>
+                    <div className="flex items-center gap-2">
+                      <p className={`font-medium ${!i.enderecos_materiais?.ativo ? 'text-muted-foreground line-through' : 'text-primary'}`}>
+                        {i.enderecos_materiais?.codigo}
+                      </p>
+                      {!i.enderecos_materiais?.ativo && (
+                        <Badge variant="destructive" className="text-xs">INATIVO</Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">
                       {i.enderecos_materiais?.descricao}
                     </p>
@@ -514,6 +731,11 @@ const Admin = () => {
                       <span><strong>Por:</strong> {i.contado_por}</span>
                       <span>{formatDate(i.updated_at)}</span>
                     </div>
+                    {!i.enderecos_materiais?.ativo && i.enderecos_materiais?.inativado_por && (
+                      <p className="text-xs text-destructive">
+                        Inativado por: {i.enderecos_materiais.inativado_por}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
@@ -572,38 +794,240 @@ const Admin = () => {
           ) : (
             <div className="space-y-2">
               {catalogo.map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+                <div key={c.id} className={`flex items-center justify-between rounded-lg border bg-card p-3 ${!c.ativo ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
                   <div className="flex-1">
-                    <p className="font-medium text-primary">{c.codigo}</p>
+                    <div className="flex items-center gap-2">
+                      <p className={`font-medium ${!c.ativo ? 'text-muted-foreground line-through' : 'text-primary'}`}>
+                        {c.codigo}
+                      </p>
+                      {!c.ativo && (
+                        <Badge variant="destructive" className="text-xs">INATIVO</Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">{c.descricao}</p>
+                    {!c.ativo && c.inativado_por && (
+                      <p className="text-xs text-destructive">
+                        Inativado por: {c.inativado_por}
+                      </p>
+                    )}
                   </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir do catálogo?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta ação não pode ser desfeita.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteCatalogoMutation.mutate(c.id)}>
-                          Excluir
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditCatalogo({
+                        id: c.id,
+                        codigo: c.codigo,
+                        descricao: c.descricao,
+                      })}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleCatalogoAtivoMutation.mutate({ id: c.id, ativo: !c.ativo })}
+                      disabled={toggleCatalogoAtivoMutation.isPending}
+                    >
+                      {c.ativo ? (
+                        <Ban className="h-4 w-4 text-orange-500" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      )}
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir do catálogo?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteCatalogoMutation.mutate(c.id)}>
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Dialog Editar Endereço */}
+      <Dialog open={!!editEndereco} onOpenChange={() => setEditEndereco(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Endereçamento</DialogTitle>
+          </DialogHeader>
+          
+          {editEndereco && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Código</Label>
+                <InputUppercase
+                  value={editEndereco.codigo}
+                  onChange={(e) => setEditEndereco({ ...editEndereco, codigo: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <InputUppercase
+                  value={editEndereco.descricao}
+                  onChange={(e) => setEditEndereco({ ...editEndereco, descricao: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Tipo de Material</Label>
+                <Select 
+                  value={editEndereco.tipo_material} 
+                  onValueChange={(v) => setEditEndereco({ ...editEndereco, tipo_material: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_MATERIAL.map((tipo) => (
+                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Fabricante</Label>
+                <Select 
+                  value={editEndereco.fabricante_id} 
+                  onValueChange={(v) => setEditEndereco({ ...editEndereco, fabricante_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fabricantes.map((fab: any) => (
+                      <SelectItem key={fab.id} value={fab.id}>{fab.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Peso (kg)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editEndereco.peso}
+                  onChange={(e) => setEditEndereco({ ...editEndereco, peso: e.target.value })}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Rua</Label>
+                  <Input
+                    type="number"
+                    value={editEndereco.rua}
+                    onChange={(e) => setEditEndereco({ ...editEndereco, rua: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Coluna</Label>
+                  <Input
+                    type="number"
+                    value={editEndereco.coluna}
+                    onChange={(e) => setEditEndereco({ ...editEndereco, coluna: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nível</Label>
+                  <Input
+                    type="number"
+                    value={editEndereco.nivel}
+                    onChange={(e) => setEditEndereco({ ...editEndereco, nivel: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Posição</Label>
+                  <Input
+                    type="number"
+                    value={editEndereco.posicao}
+                    onChange={(e) => setEditEndereco({ ...editEndereco, posicao: e.target.value })}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Comentário</Label>
+                <InputUppercase
+                  value={editEndereco.comentario}
+                  onChange={(e) => setEditEndereco({ ...editEndereco, comentario: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditEndereco(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEndereco} disabled={isSaving}>
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Editar Catálogo */}
+      <Dialog open={!!editCatalogo} onOpenChange={() => setEditCatalogo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Produto</DialogTitle>
+          </DialogHeader>
+          
+          {editCatalogo && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Código</Label>
+                <InputUppercase
+                  value={editCatalogo.codigo}
+                  onChange={(e) => setEditCatalogo({ ...editCatalogo, codigo: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <InputUppercase
+                  value={editCatalogo.descricao}
+                  onChange={(e) => setEditCatalogo({ ...editCatalogo, descricao: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditCatalogo(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveCatalogo} disabled={isSaving}>
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
