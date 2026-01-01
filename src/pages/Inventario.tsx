@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Save, Loader2, MapPin, Edit2 } from 'lucide-react';
+import { ArrowLeft, Search, Save, Loader2, MapPin, Edit2, QrCode } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { listEnderecos, getInventarioByEndereco, insertInventario, updateInventario } from '@/hooks/useDataOperations';
+import { QRScanner } from '@/components/QRScanner';
 import logoImex from '@/assets/logo-imex.png';
 
 interface EnderecoMaterial {
@@ -34,6 +35,15 @@ interface InventarioItem {
   comentario?: string;
 }
 
+interface QRData {
+  codigo: string;
+  descricao?: string;
+  fabricante?: string;
+  tipo?: string;
+  endereco?: string;
+  endereco_id?: string;
+}
+
 const Inventario = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -45,6 +55,7 @@ const Inventario = () => {
   const [quantidade, setQuantidade] = useState('');
   const [comentario, setComentario] = useState('');
   const [inventarioExistente, setInventarioExistente] = useState<InventarioItem | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
   
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -115,6 +126,90 @@ const Inventario = () => {
     }
   };
 
+  // Parse QR code data and auto-fill fields
+  const handleQRScan = async (data: string) => {
+    setShowScanner(false);
+    
+    try {
+      // Try to parse as JSON (our QR format)
+      let qrData: QRData | null = null;
+      
+      try {
+        qrData = JSON.parse(data);
+      } catch {
+        // Not JSON, treat as simple code
+        qrData = { codigo: data };
+      }
+      
+      if (!qrData?.codigo) {
+        toast({
+          title: 'QR Code inválido',
+          description: 'O QR Code não contém um código de material válido',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setCodigo(qrData.codigo);
+      
+      // If we have endereco_id from QR, try to find and auto-select
+      setIsSearching(true);
+      const result = await listEnderecos(qrData.codigo);
+      setIsSearching(false);
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      if (result.data && result.data.length > 0) {
+        setEnderecos(result.data);
+        
+        // If QR has endereco info, try to auto-select the matching one
+        if (qrData.endereco && result.data.length > 1) {
+          const matchingEndereco = result.data.find((e: EnderecoMaterial) => {
+            const enderecoStr = `R${e.rua}.C${e.coluna}.N${e.nivel}.P${e.posicao}`;
+            return enderecoStr === qrData?.endereco;
+          });
+          
+          if (matchingEndereco) {
+            handleSelectEndereco(matchingEndereco);
+            toast({
+              title: 'Material identificado',
+              description: `${qrData.codigo} - ${qrData.endereco}`,
+            });
+            return;
+          }
+        }
+        
+        // If only one result, auto-select it
+        if (result.data.length === 1) {
+          handleSelectEndereco(result.data[0]);
+          toast({
+            title: 'Material identificado',
+            description: `${qrData.codigo} encontrado`,
+          });
+        } else {
+          toast({
+            title: 'Múltiplos endereços',
+            description: `${result.data.length} endereços encontrados. Selecione um.`,
+          });
+        }
+      } else {
+        toast({
+          title: 'Não encontrado',
+          description: 'Material não possui endereço cadastrado',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao processar QR',
+        description: error.message || 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleSalvar = async () => {
     if (!selectedEndereco || !quantidade) {
       toast({
@@ -178,6 +273,14 @@ const Inventario = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      {/* QR Scanner Modal */}
+      {showScanner && (
+        <QRScanner 
+          onScan={handleQRScan} 
+          onClose={() => setShowScanner(false)} 
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-4 border-b border-border bg-card p-4">
         <button
@@ -196,12 +299,20 @@ const Inventario = () => {
         <div className="mt-2 flex gap-2">
           <Input
             id="codigo"
-            placeholder="Digite o código"
+            placeholder="Digite o código ou leia QR"
             value={codigo}
             onChange={(e) => setCodigo(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
             className="flex-1"
           />
+          <Button
+            onClick={() => setShowScanner(true)}
+            variant="outline"
+            className="shrink-0"
+            title="Ler QR Code"
+          >
+            <QrCode className="h-4 w-4" />
+          </Button>
           <Button
             onClick={handleBuscar}
             disabled={isSearching}
@@ -214,6 +325,9 @@ const Inventario = () => {
             )}
           </Button>
         </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Use o botão QR para ler etiquetas automaticamente
+        </p>
       </div>
 
       {/* Content */}
