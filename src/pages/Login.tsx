@@ -5,16 +5,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, UserPlus } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ArrowRight, ArrowLeft, UserPlus, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import logoImex from '@/assets/logo-imex.png';
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
 
 type Step = 'email' | 'login' | 'register';
+
+// Password validation
+function validatePassword(senha: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (senha.length < 8) {
+    errors.push('Mínimo 8 caracteres');
+  }
+  if (!/[a-zA-Z]/.test(senha)) {
+    errors.push('Pelo menos uma letra');
+  }
+  if (!/\d/.test(senha)) {
+    errors.push('Pelo menos um número');
+  }
+  
+  return { valid: errors.length === 0, errors };
+}
 
 const Login = () => {
   const navigate = useNavigate();
@@ -27,6 +39,8 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [userName, setUserName] = useState('');
+
+  const passwordValidation = validatePassword(senha);
 
   const handleCheckEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,8 +82,8 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (senha.length !== 6) {
-      toast.error('Digite os 6 dígitos da senha');
+    if (!passwordValidation.valid) {
+      toast.error('Senha inválida');
       return;
     }
 
@@ -97,8 +111,8 @@ const Login = () => {
       return;
     }
 
-    if (senha.length !== 6) {
-      toast.error('Digite uma senha de 6 dígitos');
+    if (!passwordValidation.valid) {
+      toast.error('A senha não atende aos requisitos');
       return;
     }
 
@@ -121,6 +135,13 @@ const Login = () => {
     setStep('email');
     setSenha('');
   };
+
+  const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
+    <div className={`flex items-center gap-1.5 text-xs ${met ? 'text-green-600' : 'text-muted-foreground'}`}>
+      {met ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+      <span>{text}</span>
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-primary/5 p-4">
@@ -201,22 +222,25 @@ const Login = () => {
           {step === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label>Senha (6 dígitos)</Label>
-                <div className="flex justify-center">
-                  <InputOTP
-                    maxLength={6}
+                <Label htmlFor="senha">Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="senha"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Digite sua senha"
                     value={senha}
-                    onChange={(value) => setSenha(value)}
+                    onChange={(e) => setSenha(e.target.value)}
+                    autoComplete="current-password"
+                    disabled={isLoading}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -224,7 +248,7 @@ const Login = () => {
                 <Button type="button" variant="outline" onClick={goBack} disabled={isLoading}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <Button type="submit" className="flex-1" disabled={isLoading || senha.length !== 6}>
+                <Button type="submit" className="flex-1" disabled={isLoading || !senha}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -255,33 +279,53 @@ const Login = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Crie sua senha (6 dígitos)</Label>
-                <div className="flex justify-center">
-                  <InputOTP
-                    maxLength={6}
+                <Label htmlFor="novaSenha">Crie sua senha</Label>
+                <div className="relative">
+                  <Input
+                    id="novaSenha"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Mínimo 8 caracteres"
                     value={senha}
-                    onChange={(value) => setSenha(value)}
+                    onChange={(e) => setSenha(e.target.value)}
+                    autoComplete="new-password"
+                    disabled={isLoading}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Utilize apenas números
-                </p>
+                
+                {/* Password requirements */}
+                <div className="space-y-1 pt-1">
+                  <PasswordRequirement 
+                    met={senha.length >= 8} 
+                    text="Mínimo 8 caracteres" 
+                  />
+                  <PasswordRequirement 
+                    met={/[a-zA-Z]/.test(senha)} 
+                    text="Pelo menos uma letra" 
+                  />
+                  <PasswordRequirement 
+                    met={/\d/.test(senha)} 
+                    text="Pelo menos um número" 
+                  />
+                </div>
               </div>
 
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={goBack} disabled={isLoading}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <Button type="submit" className="flex-1" disabled={isLoading || senha.length !== 6 || !nome.trim()}>
+                <Button 
+                  type="submit" 
+                  className="flex-1" 
+                  disabled={isLoading || !passwordValidation.valid || !nome.trim()}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -138,12 +138,25 @@ function validateEmail(email: string): { valid: boolean; error?: string } {
 }
 
 function validatePassword(senha: string): { valid: boolean; error?: string } {
-  if (!senha || senha.length !== 6) {
-    return { valid: false, error: "A senha deve ter exatamente 6 dígitos" };
+  if (!senha) {
+    return { valid: false, error: "A senha é obrigatória" };
   }
   
-  if (!/^\d{6}$/.test(senha)) {
-    return { valid: false, error: "A senha deve conter apenas números" };
+  if (senha.length < 8) {
+    return { valid: false, error: "A senha deve ter no mínimo 8 caracteres" };
+  }
+  
+  if (senha.length > 128) {
+    return { valid: false, error: "A senha deve ter no máximo 128 caracteres" };
+  }
+  
+  // Require at least one letter and one number
+  if (!/[a-zA-Z]/.test(senha)) {
+    return { valid: false, error: "A senha deve conter pelo menos uma letra" };
+  }
+  
+  if (!/\d/.test(senha)) {
+    return { valid: false, error: "A senha deve conter pelo menos um número" };
   }
   
   return { valid: true };
