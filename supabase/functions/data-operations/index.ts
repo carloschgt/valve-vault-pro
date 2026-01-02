@@ -785,6 +785,109 @@ serve(async (req) => {
       );
     }
 
+    // ========== ESTOQUE ATUAL (ADMIN ONLY) ==========
+    if (action === "estoque_atual") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem acessar esta funcionalidade' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { search } = params;
+      
+      // Buscar inventário com quantidade > 0, ordenado por código e rua
+      let query = supabase
+        .from("inventario")
+        .select(`
+          id,
+          quantidade,
+          endereco_material_id,
+          enderecos_materiais (
+            id,
+            codigo,
+            descricao,
+            tipo_material,
+            rua,
+            coluna,
+            nivel,
+            posicao
+          )
+        `)
+        .gt("quantidade", 0);
+
+      const { data: inventarioData, error: invError } = await query;
+      
+      if (invError) throw invError;
+
+      // Filtrar por busca se fornecida
+      let filteredData = inventarioData || [];
+      if (search) {
+        const safeSearch = sanitizeSearchTerm(search).toLowerCase();
+        if (safeSearch) {
+          filteredData = filteredData.filter((inv: any) => 
+            inv.enderecos_materiais?.codigo?.toLowerCase().includes(safeSearch) ||
+            inv.enderecos_materiais?.descricao?.toLowerCase().includes(safeSearch)
+          );
+        }
+      }
+
+      // Agrupar por código de material
+      const grouped: Record<string, {
+        codigo: string;
+        descricao: string;
+        tipo_material: string;
+        enderecos: {
+          rua: number;
+          coluna: number;
+          nivel: number;
+          posicao: number;
+          quantidade: number;
+          endereco_id: string;
+        }[];
+        qtd_total: number;
+      }> = {};
+
+      for (const inv of filteredData) {
+        const mat = inv.enderecos_materiais as any;
+        if (!mat) continue;
+
+        const matCodigo = mat.codigo;
+        if (!grouped[matCodigo]) {
+          grouped[matCodigo] = {
+            codigo: matCodigo,
+            descricao: mat.descricao,
+            tipo_material: mat.tipo_material,
+            enderecos: [],
+            qtd_total: 0,
+          };
+        }
+
+        grouped[matCodigo].enderecos.push({
+          rua: mat.rua,
+          coluna: mat.coluna,
+          nivel: mat.nivel,
+          posicao: mat.posicao,
+          quantidade: inv.quantidade,
+          endereco_id: mat.id,
+        });
+        grouped[matCodigo].qtd_total += inv.quantidade;
+      }
+
+      // Converter para array e ordenar por código (menor para maior) e rua (menor para maior)
+      const result = Object.values(grouped)
+        .sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }))
+        .map(item => ({
+          ...item,
+          enderecos: item.enderecos.sort((a, b) => a.rua - b.rua || a.coluna - b.coluna || a.nivel - b.nivel || a.posicao - b.posicao),
+        }));
+
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error(`Ação inválida: ${action}`);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";
