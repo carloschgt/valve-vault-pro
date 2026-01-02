@@ -169,38 +169,42 @@ const Enderecamento = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Header */}
-      <div className="flex items-center gap-4 border-b border-border bg-card p-4">
+      {/* Header compacto */}
+      <div className="flex items-center gap-3 border-b border-border bg-card px-3 py-2">
         <button
           onClick={() => navigate('/')}
-          className="rounded-lg p-2 hover:bg-accent"
+          className="rounded-lg p-1.5 hover:bg-accent"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <img src={logoImex} alt="IMEX Solutions" className="h-8" />
-        <h1 className="text-lg font-bold">Endereçamento</h1>
+        <img src={logoImex} alt="IMEX Solutions" className="h-6" />
+        <h1 className="text-base font-bold">Endereçamento</h1>
       </div>
 
-      {/* Form */}
-      <div className="flex-1 space-y-4 p-4">
-        {/* Código + Buscar */}
-        <div className="space-y-2">
-          <Label htmlFor="codigo">Código do Material *</Label>
-          <div className="flex gap-2">
+      {/* Form otimizado para mobile */}
+      <div className="flex-1 space-y-3 p-3">
+        {/* Código + Buscar - layout compacto */}
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Label htmlFor="codigo" className="text-xs">Código *</Label>
             <Input
               id="codigo"
-              placeholder="Digite o código"
+              placeholder="Código"
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleBuscarDescricao()}
               inputMode="numeric"
               pattern="[0-9]*"
-              className="flex-1"
+              className="h-9"
             />
+          </div>
+          <div className="flex items-end">
             <Button
               onClick={handleBuscarDescricao}
               disabled={isSearching}
               variant="secondary"
+              size="sm"
+              className="h-9"
             >
               {isSearching ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -209,122 +213,124 @@ const Enderecamento = () => {
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Clique na lupa para buscar a descrição no catálogo
-          </p>
         </div>
 
         {/* Descrição */}
-        <div className="space-y-2">
-          <Label htmlFor="descricao">Descrição *</Label>
+        <div>
+          <Label htmlFor="descricao" className="text-xs">Descrição *</Label>
           <Input
             id="descricao"
             placeholder="Descrição do material"
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
+            className="h-9"
           />
         </div>
 
-        {/* Tipo de Material */}
-        <div className="space-y-2">
-          <Label>Tipo de Material *</Label>
-          <Select value={tipoMaterial} onValueChange={setTipoMaterial}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              {TIPOS_MATERIAL.map((tipo) => (
-                <SelectItem key={tipo} value={tipo}>
-                  {tipo}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Tipo + Fabricante - lado a lado */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs">Tipo *</Label>
+            <Select value={tipoMaterial} onValueChange={setTipoMaterial}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_MATERIAL.map((tipo) => (
+                  <SelectItem key={tipo} value={tipo}>
+                    {tipo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Fabricante *</Label>
+            <Select value={fabricanteId} onValueChange={setFabricanteId}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Fabricante" />
+              </SelectTrigger>
+              <SelectContent>
+                {fabricantes.map((fab) => (
+                  <SelectItem key={fab.id} value={fab.id}>
+                    {fab.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Fabricante */}
-        <div className="space-y-2">
-          <Label>Fabricante *</Label>
-          <Select value={fabricanteId} onValueChange={setFabricanteId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o fabricante" />
-            </SelectTrigger>
-            <SelectContent>
-              {fabricantes.map((fab) => (
-                <SelectItem key={fab.id} value={fab.id}>
-                  {fab.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Peso */}
-        <div className="space-y-2">
-          <Label htmlFor="peso">Peso (kg) *</Label>
-          <Input
-            id="peso"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={peso}
-            onChange={(e) => setPeso(e.target.value)}
-          />
-        </div>
-
-        {/* Endereço - Grid 2x2 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="rua">Rua *</Label>
+        {/* Peso + Endereço - tudo em uma linha compacta */}
+        <div className="grid grid-cols-5 gap-2">
+          <div>
+            <Label htmlFor="peso" className="text-xs">Peso(kg)*</Label>
+            <Input
+              id="peso"
+              type="number"
+              step="0.01"
+              placeholder="0"
+              value={peso}
+              onChange={(e) => setPeso(e.target.value)}
+              className="h-9"
+            />
+          </div>
+          <div>
+            <Label htmlFor="rua" className="text-xs">Rua *</Label>
             <Input
               id="rua"
               type="number"
               placeholder="Nº"
               value={rua}
               onChange={(e) => setRua(e.target.value)}
+              className="h-9"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="coluna">Coluna *</Label>
+          <div>
+            <Label htmlFor="coluna" className="text-xs">Coluna *</Label>
             <Input
               id="coluna"
               type="number"
               placeholder="Nº"
               value={coluna}
               onChange={(e) => setColuna(e.target.value)}
+              className="h-9"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="nivel">Nível *</Label>
+          <div>
+            <Label htmlFor="nivel" className="text-xs">Nível *</Label>
             <Input
               id="nivel"
               type="number"
               placeholder="Nº"
               value={nivel}
               onChange={(e) => setNivel(e.target.value)}
+              className="h-9"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="posicao">Posição *</Label>
+          <div>
+            <Label htmlFor="posicao" className="text-xs">Posição *</Label>
             <Input
               id="posicao"
               type="number"
               placeholder="Nº"
               value={posicao}
               onChange={(e) => setPosicao(e.target.value)}
+              className="h-9"
             />
           </div>
         </div>
 
         {/* Comentário */}
-        <div className="space-y-2">
-          <Label htmlFor="comentario">Comentário (opcional)</Label>
+        <div>
+          <Label htmlFor="comentario" className="text-xs">Comentário (opcional)</Label>
           <Input
             id="comentario"
-            placeholder="Observações sobre o material"
+            placeholder="Observações"
             value={comentario}
             onChange={(e) => setComentario(e.target.value)}
             maxLength={500}
+            className="h-9"
           />
         </div>
 
@@ -332,8 +338,8 @@ const Enderecamento = () => {
         <Button
           onClick={handleSalvar}
           disabled={isSaving}
-          className="mt-6 w-full"
-          size="lg"
+          className="w-full"
+          size="default"
         >
           {isSaving ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
