@@ -56,6 +56,7 @@ const Catalogo = () => {
       let query = supabase
         .from('catalogo_produtos')
         .select('*')
+        .eq('ativo', true)
         .order('codigo');
       
       if (searchTerm) {
