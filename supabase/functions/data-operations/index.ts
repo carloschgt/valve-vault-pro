@@ -305,6 +305,26 @@ serve(async (req) => {
       }
 
       const { id } = params;
+      
+      // Check if there are materials using this manufacturer
+      const { data: materiaisVinculados, error: checkError } = await supabase
+        .from("enderecos_materiais")
+        .select("id")
+        .eq("fabricante_id", id)
+        .limit(1);
+      
+      if (checkError) throw checkError;
+      
+      if (materiaisVinculados && materiaisVinculados.length > 0) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Não é possível excluir este fabricante pois existem materiais vinculados a ele. Remova os materiais primeiro.' 
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
       const { error } = await supabase.from("fabricantes").delete().eq("id", id);
       if (error) throw error;
       
