@@ -236,7 +236,7 @@ serve(async (req) => {
     // Verificar duplicidade de endereçamento
     if (action === "enderecos_check_duplicate") {
       const { codigo, rua, coluna, nivel, posicao } = params;
-      const { data, error } = await supabase
+      const { data: existentes, error } = await supabase
         .from("enderecos_materiais")
         .select("id, codigo, descricao, rua, coluna, nivel, posicao")
         .eq("codigo", codigo?.trim().toUpperCase())
@@ -245,9 +245,11 @@ serve(async (req) => {
         .eq("nivel", parseInt(nivel))
         .eq("posicao", parseInt(posicao))
         .eq("ativo", true)
-        .maybeSingle();
+        .limit(1);
       
       if (error) throw error;
+      // Retorna o primeiro registro encontrado ou null
+      const data = existentes && existentes.length > 0 ? existentes[0] : null;
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -442,7 +444,7 @@ serve(async (req) => {
       const posicaoNum = parseInt(posicao);
       
       // VERIFICAR DUPLICIDADE NO BACKEND antes de inserir
-      const { data: existente, error: checkError } = await supabase
+      const { data: existentes, error: checkError } = await supabase
         .from("enderecos_materiais")
         .select("id, codigo, descricao, rua, coluna, nivel, posicao")
         .eq("codigo", codigoNorm)
@@ -451,12 +453,14 @@ serve(async (req) => {
         .eq("nivel", nivelNum)
         .eq("posicao", posicaoNum)
         .eq("ativo", true)
-        .maybeSingle();
+        .limit(1);
       
       if (checkError) {
         console.error("Erro ao verificar duplicidade:", checkError);
         throw checkError;
       }
+      
+      const existente = existentes && existentes.length > 0 ? existentes[0] : null;
       
       if (existente) {
         console.log("Duplicidade encontrada:", existente);
