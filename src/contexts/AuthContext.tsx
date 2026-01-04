@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { UserStatus, UserRole } from '@/types/user';
 
 /**
  * SECURITY MODEL DOCUMENTATION:
@@ -24,7 +25,11 @@ interface User {
   nome: string;
   email: string;
   /** NOTE: This is for UI display only. Actual authorization uses server-side validation. */
-  tipo: 'admin' | 'user';
+  tipo: UserRole;
+  /** User access status */
+  status: UserStatus;
+  /** Date until user is suspended (if applicable) */
+  suspensoAte?: string | null;
   /** Secure session token for API authentication */
   sessionToken?: string;
 }
@@ -35,12 +40,15 @@ interface CheckEmailResult {
   exists?: boolean;
   approved?: boolean;
   userName?: string;
+  status?: UserStatus;
 }
 
 interface LoginResult {
   success: boolean;
   error?: string;
   pendingApproval?: boolean;
+  status?: UserStatus;
+  suspensoAte?: string | null;
 }
 
 interface AuthContextType {
@@ -101,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         exists: data.exists,
         approved: data.approved,
         userName: data.userName,
+        status: data.status,
       };
     } catch (err) {
       console.error('Check email error:', err);
@@ -125,6 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           success: false, 
           error: data.error || 'Erro ao fazer login',
           pendingApproval: data.pendingApproval,
+          status: data.status,
+          suspensoAte: data.suspensoAte,
         };
       }
 
@@ -132,7 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         nome: data.user.nome,
         email: data.user.email,
-        tipo: data.user.tipo as 'admin' | 'user',
+        tipo: data.user.tipo as UserRole,
+        status: data.user.status as UserStatus || 'ativo',
+        suspensoAte: data.user.suspenso_ate,
         sessionToken: data.sessionToken,
       };
 

@@ -66,11 +66,47 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, userId, aprovado, search, adminEmail, tipo } = await req.json();
+    const { action, userId, aprovado, search, adminEmail, tipo, status, suspendedUntil, statusFilter } = await req.json();
 
     console.log(`Admin users action: ${action}, adminEmail: ${adminEmail}`);
 
-    // CRITICAL: Server-side admin verification for ALL operations
+    // Actions that don't require admin (for user self-check)
+    if (action === "checkApprovalNotification") {
+      const { data: user, error } = await supabase
+        .from("usuarios")
+        .select("status, notificado_aprovacao")
+        .eq("id", userId)
+        .maybeSingle();
+      
+      if (error || !user) {
+        return new Response(
+          JSON.stringify({ success: true, showNotification: false }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Show notification if user is ativo and hasn't been notified yet
+      const showNotification = user.status === 'ativo' && !user.notificado_aprovacao;
+
+      return new Response(
+        JSON.stringify({ success: true, showNotification }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "dismissApprovalNotification") {
+      await supabase
+        .from("usuarios")
+        .update({ notificado_aprovacao: true })
+        .eq("id", userId);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // CRITICAL: Server-side admin verification for ALL other operations
     if (!adminEmail) {
       return new Response(
         JSON.stringify({ success: false, error: "Email do administrador não fornecido" }),
@@ -90,19 +126,74 @@ serve(async (req) => {
     if (action === "list") {
       let query = supabase
         .from("usuarios")
-        .select("id, nome, email, tipo, aprovado, created_at")
+        .select("id, nome, email, tipo, aprovado, status, suspenso_ate, created_at")
         .order("created_at", { ascending: false });
 
       if (search) {
         query = query.or(`nome.ilike.%${search}%,email.ilike.%${search}%`);
       }
 
+      // Filter by status
+      if (statusFilter && statusFilter !== 'all') {
+        query = query.eq("status", statusFilter);
+      }
+
       const { data: users, error } = await query;
 
       if (error) throw error;
 
+      // Calculate counts for each status
+      const { data: allUsers } = await supabase
+        .from("usuarios")
+        .select("status");
+
+      const counts = {
+        pendente: 0,
+        ativo: 0,
+        suspenso: 0,
+        negado: 0,
+        total: allUsers?.length || 0,
+      };
+
+      allUsers?.forEach((u: any) => {
+        if (counts[u.status as keyof typeof counts] !== undefined) {
+          counts[u.status as keyof typeof counts]++;
+        }
+      });
+
       return new Response(
-        JSON.stringify({ success: true, users }),
+        JSON.stringify({ success: true, users, counts }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "getUser") {
+      const { data: user, error } = await supabase
+        .from("usuarios")
+        .select("id, nome, email, tipo, aprovado, status, suspenso_ate, notificado_aprovacao, created_at, updated_at")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return new Response(
+        JSON.stringify({ success: true, user }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "userLogs") {
+      const { data: logs, error } = await supabase
+        .from("login_logs")
+        .select("*")
+        .eq("user_id", userId)
+        .order("logged_at", { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      return new Response(
+        JSON.stringify({ success: true, logs }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -123,9 +214,16 @@ serve(async (req) => {
     }
 
     if (action === "approve") {
+      // Update both aprovado and status
+      const newStatus = aprovado ? 'ativo' : 'pendente';
       const { error } = await supabase
         .from("usuarios")
-        .update({ aprovado })
+        .update({ 
+          aprovado, 
+          status: newStatus,
+          notificado_aprovacao: false, // Reset notification flag when status changes
+          suspenso_ate: null,
+        })
         .eq("id", userId);
 
       if (error) throw error;
@@ -136,8 +234,58 @@ serve(async (req) => {
       );
     }
 
+    if (action === "updateUser") {
+      const updateData: any = {};
+      
+      if (tipo && ['user', 'admin', 'estoque'].includes(tipo)) {
+        updateData.tipo = tipo;
+      }
+      
+      if (status && ['pendente', 'ativo', 'suspenso', 'negado'].includes(status)) {
+        updateData.status = status;
+        updateData.aprovado = status === 'ativo';
+        
+        // Reset notification flag so user sees notification on next login
+        if (status === 'ativo') {
+          updateData.notificado_aprovacao = false;
+        }
+        
+        // Handle suspended until date
+        if (status === 'suspenso' && suspendedUntil) {
+          updateData.suspenso_ate = new Date(suspendedUntil).toISOString();
+        } else if (status !== 'suspenso') {
+          updateData.suspenso_ate = null;
+        }
+      }
+
+      if (suspendedUntil === null) {
+        updateData.suspenso_ate = null;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Nenhum dado para atualizar" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { error } = await supabase
+        .from("usuarios")
+        .update(updateData)
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      console.log(`User ${userId} updated by admin ${adminEmail}:`, updateData);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "updateRole") {
-      if (!userId || !tipo || !['user', 'admin'].includes(tipo)) {
+      if (!userId || !tipo || !['user', 'admin', 'estoque'].includes(tipo)) {
         return new Response(
           JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -160,8 +308,10 @@ serve(async (req) => {
     }
 
     if (action === "delete") {
-      // First delete login logs
+      // First delete related records
       await supabase.from("login_logs").delete().eq("user_id", userId);
+      await supabase.from("session_tokens").delete().eq("user_id", userId);
+      await supabase.from("webauthn_credentials").delete().eq("user_id", userId);
 
       // Then delete user
       const { error } = await supabase

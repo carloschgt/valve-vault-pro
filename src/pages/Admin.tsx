@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Search, Loader2, MapPin, Package, BookOpen, Users, ChevronDown, ChevronUp, Check, X, Clock, UserCheck, Edit, Ban, CheckCircle, Shield, User } from 'lucide-react';
+import { ArrowLeft, Trash2, Search, Loader2, MapPin, Package, BookOpen, Users, ChevronDown, ChevronUp, Check, X, Clock, UserCheck, Edit, Ban, CheckCircle, Shield, User, Download, ChevronRight, Box } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { InputUppercase } from '@/components/ui/input-uppercase';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,9 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
+import { USER_STATUS_LABELS, USER_STATUS_COLORS } from '@/types/user';
+import type { UserStatus } from '@/types/user';
+import { exportCompleteData } from '@/utils/exportCompleteData';
 
 const TIPOS_MATERIAL = [
   'Válvula',
@@ -94,6 +97,8 @@ const Admin = () => {
   const [searchCatalogo, setSearchCatalogo] = useState('');
   const [searchUsuarios, setSearchUsuarios] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isExporting, setIsExporting] = useState(false);
   
   // Edit modals
   const [editEndereco, setEditEndereco] = useState<EditEnderecoData | null>(null);
@@ -176,16 +181,19 @@ const Admin = () => {
   });
 
   // Buscar usuários
-  const { data: usuarios = [], isLoading: loadingUsuarios } = useQuery({
-    queryKey: ['admin_usuarios', searchUsuarios],
+  const { data: usuariosData, isLoading: loadingUsuarios } = useQuery({
+    queryKey: ['admin_usuarios', searchUsuarios, statusFilter],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('admin-users', {
-        body: { action: 'list', search: searchUsuarios, adminEmail: user?.email },
+        body: { action: 'list', search: searchUsuarios, adminEmail: user?.email, statusFilter },
       });
       if (error) throw error;
-      return data.users || [];
+      return data;
     },
   });
+
+  const usuarios = usuariosData?.users || [];
+  const userCounts = usuariosData?.counts || { pendente: 0, ativo: 0, suspenso: 0, negado: 0, total: 0 };
 
   // Buscar logs de login
   const { data: loginLogs = [], isLoading: loadingLogs } = useQuery({
@@ -425,8 +433,23 @@ const Admin = () => {
       minute: '2-digit',
     });
   };
+  const handleExportComplete = async () => {
+    setIsExporting(true);
+    try {
+      const result = await exportCompleteData();
+      if (result.success) {
+        toast({ title: 'Sucesso', description: 'Backup exportado com sucesso!' });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
-  const pendingUsers = usuarios.filter((u: any) => !u.aprovado && u.tipo !== 'admin');
+  const pendingUsers = usuarios.filter((u: any) => u.status === 'pendente' || (!u.status && !u.aprovado && u.tipo !== 'admin'));
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -436,7 +459,11 @@ const Admin = () => {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-8" />
-        <h1 className="text-lg font-bold">Painel Administrativo</h1>
+        <h1 className="flex-1 text-lg font-bold">Painel Administrativo</h1>
+        <Button variant="outline" size="sm" onClick={handleExportComplete} disabled={isExporting}>
+          {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <span className="ml-2 hidden sm:inline">Exportar</span>
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -471,6 +498,32 @@ const Admin = () => {
 
         {/* Usuários */}
         <TabsContent value="usuarios" className="space-y-4">
+          {/* Contador de pendentes */}
+          {userCounts.pendente > 0 && (
+            <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-yellow-800">
+              <p className="font-medium">Você tem {userCounts.pendente} acesso(s) pendente(s)</p>
+            </div>
+          )}
+
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-2">
+            <Button variant={statusFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('all')}>
+              Todos ({userCounts.total})
+            </Button>
+            <Button variant={statusFilter === 'pendente' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('pendente')}>
+              Pendentes ({userCounts.pendente})
+            </Button>
+            <Button variant={statusFilter === 'ativo' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('ativo')}>
+              Ativos ({userCounts.ativo})
+            </Button>
+            <Button variant={statusFilter === 'suspenso' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('suspenso')}>
+              Suspensos ({userCounts.suspenso})
+            </Button>
+            <Button variant={statusFilter === 'negado' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter('negado')}>
+              Negados ({userCounts.negado})
+            </Button>
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -487,98 +540,40 @@ const Admin = () => {
             </div>
           ) : (
             <div className="space-y-2">
-              {usuarios.map((u: any) => (
-                <div key={u.id} className="rounded-lg border border-border bg-card p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium">{u.nome}</span>
-                        {u.tipo === 'admin' && (
-                          <Badge variant="default" className="text-xs">Admin</Badge>
-                        )}
-                        {!u.aprovado && u.tipo !== 'admin' && (
-                          <Badge variant="destructive" className="text-xs">Pendente</Badge>
-                        )}
-                        {u.aprovado && u.tipo !== 'admin' && (
-                          <Badge variant="outline" className="text-xs text-green-600 border-green-600">Aprovado</Badge>
-                        )}
+              {usuarios.map((u: any) => {
+                const status = u.status || (u.aprovado ? 'ativo' : 'pendente');
+                const statusColor = USER_STATUS_COLORS[status as UserStatus] || 'bg-gray-100 text-gray-800';
+                
+                return (
+                  <div 
+                    key={u.id} 
+                    className="rounded-lg border border-border bg-card p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => navigate(`/admin/usuarios/${u.id}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{u.nome}</span>
+                          {u.tipo === 'admin' && (
+                            <Badge variant="default" className="text-xs">Admin</Badge>
+                          )}
+                          {u.tipo === 'estoque' && (
+                            <Badge variant="secondary" className="text-xs">Estoque</Badge>
+                          )}
+                          <Badge className={`text-xs ${statusColor}`}>
+                            {USER_STATUS_LABELS[status as UserStatus] || status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{u.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Cadastro: {formatDate(u.created_at)}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground">{u.email}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Cadastro: {formatDate(u.created_at)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {/* Seletor de tipo de usuário */}
-                      {u.email !== user?.email && (
-                        <Select
-                          value={u.tipo}
-                          onValueChange={(value) => updateUserRole.mutate({ userId: u.id, tipo: value })}
-                          disabled={updateUserRole.isPending}
-                        >
-                          <SelectTrigger className="w-[130px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="user">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                Usuário
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="admin">
-                              <div className="flex items-center gap-2">
-                                <Shield className="h-4 w-4" />
-                                Admin
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {u.tipo !== 'admin' && (
-                        <>
-                          <Button
-                            variant={u.aprovado ? "outline" : "default"}
-                            size="sm"
-                            onClick={() => updateUserApproval.mutate({ userId: u.id, aprovado: !u.aprovado })}
-                            disabled={updateUserApproval.isPending}
-                            title={u.aprovado ? "Remover aprovação" : "Aprovar usuário"}
-                          >
-                            {u.aprovado ? (
-                              <X className="h-4 w-4" />
-                            ) : (
-                              <Check className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </>
-                      )}
-                      {u.email !== user?.email && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. Todos os dados associados serão perdidos.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteUsuario.mutate(u.id)}>
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>

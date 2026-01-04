@@ -244,7 +244,10 @@ export type Database = {
           email: string
           id: string
           nome: string
+          notificado_aprovacao: boolean
           senha_hash: string
+          status: Database["public"]["Enums"]["user_status"]
+          suspenso_ate: string | null
           tipo: string
           updated_at: string
         }
@@ -254,7 +257,10 @@ export type Database = {
           email: string
           id?: string
           nome: string
+          notificado_aprovacao?: boolean
           senha_hash: string
+          status?: Database["public"]["Enums"]["user_status"]
+          suspenso_ate?: string | null
           tipo?: string
           updated_at?: string
         }
@@ -264,7 +270,10 @@ export type Database = {
           email?: string
           id?: string
           nome?: string
+          notificado_aprovacao?: boolean
           senha_hash?: string
+          status?: Database["public"]["Enums"]["user_status"]
+          suspenso_ate?: string | null
           tipo?: string
           updated_at?: string
         }
@@ -309,7 +318,7 @@ export type Database = {
       is_admin_user: { Args: { user_email: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      user_status: "pendente" | "ativo" | "suspenso" | "negado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -436,6 +445,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_status: ["pendente", "ativo", "suspenso", "negado"],
+    },
   },
 } as const
