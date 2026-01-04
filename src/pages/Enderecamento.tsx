@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Search } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Save, Loader2, Search, Edit2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listFabricantes, getCatalogoDescricao, insertEndereco } from '@/hooks/useDataOperations';
+import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById } from '@/hooks/useDataOperations';
+import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
 const TIPOS_MATERIAL = [
@@ -34,8 +45,16 @@ interface Fabricante {
   codigo: string;
 }
 
+interface EnderecoExistente {
+  id: string;
+  codigo: string;
+  descricao: string;
+  endereco_formatado: string;
+}
+
 const Enderecamento = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -53,6 +72,11 @@ const Enderecamento = () => {
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Estado para modal de duplicado
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [enderecoExistente, setEnderecoExistente] = useState<EnderecoExistente | null>(null);
 
   // Carregar fabricantes do banco
   useEffect(() => {
@@ -68,6 +92,36 @@ const Enderecamento = () => {
     
     loadFabricantes();
   }, []);
+
+  // Carregar endereço existente se vier via URL (para edição)
+  useEffect(() => {
+    const enderecoId = searchParams.get('edit');
+    if (enderecoId) {
+      loadEnderecoForEdit(enderecoId);
+    }
+  }, [searchParams]);
+
+  const loadEnderecoForEdit = async (id: string) => {
+    const result = await getEnderecoById(id);
+    if (result.success && result.data) {
+      const e = result.data;
+      setEditingId(e.id);
+      setCodigo(e.codigo);
+      setDescricao(e.descricao);
+      setTipoMaterial(e.tipo_material);
+      setFabricanteId(e.fabricante_id || '');
+      setPeso(String(e.peso));
+      setRua(String(e.rua));
+      setColuna(String(e.coluna));
+      setNivel(String(e.nivel));
+      setPosicao(String(e.posicao));
+      setComentario(e.comentario || '');
+      toast({
+        title: 'Registro carregado',
+        description: 'Edite os campos e salve as alterações',
+      });
+    }
+  };
 
   // Buscar descrição no catálogo
   const handleBuscarDescricao = async () => {
@@ -88,6 +142,10 @@ const Enderecamento = () => {
 
       if (result.data) {
         setDescricao(result.data.descricao);
+        // Preencher peso se disponível no catálogo
+        if (result.data.peso_kg) {
+          setPeso(String(result.data.peso_kg));
+        }
         toast({
           title: 'Sucesso',
           description: 'Descrição encontrada!',
@@ -121,6 +179,33 @@ const Enderecamento = () => {
       return;
     }
 
+    // Verificar duplicidade antes de salvar (apenas para novos registros)
+    if (!editingId) {
+      const duplicateCheck = await checkEnderecoDuplicado(
+        codigo.trim(),
+        parseInt(rua),
+        parseInt(coluna),
+        parseInt(nivel),
+        parseInt(posicao)
+      );
+
+      if (duplicateCheck.success && duplicateCheck.data) {
+        const existente = duplicateCheck.data;
+        setEnderecoExistente({
+          id: existente.id,
+          codigo: existente.codigo,
+          descricao: existente.descricao,
+          endereco_formatado: formatEndereco(existente.rua, existente.coluna, existente.nivel, existente.posicao),
+        });
+        setShowDuplicateDialog(true);
+        return;
+      }
+    }
+
+    await executeSalvar();
+  };
+
+  const executeSalvar = async () => {
     setIsSaving(true);
     try {
       const result = await insertEndereco({
@@ -134,7 +219,7 @@ const Enderecamento = () => {
         nivel,
         posicao,
         comentario: comentario.trim() || undefined,
-      });
+      }, editingId || undefined);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -142,7 +227,7 @@ const Enderecamento = () => {
 
       toast({
         title: 'Sucesso',
-        description: 'Endereçamento salvo com sucesso!',
+        description: editingId ? 'Endereçamento atualizado com sucesso!' : 'Endereçamento salvo com sucesso!',
       });
 
       // Limpar formulário
@@ -156,6 +241,12 @@ const Enderecamento = () => {
       setNivel('');
       setPosicao('');
       setComentario('');
+      setEditingId(null);
+      
+      // Remover parâmetro de edição da URL
+      if (searchParams.get('edit')) {
+        navigate('/enderecamento', { replace: true });
+      }
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -164,6 +255,13 @@ const Enderecamento = () => {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAbrirRegistroExistente = () => {
+    if (enderecoExistente) {
+      setShowDuplicateDialog(false);
+      navigate(`/enderecamento?edit=${enderecoExistente.id}`);
     }
   };
 
@@ -178,7 +276,9 @@ const Enderecamento = () => {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-5" />
-        <h1 className="text-sm font-bold">Endereçamento</h1>
+        <h1 className="text-sm font-bold">
+          {editingId ? 'Editar Endereçamento' : 'Endereçamento'}
+        </h1>
       </div>
 
       {/* Form ultra compacto */}
@@ -196,12 +296,13 @@ const Enderecamento = () => {
               inputMode="numeric"
               pattern="[0-9]*"
               className="h-8 text-sm"
+              disabled={!!editingId}
             />
           </div>
           <div className="flex items-end">
             <Button
               onClick={handleBuscarDescricao}
-              disabled={isSearching}
+              disabled={isSearching || !!editingId}
               variant="secondary"
               size="sm"
               className="h-8 px-2"
@@ -280,6 +381,7 @@ const Enderecamento = () => {
             <Input
               id="rua"
               type="number"
+              inputMode="numeric"
               placeholder="Nº"
               value={rua}
               onChange={(e) => setRua(e.target.value)}
@@ -291,6 +393,7 @@ const Enderecamento = () => {
             <Input
               id="coluna"
               type="number"
+              inputMode="numeric"
               placeholder="Nº"
               value={coluna}
               onChange={(e) => setColuna(e.target.value)}
@@ -302,6 +405,7 @@ const Enderecamento = () => {
             <Input
               id="nivel"
               type="number"
+              inputMode="numeric"
               placeholder="Nº"
               value={nivel}
               onChange={(e) => setNivel(e.target.value)}
@@ -313,6 +417,7 @@ const Enderecamento = () => {
             <Input
               id="posicao"
               type="number"
+              inputMode="numeric"
               placeholder="Nº"
               value={posicao}
               onChange={(e) => setPosicao(e.target.value)}
@@ -343,12 +448,45 @@ const Enderecamento = () => {
         >
           {isSaving ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : editingId ? (
+            <Edit2 className="mr-2 h-4 w-4" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
           )}
-          Salvar Endereçamento
+          {editingId ? 'Atualizar Endereçamento' : 'Salvar Endereçamento'}
         </Button>
       </div>
+
+      {/* Dialog de duplicado */}
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              Endereçamento já existe!
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Este código já está cadastrado neste endereço:</p>
+              {enderecoExistente && (
+                <div className="rounded-lg border border-border bg-muted p-3">
+                  <p className="font-bold text-primary">{enderecoExistente.codigo}</p>
+                  <p className="text-sm">{enderecoExistente.descricao}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Endereço: {enderecoExistente.endereco_formatado}
+                  </p>
+                </div>
+              )}
+              <p>Você pode editar o registro existente.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAbrirRegistroExistente}>
+              <Edit2 className="mr-2 h-4 w-4" />
+              Abrir registro existente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

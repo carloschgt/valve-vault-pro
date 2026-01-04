@@ -366,12 +366,13 @@ interface EtiquetaCardProps {
 }
 
 const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
+  // QR contém código + endereço formatado para identificação única
   const qrData = JSON.stringify({
     cod: data.codigo,
-    desc: data.descricao,
+    end: data.endereco, // Formato Rxx.Cxx.Nxx.Pxx
+    desc: data.descricao.substring(0, 50),
     fab: data.fabricante,
     tipo: data.tipoMaterial,
-    end: data.endereco,
     peso: data.peso,
   });
 

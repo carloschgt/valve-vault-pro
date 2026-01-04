@@ -118,7 +118,10 @@ export interface EnderecoInsertParams {
   comentario?: string;
 }
 
-export async function insertEndereco(params: EnderecoInsertParams): Promise<DataOperationResult> {
+export async function insertEndereco(params: EnderecoInsertParams, updateId?: string): Promise<DataOperationResult> {
+  if (updateId) {
+    return invokeDataOperation('enderecos_update', { id: updateId, ...params });
+  }
   return invokeDataOperation('enderecos_insert', params);
 }
 
@@ -132,6 +135,20 @@ export async function updateEndereco(id: string, params: Partial<EnderecoInsertP
 
 export async function toggleEnderecoAtivo(id: string, ativo: boolean): Promise<DataOperationResult> {
   return invokeDataOperation('enderecos_toggle_ativo', { id, ativo });
+}
+
+export async function checkEnderecoDuplicado(
+  codigo: string,
+  rua: number,
+  coluna: number,
+  nivel: number,
+  posicao: number
+): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_check_duplicate', { codigo, rua, coluna, nivel, posicao });
+}
+
+export async function getEnderecoById(id: string): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_get', { id });
 }
 
 // ========== INVENTARIO ==========

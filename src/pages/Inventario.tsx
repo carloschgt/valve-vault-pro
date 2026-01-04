@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Save, Loader2, MapPin, Edit2, QrCode } from 'lucide-react';
+import { ArrowLeft, Search, Save, Loader2, MapPin, Edit2, QrCode, Calculator } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { listEnderecos, getInventarioByEndereco, insertInventario, updateInventario } from '@/hooks/useDataOperations';
 import { QRScanner } from '@/components/QRScanner';
+import { CalculadoraModal } from '@/components/CalculadoraModal';
+import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
 interface EnderecoMaterial {
@@ -67,6 +69,7 @@ const Inventario = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showCalculadora, setShowCalculadora] = useState(false);
 
   const isAdmin = user?.tipo === 'admin';
 
@@ -294,6 +297,13 @@ const Inventario = () => {
         />
       )}
 
+      {/* Calculadora Modal */}
+      <CalculadoraModal
+        open={showCalculadora}
+        onClose={() => setShowCalculadora(false)}
+        onUseResult={(result) => setQuantidade(String(result))}
+      />
+
       {/* Header */}
       <div className="flex items-center gap-4 border-b border-border bg-card p-4">
         <button
@@ -316,6 +326,8 @@ const Inventario = () => {
             value={codigo}
             onChange={(e) => setCodigo(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
+            inputMode="numeric"
+            pattern="[0-9]*"
             className="flex-1"
           />
           <Button
@@ -375,7 +387,7 @@ const Inventario = () => {
                   <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
                     <MapPin className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium">
-                      R{endereco.rua}.C{endereco.coluna}.N{endereco.nivel}.P{endereco.posicao}
+                      {formatEndereco(endereco.rua, endereco.coluna, endereco.nivel, endereco.posicao)}
                     </span>
                   </div>
                 </div>
@@ -406,7 +418,7 @@ const Inventario = () => {
               <div className="mt-3 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
                 <MapPin className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium">
-                  R{selectedEndereco.rua}.C{selectedEndereco.coluna}.N{selectedEndereco.nivel}.P{selectedEndereco.posicao}
+                  {formatEndereco(selectedEndereco.rua, selectedEndereco.coluna, selectedEndereco.nivel, selectedEndereco.posicao)}
                 </span>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -449,10 +461,23 @@ const Inventario = () => {
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="quantidade">Quantidade *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="quantidade">Quantidade *</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCalculadora(true)}
+                    >
+                      <Calculator className="mr-1 h-3 w-3" />
+                      Calculadora
+                    </Button>
+                  </div>
                   <Input
                     id="quantidade"
                     type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="Digite a quantidade"
                     value={quantidade}
                     onChange={(e) => setQuantidade(e.target.value)}

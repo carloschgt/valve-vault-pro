@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Loader2, AlertTriangle, Database, Package, BookOpen, Users, MapPin } from 'lucide-react';
+import { ArrowLeft, Trash2, Loader2, AlertTriangle, Database, Package, BookOpen, Users, MapPin, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +18,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 
 interface DataType {
@@ -63,6 +65,21 @@ const DATA_TYPES: DataType[] = [
   },
 ];
 
+const AUTH_KEY = 'imex_auth_user';
+
+function getSessionToken(): string | null {
+  try {
+    const stored = localStorage.getItem(AUTH_KEY);
+    if (stored) {
+      const user = JSON.parse(stored);
+      return user.sessionToken || null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 const GerenciamentoDados = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -72,23 +89,48 @@ const GerenciamentoDados = () => {
   const isAdmin = user?.tipo === 'admin';
   
   const [loadingType, setLoadingType] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [selectedType, setSelectedType] = useState<DataType | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  const handleClearData = async (dataType: DataType) => {
-    setLoadingType(dataType.id);
+  // Buscar contagens de cada tabela
+  const { data: counts = {} } = useQuery({
+    queryKey: ['table_counts'],
+    queryFn: async () => {
+      const sessionToken = getSessionToken();
+      if (!sessionToken) return {};
+      
+      const { data, error } = await supabase.functions.invoke('data-operations', {
+        body: { action: 'get_table_counts', sessionToken },
+      });
+      
+      if (error || !data.success) return {};
+      return data.counts || {};
+    },
+    enabled: isAdmin,
+  });
+
+  const handleOpenConfirmDialog = (dataType: DataType) => {
+    setSelectedType(dataType);
+    setConfirmText('');
+    setShowConfirmDialog(true);
+  };
+
+  const handleClearData = async () => {
+    if (!selectedType || confirmText !== 'LIMPAR') {
+      toast({
+        title: 'Atenção',
+        description: 'Digite LIMPAR para confirmar a exclusão',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoadingType(selectedType.id);
+    setShowConfirmDialog(false);
     
     try {
-      // Get session token from auth storage
-      const AUTH_KEY = 'imex_auth_user';
-      let sessionToken = null;
-      try {
-        const stored = localStorage.getItem(AUTH_KEY);
-        if (stored) {
-          const userData = JSON.parse(stored);
-          sessionToken = userData.sessionToken || null;
-        }
-      } catch {
-        // Ignore parse errors
-      }
+      const sessionToken = getSessionToken();
       
       if (!sessionToken) {
         throw new Error('Sessão expirada. Faça login novamente.');
@@ -98,7 +140,7 @@ const GerenciamentoDados = () => {
         body: {
           action: 'clear_table',
           sessionToken,
-          table: dataType.table,
+          table: selectedType.table,
         },
       });
 
@@ -111,10 +153,11 @@ const GerenciamentoDados = () => {
       queryClient.invalidateQueries({ queryKey: ['admin_catalogo'] });
       queryClient.invalidateQueries({ queryKey: ['fabricantes'] });
       queryClient.invalidateQueries({ queryKey: ['catalogo_produtos'] });
+      queryClient.invalidateQueries({ queryKey: ['table_counts'] });
 
       toast({
         title: 'Sucesso',
-        description: `Dados de ${dataType.name} foram limpos com sucesso!`,
+        description: `Dados de ${selectedType.name} foram limpos com sucesso!`,
       });
     } catch (error: any) {
       toast({
@@ -124,7 +167,16 @@ const GerenciamentoDados = () => {
       });
     } finally {
       setLoadingType(null);
+      setSelectedType(null);
+      setConfirmText('');
     }
+  };
+
+  const handleExportAll = async () => {
+    toast({
+      title: 'Em desenvolvimento',
+      description: 'A exportação completa será implementada em breve.',
+    });
   };
 
   if (!isAdmin) {
@@ -148,6 +200,16 @@ const GerenciamentoDados = () => {
       </div>
 
       <div className="flex-1 space-y-4 p-4">
+        {/* Backup button */}
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={handleExportAll}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Exportar Backup Completo (antes de limpar)
+        </Button>
+
         {/* Aviso */}
         <div className="flex items-start gap-3 rounded-xl border border-destructive/50 bg-destructive/10 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive" />
@@ -155,7 +217,7 @@ const GerenciamentoDados = () => {
             <h3 className="font-semibold text-destructive">Atenção!</h3>
             <p className="text-sm text-muted-foreground">
               Esta área permite limpar todos os dados de cada tipo de cadastro. 
-              Esta ação é irreversível e deve ser usada apenas para preparar o sistema para produção.
+              Esta ação é <strong>irreversível</strong>. Você precisará digitar "LIMPAR" para confirmar.
             </p>
           </div>
         </div>
@@ -175,56 +237,82 @@ const GerenciamentoDados = () => {
               <div className="flex items-center gap-3">
                 <div className={dataType.color}>{dataType.icon}</div>
                 <div>
-                  <h3 className="font-medium">{dataType.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">{dataType.name}</h3>
+                    {counts[dataType.table] !== undefined && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                        {counts[dataType.table]} registros
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">{dataType.description}</p>
                 </div>
               </div>
               
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={loadingType !== null}
-                  >
-                    {loadingType === dataType.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Limpar
-                      </>
-                    )}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-                      <AlertTriangle className="h-5 w-5" />
-                      Você tem certeza?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Você tem certeza que deseja limpar os dados de <strong>{dataType.name}</strong>?
-                      <br /><br />
-                      Esta ação irá remover <strong>permanentemente</strong> todos os registros. 
-                      Esta operação <strong>não pode ser desfeita</strong>.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => handleClearData(dataType)}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Sim, limpar dados
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={loadingType !== null}
+                onClick={() => handleOpenConfirmDialog(dataType)}
+              >
+                {loadingType === dataType.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Limpar
+                  </>
+                )}
+              </Button>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Dialog de confirmação com campo de texto */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Confirmar exclusão
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <p>
+                Você está prestes a limpar todos os dados de <strong>{selectedType?.name}</strong>.
+                {counts[selectedType?.table || ''] !== undefined && (
+                  <span className="block mt-2 font-bold text-destructive">
+                    {counts[selectedType?.table || '']} registros serão excluídos permanentemente.
+                  </span>
+                )}
+              </p>
+              <p>
+                Esta operação <strong>não pode ser desfeita</strong>.
+              </p>
+              <div className="space-y-2 pt-2">
+                <Label htmlFor="confirm">Digite "LIMPAR" para confirmar:</Label>
+                <Input
+                  id="confirm"
+                  placeholder="LIMPAR"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
+                  className="font-mono"
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmText('')}>Cancelar</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleClearData}
+              disabled={confirmText !== 'LIMPAR'}
+            >
+              Sim, limpar dados
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

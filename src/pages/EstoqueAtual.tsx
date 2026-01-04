@@ -210,10 +210,10 @@ const EstoqueAtual = () => {
                           </td>
                         </>
                       ) : null}
-                      <td className="px-1 py-1.5 text-center">{end.rua}</td>
-                      <td className="px-1 py-1.5 text-center">{end.coluna}</td>
-                      <td className="px-1 py-1.5 text-center">{end.nivel}</td>
-                      <td className="px-1 py-1.5 text-center">{end.posicao}</td>
+                      <td className="px-1 py-1.5 text-center">{String(end.rua).padStart(2, '0')}</td>
+                      <td className="px-1 py-1.5 text-center">{String(end.coluna).padStart(2, '0')}</td>
+                      <td className="px-1 py-1.5 text-center">{String(end.nivel).padStart(2, '0')}</td>
+                      <td className="px-1 py-1.5 text-center">{String(end.posicao).padStart(2, '0')}</td>
                       <td className="px-1 py-1.5 text-center font-medium">{end.quantidade}</td>
                       {endIdx === 0 ? (
                         <td 

@@ -221,7 +221,7 @@ const Login = () => {
   );
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-primary/5 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-primary/20 via-background to-accent/30 p-4">
       <Card className="w-full max-w-sm shadow-2xl border-primary/20">
         <CardHeader className="space-y-4 text-center pb-2">
           <div className="mx-auto">
@@ -544,6 +544,11 @@ const Login = () => {
           )}
         </CardContent>
       </Card>
+      
+      {/* Crédito */}
+      <p className="mt-6 text-xs text-muted-foreground/70">
+        Desenvolvido por Carlos Teixeira
+      </p>
     </div>
   );
 };
