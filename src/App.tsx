@@ -12,6 +12,7 @@ import Fabricantes from "./pages/Fabricantes";
 import Dashboard from "./pages/Dashboard";
 import Catalogo from "./pages/Catalogo";
 import Admin from "./pages/Admin";
+import AdminUserDetail from "./pages/AdminUserDetail";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import GerenciamentoDados from "./pages/GerenciamentoDados";
@@ -36,8 +37,9 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/catalogo" element={<ProtectedRoute adminOnly><Catalogo /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
+            <Route path="/admin/usuarios/:id" element={<ProtectedRoute adminOnly><AdminUserDetail /></ProtectedRoute>} />
             <Route path="/gerenciamento-dados" element={<ProtectedRoute adminOnly><GerenciamentoDados /></ProtectedRoute>} />
-            <Route path="/etiquetas" element={<ProtectedRoute><Etiquetas /></ProtectedRoute>} />
+            <Route path="/etiquetas" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><Etiquetas /></ProtectedRoute>} />
             <Route path="/estoque-atual" element={<ProtectedRoute><EstoqueAtual /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

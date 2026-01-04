@@ -201,7 +201,7 @@ serve(async (req) => {
       // Check if user exists
       const { data: user, error: findError } = await supabase
         .from("usuarios")
-        .select("id, nome, aprovado")
+        .select("id, nome, aprovado, status")
         .eq("email", email.toLowerCase().trim())
         .maybeSingle();
 
@@ -216,6 +216,7 @@ serve(async (req) => {
           exists: !!user,
           approved: user?.aprovado ?? false,
           userName: user?.nome ?? null,
+          status: user?.status ?? null,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -297,10 +298,44 @@ serve(async (req) => {
       // Clear failed attempts on successful login
       clearFailedAttempts(email);
 
-      // Check if user is approved
-      if (!user.aprovado) {
+      // Check user status
+      const userStatus = user.status || (user.aprovado ? 'ativo' : 'pendente');
+      
+      if (userStatus === 'pendente') {
         return new Response(
-          JSON.stringify({ success: false, error: "Seu cadastro está aguardando aprovação do administrador", pendingApproval: true }),
+          JSON.stringify({ 
+            success: false, 
+            error: "Seu cadastro está aguardando aprovação do administrador", 
+            pendingApproval: true,
+            status: 'pendente',
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (userStatus === 'suspenso') {
+        const suspendedUntil = user.suspenso_ate;
+        const suspendedMsg = suspendedUntil 
+          ? `Seu acesso está suspenso até ${new Date(suspendedUntil).toLocaleDateString('pt-BR')}.`
+          : "Seu acesso está temporariamente suspenso.";
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: suspendedMsg, 
+            status: 'suspenso',
+            suspensoAte: suspendedUntil,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (userStatus === 'negado') {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Seu cadastro foi negado pelo administrador.", 
+            status: 'negado',
+          }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -350,6 +385,8 @@ serve(async (req) => {
             nome: user.nome,
             email: user.email,
             tipo: user.tipo,
+            status: userStatus,
+            suspenso_ate: user.suspenso_ate,
           },
           sessionToken,
         }),
