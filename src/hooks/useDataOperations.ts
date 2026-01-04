@@ -38,7 +38,15 @@ async function invokeDataOperation<T = any>(
     });
 
     if (error) {
-      throw new Error(error.message || 'Erro ao executar operação');
+      console.error(`Edge function error for ${action}:`, error);
+      // Handle FunctionsHttpError and other error types
+      const errorMessage = error.message || 'Erro ao executar operação';
+      return { success: false, error: errorMessage };
+    }
+
+    // Check if the response indicates an error
+    if (data && !data.success) {
+      return { success: false, error: data.error || 'Operação falhou' };
     }
 
     return data as DataOperationResult<T>;
