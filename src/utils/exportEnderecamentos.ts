@@ -47,10 +47,10 @@ function escapeCSV(value: string | number | undefined | null): string {
   return stringValue;
 }
 
-// Remove accents for better Excel compatibility
-function removeAccents(str: string | undefined | null): string {
+// Normalize string to NFC for proper UTF-8 encoding
+function normalizeString(str: string | undefined | null): string {
   if (!str) return '';
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return str.normalize('NFC');
 }
 
 export function exportEnderecamentosToCSV(dados: EnderecoMaterial[]): void {
@@ -70,21 +70,23 @@ export function exportEnderecamentosToCSV(dados: EnderecoMaterial[]): void {
 
   const rows = dados.map((d) => [
     escapeCSV(d.codigo),
-    escapeCSV(removeAccents(d.descricao)),
-    escapeCSV(removeAccents(d.tipo_material)),
-    escapeCSV(removeAccents(d.fabricante_nome || 'N/A')),
+    escapeCSV(d.descricao),
+    escapeCSV(d.tipo_material),
+    escapeCSV(d.fabricante_nome || 'N/A'),
     d.peso,
     d.rua,
     d.coluna,
     d.nivel,
     d.posicao,
-    escapeCSV(removeAccents(d.created_by)),
+    escapeCSV(d.created_by),
     formatDate(d.created_at),
   ]);
 
   const csvContent = [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\r\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  // BOM UTF-8 para Excel reconhecer corretamente acentos
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
@@ -114,21 +116,23 @@ export function exportInventarioToCSV(dados: InventarioItem[]): void {
 
   const rows = dados.map((d) => [
     escapeCSV(d.codigo),
-    escapeCSV(removeAccents(d.descricao)),
-    escapeCSV(removeAccents(d.fabricante_nome || 'N/A')),
+    escapeCSV(d.descricao),
+    escapeCSV(d.fabricante_nome || 'N/A'),
     d.peso,
     d.rua,
     d.coluna,
     d.nivel,
     d.posicao,
     d.quantidade,
-    escapeCSV(removeAccents(d.contado_por)),
+    escapeCSV(d.contado_por),
     formatDate(d.data_contagem),
   ]);
 
   const csvContent = [headers.join(';'), ...rows.map((row) => row.join(';'))].join('\r\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  // BOM UTF-8 para Excel reconhecer corretamente acentos
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 

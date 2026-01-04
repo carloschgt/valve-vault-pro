@@ -101,11 +101,11 @@ export async function deleteFabricante(id: string): Promise<DataOperationResult>
 }
 
 // ========== CATALOGO ==========
-export async function insertCatalogo(codigo: string, descricao: string): Promise<DataOperationResult> {
-  return invokeDataOperation('catalogo_insert', { codigo, descricao });
+export async function insertCatalogo(codigo: string, descricao: string, peso_kg?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('catalogo_insert', { codigo, descricao, peso_kg });
 }
 
-export async function upsertCatalogo(items: { codigo: string; descricao: string }[], overwrite: boolean): Promise<DataOperationResult> {
+export async function upsertCatalogo(items: { codigo: string; descricao: string; peso_kg?: number }[], overwrite: boolean): Promise<DataOperationResult> {
   return invokeDataOperation('catalogo_upsert', { items, overwrite });
 }
 
