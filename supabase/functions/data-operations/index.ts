@@ -142,7 +142,7 @@ serve(async (req) => {
         .order("nome");
       if (error) throw error;
       return new Response(
-        JSON.stringify({ success: true, data }),
+        JSON.stringify({ success: true, data: data || [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -202,6 +202,7 @@ serve(async (req) => {
       let query = supabase
         .from("enderecos_materiais")
         .select("*, fabricantes(nome)")
+        .eq("ativo", true)
         .order("created_at", { ascending: false });
       
       if (search) {
@@ -214,7 +215,7 @@ serve(async (req) => {
       const { data, error } = await query.limit(limit);
       if (error) throw error;
       return new Response(
-        JSON.stringify({ success: true, data }),
+        JSON.stringify({ success: true, data: data || [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -266,9 +267,9 @@ serve(async (req) => {
       const { data, error } = await query.limit(limit);
       if (error) throw error;
       
-      let result = data;
+      let result = data || [];
       if (search) {
-        result = data?.filter((i: any) => 
+        result = result.filter((i: any) => 
           i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
           i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
         );
@@ -368,14 +369,20 @@ serve(async (req) => {
         );
       }
 
-      const { codigo, descricao } = params;
+      const { codigo, descricao, peso_kg } = params;
+      const insertData: Record<string, any> = { 
+        codigo: codigo.trim().toUpperCase(), 
+        descricao: descricao.trim().toUpperCase(),
+        ativo: true,
+      };
+      
+      if (peso_kg !== undefined && peso_kg !== null && peso_kg !== '') {
+        insertData.peso_kg = parseFloat(peso_kg);
+      }
+      
       const { data, error } = await supabase
         .from("catalogo_produtos")
-        .insert({ 
-          codigo: codigo.trim().toUpperCase(), 
-          descricao: descricao.trim().toUpperCase(),
-          ativo: true,
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -984,9 +991,10 @@ serve(async (req) => {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";
     console.error("Data operation error:", message);
+    // SEMPRE retornar status 200 com success: false para que o client possa tratar
     return new Response(
       JSON.stringify({ success: false, error: message }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

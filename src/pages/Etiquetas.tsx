@@ -204,6 +204,8 @@ const Etiquetas = () => {
                   value={searchCode}
                   onChange={(e) => setSearchCode(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   className="flex-1"
                 />
                 <Button onClick={handleSearch} disabled={isSearching}>

@@ -24,6 +24,7 @@ interface Produto {
   id: string;
   codigo: string;
   descricao: string;
+  peso_kg?: number | null;
 }
 
 interface DuplicateItem {
@@ -44,10 +45,11 @@ const Catalogo = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [novoCodigo, setNovoCodigo] = useState('');
   const [novaDescricao, setNovaDescricao] = useState('');
+  const [novoPeso, setNovoPeso] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateItem[]>([]);
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
-  const [pendingImport, setPendingImport] = useState<{ codigo: string; descricao: string }[]>([]);
+  const [pendingImport, setPendingImport] = useState<{ codigo: string; descricao: string; peso_kg?: number }[]>([]);
 
   // Buscar produtos
   const { data: produtos = [], isLoading } = useQuery({
@@ -103,14 +105,14 @@ const Catalogo = () => {
 
   // Adicionar produto com verificação de duplicado
   const addMutation = useMutation({
-    mutationFn: async ({ codigo, descricao }: { codigo: string; descricao: string }) => {
+    mutationFn: async ({ codigo, descricao, peso_kg }: { codigo: string; descricao: string; peso_kg?: number }) => {
       // Check for duplicate first
       const existing = await checkDuplicateBeforeAdd(codigo);
       if (existing) {
         throw new Error(`DUPLICATE:${existing.descricao}`);
       }
       
-      const result = await insertCatalogo(codigo.trim(), descricao.trim());
+      const result = await insertCatalogo(codigo.trim(), descricao.trim(), peso_kg);
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -120,6 +122,7 @@ const Catalogo = () => {
       queryClient.invalidateQueries({ queryKey: ['catalogo_produtos'] });
       setNovoCodigo('');
       setNovaDescricao('');
+      setNovoPeso('');
       toast({ title: 'Sucesso', description: 'Produto adicionado!' });
     },
     onError: (error: any) => {
@@ -301,7 +304,8 @@ const Catalogo = () => {
       });
       return;
     }
-    addMutation.mutate({ codigo: novoCodigo, descricao: novaDescricao });
+    const pesoNum = novoPeso.trim() ? parseFloat(novoPeso) : undefined;
+    addMutation.mutate({ codigo: novoCodigo, descricao: novaDescricao, peso_kg: pesoNum });
   };
 
   if (!isAdmin) {
@@ -373,6 +377,8 @@ const Catalogo = () => {
                 placeholder="Ex: 12345"
                 value={novoCodigo}
                 onChange={(e) => setNovoCodigo(e.target.value)}
+                inputMode="numeric"
+                pattern="[0-9]*"
               />
             </div>
             <div className="flex-[2]">
@@ -382,6 +388,17 @@ const Catalogo = () => {
                 placeholder="Descrição do produto"
                 value={novaDescricao}
                 onChange={(e) => setNovaDescricao(e.target.value)}
+              />
+            </div>
+            <div className="w-24">
+              <Label htmlFor="novoPeso">Peso (kg)</Label>
+              <Input
+                id="novoPeso"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={novoPeso}
+                onChange={(e) => setNovoPeso(e.target.value)}
               />
             </div>
             <div className="flex items-end">
@@ -430,7 +447,14 @@ const Catalogo = () => {
                   className="flex items-center justify-between rounded-lg border border-border bg-card p-3"
                 >
                   <div className="flex-1">
-                    <p className="font-medium text-primary">{produto.codigo}</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="font-medium text-primary">{produto.codigo}</p>
+                      {produto.peso_kg && (
+                        <span className="text-xs text-muted-foreground">
+                          {produto.peso_kg} kg
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">
                       {produto.descricao}
                     </p>
