@@ -435,18 +435,53 @@ serve(async (req) => {
       // Any approved user can add addresses
       const { codigo, descricao, tipo_material, fabricante_id, peso, rua, coluna, nivel, posicao, comentario } = params;
       
+      const codigoNorm = codigo?.trim().toUpperCase();
+      const ruaNum = parseInt(rua);
+      const colunaNum = parseInt(coluna);
+      const nivelNum = parseInt(nivel);
+      const posicaoNum = parseInt(posicao);
+      
+      // VERIFICAR DUPLICIDADE NO BACKEND antes de inserir
+      const { data: existente, error: checkError } = await supabase
+        .from("enderecos_materiais")
+        .select("id, codigo, descricao, rua, coluna, nivel, posicao")
+        .eq("codigo", codigoNorm)
+        .eq("rua", ruaNum)
+        .eq("coluna", colunaNum)
+        .eq("nivel", nivelNum)
+        .eq("posicao", posicaoNum)
+        .eq("ativo", true)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error("Erro ao verificar duplicidade:", checkError);
+        throw checkError;
+      }
+      
+      if (existente) {
+        console.log("Duplicidade encontrada:", existente);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Este código já está cadastrado neste endereço (R${String(existente.rua).padStart(2, '0')}.C${String(existente.coluna).padStart(2, '0')}.N${String(existente.nivel).padStart(2, '0')}.P${String(existente.posicao).padStart(2, '0')}). Edite o registro existente.`,
+            duplicateId: existente.id
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
       const { data, error } = await supabase
         .from("enderecos_materiais")
         .insert({
-          codigo: codigo.trim().toUpperCase(),
+          codigo: codigoNorm,
           descricao: descricao.trim().toUpperCase(),
           tipo_material,
           fabricante_id,
           peso: parseFloat(peso),
-          rua: parseInt(rua),
-          coluna: parseInt(coluna),
-          nivel: parseInt(nivel),
-          posicao: parseInt(posicao),
+          rua: ruaNum,
+          coluna: colunaNum,
+          nivel: nivelNum,
+          posicao: posicaoNum,
           comentario: comentario?.trim().toUpperCase() || null,
           created_by: user.nome,
           ativo: true,

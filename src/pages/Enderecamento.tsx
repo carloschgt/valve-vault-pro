@@ -222,6 +222,17 @@ const Enderecamento = () => {
       }, editingId || undefined);
 
       if (!result.success) {
+        // Verificar se é erro de duplicidade retornado pelo backend
+        if ((result as any).duplicateId) {
+          setEnderecoExistente({
+            id: (result as any).duplicateId,
+            codigo: codigo.trim().toUpperCase(),
+            descricao: descricao.trim().toUpperCase(),
+            endereco_formatado: formatEndereco(parseInt(rua), parseInt(coluna), parseInt(nivel), parseInt(posicao)),
+          });
+          setShowDuplicateDialog(true);
+          return;
+        }
         throw new Error(result.error);
       }
 
