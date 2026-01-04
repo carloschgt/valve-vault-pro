@@ -20,6 +20,7 @@ interface DataOperationResult<T = any> {
   error?: string;
   data?: T;
   count?: number;
+  duplicateId?: string;
 }
 
 async function invokeDataOperation<T = any>(
