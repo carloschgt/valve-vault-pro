@@ -121,9 +121,10 @@ serve(async (req) => {
     // Verify session for all operations
     const authResult = await verifySession(supabase, sessionToken);
     if (!authResult.success) {
+      // Return 200 with success: false so the client can handle the error properly
       return new Response(
         JSON.stringify({ success: false, error: authResult.error }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
