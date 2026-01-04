@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { listEnderecos, listInventario } from '@/hooks/useDataOperations';
+import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
 interface EnderecoMaterial {
@@ -87,16 +88,22 @@ const Dashboard = () => {
     let filename = '';
 
     if (type === 'enderecos') {
-      csvContent = 'Código;Descrição;Tipo;Fabricante;Peso (kg);Rua;Coluna;Nível;Posição;Cadastrado por;Data\n';
+      csvContent = 'Código;Descrição;Tipo;Fabricante;Peso (kg);Endereço;Cadastrado por;Data\n';
       enderecos.forEach(e => {
-        csvContent += `${e.codigo};${e.descricao};${e.tipo_material};${e.fabricantes?.nome || ''};${e.peso};${e.rua};${e.coluna};${e.nivel};${e.posicao};${e.created_by};${new Date(e.created_at).toLocaleString('pt-BR')}\n`;
+        const enderecoFormatado = formatEndereco(e.rua, e.coluna, e.nivel, e.posicao);
+        csvContent += `${e.codigo};${e.descricao};${e.tipo_material};${e.fabricantes?.nome || ''};${e.peso};${enderecoFormatado};${e.created_by};${new Date(e.created_at).toLocaleString('pt-BR')}\n`;
       });
       filename = `enderecamentos_${new Date().toISOString().split('T')[0]}.csv`;
     } else {
       csvContent = 'Código;Descrição;Endereço;Quantidade;Contado por;Data Contagem\n';
       inventario.forEach(i => {
-        const endereco = `R${i.enderecos_materiais.rua}.C${i.enderecos_materiais.coluna}.N${i.enderecos_materiais.nivel}.P${i.enderecos_materiais.posicao}`;
-        csvContent += `${i.enderecos_materiais.codigo};${i.enderecos_materiais.descricao};${endereco};${i.quantidade};${i.contado_por};${new Date(i.updated_at).toLocaleString('pt-BR')}\n`;
+        const enderecoFormatado = formatEndereco(
+          i.enderecos_materiais.rua,
+          i.enderecos_materiais.coluna,
+          i.enderecos_materiais.nivel,
+          i.enderecos_materiais.posicao
+        );
+        csvContent += `${i.enderecos_materiais.codigo};${i.enderecos_materiais.descricao};${enderecoFormatado};${i.quantidade};${i.contado_por};${new Date(i.updated_at).toLocaleString('pt-BR')}\n`;
       });
       filename = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
     }
@@ -183,11 +190,11 @@ const Dashboard = () => {
                       {e.fabricantes?.nome} • {e.peso}kg • Por: {e.created_by}
                     </p>
                   </div>
-                  <div className="text-right">
+                    <div className="text-right">
                     <div className="flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1">
                       <MapPin className="h-3 w-3 text-primary" />
                       <span className="text-xs font-medium">
-                        R{e.rua}.C{e.coluna}.N{e.nivel}.P{e.posicao}
+                        {formatEndereco(e.rua, e.coluna, e.nivel, e.posicao)}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{formatDate(e.created_at)}</p>
@@ -225,7 +232,7 @@ const Dashboard = () => {
                     <div className="mt-1 flex items-center gap-1">
                       <MapPin className="h-3 w-3 text-muted-foreground" />
                       <span className="text-xs text-muted-foreground">
-                        R{i.enderecos_materiais.rua}.C{i.enderecos_materiais.coluna}.N{i.enderecos_materiais.nivel}.P{i.enderecos_materiais.posicao}
+                        {formatEndereco(i.enderecos_materiais.rua, i.enderecos_materiais.coluna, i.enderecos_materiais.nivel, i.enderecos_materiais.posicao)}
                       </span>
                     </div>
                   </div>

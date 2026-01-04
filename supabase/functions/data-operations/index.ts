@@ -172,8 +172,9 @@ serve(async (req) => {
       const { codigo } = params;
       const { data, error } = await supabase
         .from("catalogo_produtos")
-        .select("descricao")
+        .select("descricao, peso_kg")
         .eq("codigo", codigo?.trim())
+        .eq("ativo", true)
         .maybeSingle();
       if (error) throw error;
       return new Response(
@@ -224,6 +225,27 @@ serve(async (req) => {
         .select("*, fabricantes(nome)")
         .eq("id", id)
         .single();
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verificar duplicidade de endereçamento
+    if (action === "enderecos_check_duplicate") {
+      const { codigo, rua, coluna, nivel, posicao } = params;
+      const { data, error } = await supabase
+        .from("enderecos_materiais")
+        .select("id, codigo, descricao, rua, coluna, nivel, posicao")
+        .eq("codigo", codigo?.trim().toUpperCase())
+        .eq("rua", parseInt(rua))
+        .eq("coluna", parseInt(coluna))
+        .eq("nivel", parseInt(nivel))
+        .eq("posicao", parseInt(posicao))
+        .eq("ativo", true)
+        .maybeSingle();
+      
       if (error) throw error;
       return new Response(
         JSON.stringify({ success: true, data }),
@@ -523,6 +545,36 @@ serve(async (req) => {
       
       return new Response(
         JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== GET TABLE COUNTS (ADMIN ONLY) ==========
+    if (action === "get_table_counts") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem acessar esta informação' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const [fabRes, catRes, endRes, invRes] = await Promise.all([
+        supabase.from("fabricantes").select("id", { count: 'exact', head: true }),
+        supabase.from("catalogo_produtos").select("id", { count: 'exact', head: true }),
+        supabase.from("enderecos_materiais").select("id", { count: 'exact', head: true }),
+        supabase.from("inventario").select("id", { count: 'exact', head: true }),
+      ]);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          counts: {
+            fabricantes: fabRes.count || 0,
+            catalogo_produtos: catRes.count || 0,
+            enderecos_materiais: endRes.count || 0,
+            inventario: invRes.count || 0,
+          },
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

@@ -23,6 +23,7 @@ export type Database = {
           descricao: string
           id: string
           inativado_por: string | null
+          peso_kg: number | null
           updated_at: string
         }
         Insert: {
@@ -33,6 +34,7 @@ export type Database = {
           descricao: string
           id?: string
           inativado_por?: string | null
+          peso_kg?: number | null
           updated_at?: string
         }
         Update: {
@@ -43,6 +45,7 @@ export type Database = {
           descricao?: string
           id?: string
           inativado_por?: string | null
+          peso_kg?: number | null
           updated_at?: string
         }
         Relationships: []
