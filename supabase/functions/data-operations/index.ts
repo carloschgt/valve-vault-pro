@@ -1590,6 +1590,571 @@ serve(async (req) => {
       );
     }
 
+    // ========== INVENTARIO CONFIG BY RUA ==========
+    
+    // Get all rua configs
+    if (action === "inventario_config_rua_list") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Acesso restrito a administradores' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("inventario_config_rua")
+        .select("*")
+        .order("rua");
+      
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Upsert rua config (set contagem for specific rua)
+    if (action === "inventario_config_rua_upsert") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem alterar configurações' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { rua, contagem_ativa } = params;
+      
+      const { data, error } = await supabase
+        .from("inventario_config_rua")
+        .upsert({ 
+          rua: parseInt(rua), 
+          contagem_ativa: parseInt(contagem_ativa),
+          updated_by: user.nome 
+        }, { onConflict: 'rua' })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Delete rua config (revert to global config)
+    if (action === "inventario_config_rua_delete") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem alterar configurações' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { rua } = params;
+      const { error } = await supabase
+        .from("inventario_config_rua")
+        .delete()
+        .eq("rua", parseInt(rua));
+      
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== INVENTARIO SELECAO (Item selection for counting) ==========
+    
+    // List selections for a contagem
+    if (action === "inventario_selecao_list") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Acesso restrito a administradores' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { contagem_num, rua } = params;
+      
+      let query = supabase
+        .from("inventario_selecao")
+        .select(`
+          *,
+          enderecos_materiais (
+            codigo,
+            descricao,
+            rua,
+            coluna,
+            nivel,
+            posicao,
+            fabricantes (nome)
+          )
+        `)
+        .order("created_at", { ascending: false });
+      
+      if (contagem_num) {
+        query = query.eq("contagem_num", parseInt(contagem_num));
+      }
+      if (rua) {
+        query = query.eq("rua", parseInt(rua));
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Add items to selection
+    if (action === "inventario_selecao_add") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem selecionar itens' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { endereco_material_ids, contagem_num, rua } = params;
+      
+      if (!endereco_material_ids || !Array.isArray(endereco_material_ids) || endereco_material_ids.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'IDs dos materiais são obrigatórios' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const insertData = endereco_material_ids.map((id: string) => ({
+        endereco_material_id: id,
+        contagem_num: parseInt(contagem_num),
+        rua: parseInt(rua),
+        created_by: user.nome
+      }));
+
+      const { data, error } = await supabase
+        .from("inventario_selecao")
+        .upsert(insertData, { onConflict: 'endereco_material_id,contagem_num', ignoreDuplicates: true })
+        .select();
+      
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data, count: insertData.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Remove item from selection
+    if (action === "inventario_selecao_remove") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem remover itens' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { id, endereco_material_id, contagem_num } = params;
+      
+      if (id) {
+        const { error } = await supabase
+          .from("inventario_selecao")
+          .delete()
+          .eq("id", id);
+        if (error) throw error;
+      } else if (endereco_material_id && contagem_num) {
+        const { error } = await supabase
+          .from("inventario_selecao")
+          .delete()
+          .eq("endereco_material_id", endereco_material_id)
+          .eq("contagem_num", parseInt(contagem_num));
+        if (error) throw error;
+      }
+      
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Clear all selections for a contagem/rua
+    if (action === "inventario_selecao_clear") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem limpar seleções' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { contagem_num, rua } = params;
+      
+      let query = supabase.from("inventario_selecao").delete();
+      
+      if (contagem_num) {
+        query = query.eq("contagem_num", parseInt(contagem_num));
+      }
+      if (rua) {
+        query = query.eq("rua", parseInt(rua));
+      }
+      
+      // Must have at least one filter
+      if (!contagem_num && !rua) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'É necessário especificar contagem ou rua' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      const { error } = await query;
+      if (error) throw error;
+      
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== Get items available for user to count ==========
+    // Considers: global config, per-rua config, and selected items
+    if (action === "inventario_itens_para_contar") {
+      const { rua } = params;
+      
+      if (!rua) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Rua é obrigatória' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const ruaNum = parseInt(rua);
+
+      // Get global config
+      const { data: globalConfig } = await supabase
+        .from("inventario_config")
+        .select("contagem_ativa")
+        .single();
+      
+      const contagemGlobal = globalConfig?.contagem_ativa || 1;
+
+      // Check for per-rua config
+      const { data: ruaConfig } = await supabase
+        .from("inventario_config_rua")
+        .select("contagem_ativa")
+        .eq("rua", ruaNum)
+        .maybeSingle();
+      
+      const contagemAtiva = ruaConfig?.contagem_ativa || contagemGlobal;
+
+      // Check if there are selected items for this contagem and rua
+      const { data: selecoes } = await supabase
+        .from("inventario_selecao")
+        .select("endereco_material_id")
+        .eq("contagem_num", contagemAtiva)
+        .eq("rua", ruaNum);
+      
+      const hasSelection = selecoes && selecoes.length > 0;
+      const selectedIds = hasSelection ? selecoes.map((s: any) => s.endereco_material_id) : [];
+
+      // If contagem 3, only show items with divergence (unless specific selection)
+      let enderecoIds: string[] = [];
+      
+      if (contagemAtiva === 3 && !hasSelection) {
+        // Find items with divergence between contagem 1 and 2
+        const { data: inv1 } = await supabase
+          .from("inventario")
+          .select("endereco_material_id, quantidade")
+          .eq("contagem_num", 1);
+        
+        const { data: inv2 } = await supabase
+          .from("inventario")
+          .select("endereco_material_id, quantidade")
+          .eq("contagem_num", 2);
+        
+        const map1 = new Map((inv1 || []).map((i: any) => [i.endereco_material_id, i.quantidade]));
+        const map2 = new Map((inv2 || []).map((i: any) => [i.endereco_material_id, i.quantidade]));
+        
+        // Find all unique IDs from both counts
+        const allIds = new Set([...map1.keys(), ...map2.keys()]);
+        
+        for (const id of allIds) {
+          const qty1 = map1.get(id);
+          const qty2 = map2.get(id);
+          // Divergence: different quantities or one is missing
+          if (qty1 !== qty2) {
+            enderecoIds.push(id);
+          }
+        }
+      }
+
+      // Build query for enderecos
+      let query = supabase
+        .from("enderecos_materiais")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          tipo_material,
+          peso,
+          rua,
+          coluna,
+          nivel,
+          posicao,
+          fabricantes (nome)
+        `)
+        .eq("ativo", true)
+        .eq("rua", ruaNum)
+        .order("coluna")
+        .order("nivel")
+        .order("posicao");
+      
+      // Apply filters based on selection or divergence
+      if (hasSelection) {
+        query = query.in("id", selectedIds);
+      } else if (contagemAtiva === 3 && enderecoIds.length > 0) {
+        query = query.in("id", enderecoIds);
+      } else if (contagemAtiva === 3 && enderecoIds.length === 0) {
+        // No divergences, return empty
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            data: [], 
+            contagem_ativa: contagemAtiva,
+            has_selection: false,
+            message: 'Nenhum item com divergência encontrado'
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: enderecos, error: endError } = await query;
+      if (endError) throw endError;
+
+      // Get existing inventory for active phase (to show which already counted)
+      const idsToCheck = (enderecos || []).map((e: any) => e.id);
+      const { data: inventarioExistente } = await supabase
+        .from("inventario")
+        .select("endereco_material_id")
+        .eq("contagem_num", contagemAtiva)
+        .in("endereco_material_id", idsToCheck);
+      
+      const contadosSet = new Set((inventarioExistente || []).map((i: any) => i.endereco_material_id));
+
+      const result = (enderecos || []).map((e: any) => ({
+        ...e,
+        fabricante_nome: e.fabricantes?.nome || null,
+        ja_contado: contadosSet.has(e.id)
+      }));
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: result,
+          contagem_ativa: contagemAtiva,
+          has_selection: hasSelection,
+          total_itens: result.length,
+          total_contados: contadosSet.size
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== Get divergent items between counting 1 and 2 ==========
+    if (action === "inventario_divergencias") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Acesso restrito a administradores' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { rua } = params;
+
+      // Get all inventory for contagem 1 and 2
+      const { data: inv1 } = await supabase
+        .from("inventario")
+        .select(`
+          endereco_material_id, 
+          quantidade,
+          enderecos_materiais (
+            codigo,
+            descricao,
+            rua,
+            coluna,
+            nivel,
+            posicao,
+            tipo_material,
+            fabricantes (nome)
+          )
+        `)
+        .eq("contagem_num", 1);
+      
+      const { data: inv2 } = await supabase
+        .from("inventario")
+        .select("endereco_material_id, quantidade")
+        .eq("contagem_num", 2);
+
+      const { data: inv3 } = await supabase
+        .from("inventario")
+        .select("endereco_material_id, quantidade")
+        .eq("contagem_num", 3);
+      
+      const map1 = new Map((inv1 || []).map((i: any) => [i.endereco_material_id, i]));
+      const map2 = new Map((inv2 || []).map((i: any) => [i.endereco_material_id, i.quantidade]));
+      const map3 = new Map((inv3 || []).map((i: any) => [i.endereco_material_id, i.quantidade]));
+      
+      const divergencias: any[] = [];
+      const allIds = new Set([...map1.keys(), ...map2.keys()]);
+      
+      for (const id of allIds) {
+        const item1 = map1.get(id);
+        const qty1 = item1?.quantidade;
+        const qty2 = map2.get(id);
+        const qty3 = map3.get(id);
+        
+        if (qty1 !== qty2) {
+          const mat = item1?.enderecos_materiais;
+          
+          // Filter by rua if specified
+          if (rua && mat?.rua !== parseInt(rua)) continue;
+          
+          divergencias.push({
+            endereco_material_id: id,
+            codigo: mat?.codigo,
+            descricao: mat?.descricao,
+            rua: mat?.rua,
+            coluna: mat?.coluna,
+            nivel: mat?.nivel,
+            posicao: mat?.posicao,
+            tipo_material: mat?.tipo_material,
+            fabricante_nome: mat?.fabricantes?.nome || null,
+            quantidade_1: qty1 ?? null,
+            quantidade_2: qty2 ?? null,
+            quantidade_3: qty3 ?? null,
+            diferenca: Math.abs((qty1 ?? 0) - (qty2 ?? 0))
+          });
+        }
+      }
+
+      // Sort by rua, then coluna, nivel, posicao
+      divergencias.sort((a, b) => 
+        (a.rua - b.rua) || (a.coluna - b.coluna) || (a.nivel - b.nivel) || (a.posicao - b.posicao)
+      );
+
+      return new Response(
+        JSON.stringify({ success: true, data: divergencias }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== EXPORT INVENTARIO COMPLETO (com todas as contagens) ==========
+    if (action === "inventario_export_completo") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem exportar dados' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get all enderecos with inventory
+      const { data: enderecos, error: endError } = await supabase
+        .from("enderecos_materiais")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          tipo_material,
+          peso,
+          rua,
+          coluna,
+          nivel,
+          posicao,
+          fabricantes (nome)
+        `)
+        .eq("ativo", true)
+        .order("rua")
+        .order("coluna")
+        .order("nivel")
+        .order("posicao");
+      
+      if (endError) throw endError;
+
+      // Get all inventory data
+      const { data: inventario } = await supabase
+        .from("inventario")
+        .select("endereco_material_id, quantidade, contagem_num, contado_por, created_at");
+
+      // Create maps for each contagem
+      const invMap1 = new Map<string, any>();
+      const invMap2 = new Map<string, any>();
+      const invMap3 = new Map<string, any>();
+
+      (inventario || []).forEach((inv: any) => {
+        const data = {
+          quantidade: inv.quantidade,
+          contado_por: inv.contado_por,
+          data: inv.created_at
+        };
+        if (inv.contagem_num === 1) invMap1.set(inv.endereco_material_id, data);
+        if (inv.contagem_num === 2) invMap2.set(inv.endereco_material_id, data);
+        if (inv.contagem_num === 3) invMap3.set(inv.endereco_material_id, data);
+      });
+
+      // Build export data
+      const exportData = (enderecos || []).map((e: any) => {
+        const inv1 = invMap1.get(e.id);
+        const inv2 = invMap2.get(e.id);
+        const inv3 = invMap3.get(e.id);
+        
+        const qty1 = inv1?.quantidade ?? null;
+        const qty2 = inv2?.quantidade ?? null;
+        const qty3 = inv3?.quantidade ?? null;
+
+        // Calculate divergence
+        let status = '';
+        if (qty1 !== null && qty2 !== null) {
+          if (qty1 === qty2) {
+            status = 'OK';
+          } else if (qty3 !== null) {
+            status = qty3 === qty1 || qty3 === qty2 ? 'RESOLVIDO' : 'DIVERGENTE';
+          } else {
+            status = 'DIVERGENTE';
+          }
+        } else if (qty1 !== null || qty2 !== null) {
+          status = 'INCOMPLETO';
+        } else {
+          status = 'NAO_CONTADO';
+        }
+
+        return {
+          codigo: e.codigo,
+          descricao: e.descricao,
+          tipo_material: e.tipo_material,
+          peso: e.peso,
+          fabricante: e.fabricantes?.nome || '',
+          rua: e.rua,
+          coluna: e.coluna,
+          nivel: e.nivel,
+          posicao: e.posicao,
+          endereco: `R${String(e.rua).padStart(2,'0')}.C${String(e.coluna).padStart(2,'0')}.N${String(e.nivel).padStart(2,'0')}.P${String(e.posicao).padStart(2,'0')}`,
+          quantidade_1: qty1,
+          contado_por_1: inv1?.contado_por || '',
+          data_contagem_1: inv1?.data || '',
+          quantidade_2: qty2,
+          contado_por_2: inv2?.contado_por || '',
+          data_contagem_2: inv2?.data || '',
+          quantidade_3: qty3,
+          contado_por_3: inv3?.contado_por || '',
+          data_contagem_3: inv3?.data || '',
+          diferenca_1_2: qty1 !== null && qty2 !== null ? Math.abs(qty1 - qty2) : null,
+          status
+        };
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, data: exportData }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== EXPORT ALL DATA (admin only) ==========
     if (action === "export_all_data") {
       if (!isAdmin) {

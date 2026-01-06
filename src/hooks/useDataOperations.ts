@@ -234,3 +234,55 @@ export async function exportEnderecos(): Promise<DataOperationResult> {
 export async function exportInventario(): Promise<DataOperationResult> {
   return invokeDataOperation('inventario_export');
 }
+
+export async function exportInventarioCompleto(): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_export_completo');
+}
+
+// ========== INVENTARIO CONFIG POR RUA ==========
+export async function listInventarioConfigRua(): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_config_rua_list');
+}
+
+export async function upsertInventarioConfigRua(rua: number, contagem_ativa: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_config_rua_upsert', { rua, contagem_ativa });
+}
+
+export async function deleteInventarioConfigRua(rua: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_config_rua_delete', { rua });
+}
+
+// ========== INVENTARIO SELECAO ==========
+export async function listInventarioSelecao(contagem_num?: number, rua?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_selecao_list', { contagem_num, rua });
+}
+
+export async function addInventarioSelecao(
+  endereco_material_ids: string[], 
+  contagem_num: number, 
+  rua: number
+): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_selecao_add', { endereco_material_ids, contagem_num, rua });
+}
+
+export async function removeInventarioSelecao(
+  id?: string, 
+  endereco_material_id?: string, 
+  contagem_num?: number
+): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_selecao_remove', { id, endereco_material_id, contagem_num });
+}
+
+export async function clearInventarioSelecao(contagem_num?: number, rua?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_selecao_clear', { contagem_num, rua });
+}
+
+// ========== ITENS PARA CONTAR (user view) ==========
+export async function getItensParaContar(rua: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_itens_para_contar', { rua });
+}
+
+// ========== DIVERGENCIAS ==========
+export async function getInventarioDivergencias(rua?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_divergencias', { rua });
+}
