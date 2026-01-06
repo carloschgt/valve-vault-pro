@@ -324,6 +324,90 @@ serve(async (req) => {
       );
     }
 
+    // List enderecos by rua with optional filters (coluna, nivel, posicao)
+    if (action === "enderecos_list_by_rua") {
+      const { rua, coluna, nivel, posicao } = params;
+      
+      if (!rua) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Rua é obrigatória" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+
+      let query = supabase
+        .from("enderecos_materiais")
+        .select("*, fabricantes(nome)")
+        .eq("ativo", true)
+        .eq("rua", parseInt(rua))
+        .order("coluna", { ascending: true })
+        .order("nivel", { ascending: true })
+        .order("posicao", { ascending: true });
+      
+      if (coluna) {
+        query = query.eq("coluna", parseInt(coluna));
+      }
+      if (nivel) {
+        query = query.eq("nivel", parseInt(nivel));
+      }
+      if (posicao) {
+        query = query.eq("posicao", parseInt(posicao));
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      // Extract unique values for filter dropdowns
+      const todasColunas = [...new Set((data || []).map((d: any) => d.coluna))].sort((a, b) => a - b);
+      const todosNiveis = [...new Set((data || []).map((d: any) => d.nivel))].sort((a, b) => a - b);
+      const todasPosicoes = [...new Set((data || []).map((d: any) => d.posicao))].sort((a, b) => a - b);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: data || [],
+          filters: {
+            colunas: todasColunas,
+            niveis: todosNiveis,
+            posicoes: todasPosicoes
+          }
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get filter options for a specific rua (without applying filters)
+    if (action === "enderecos_get_rua_filters") {
+      const { rua } = params;
+      
+      if (!rua) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Rua é obrigatória" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("enderecos_materiais")
+        .select("coluna, nivel, posicao")
+        .eq("ativo", true)
+        .eq("rua", parseInt(rua));
+      
+      if (error) throw error;
+      
+      const colunas = [...new Set((data || []).map((d: any) => d.coluna))].sort((a, b) => a - b);
+      const niveis = [...new Set((data || []).map((d: any) => d.nivel))].sort((a, b) => a - b);
+      const posicoes = [...new Set((data || []).map((d: any) => d.posicao))].sort((a, b) => a - b);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: { colunas, niveis, posicoes }
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get inventory config
     if (action === "inventario_config_get") {
       const { data, error } = await supabase

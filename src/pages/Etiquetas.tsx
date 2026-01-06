@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Printer, QrCode, Loader2, Check, X, Plus, MapPin, Tag } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2, Check, X, MapPin, Tag, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { InputUppercase } from '@/components/ui/input-uppercase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { listEnderecos, listRuasDisponiveis } from '@/hooks/useDataOperations';
+import { listRuasDisponiveis, listEnderecosByRua, getRuaFilters } from '@/hooks/useDataOperations';
 import { QRCodeSVG } from 'qrcode.react';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -35,6 +34,12 @@ interface EtiquetaData {
   peso: number;
 }
 
+interface RuaFilters {
+  colunas: number[];
+  niveis: number[];
+  posicoes: number[];
+}
+
 const Etiquetas = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -43,25 +48,49 @@ const Etiquetas = () => {
   // Estado para controle de abas
   const [activeTab, setActiveTab] = useState('material');
 
-  // Estados para etiquetas de material
-  const [searchCode, setSearchCode] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
+  // Estados para etiquetas de material - Nova lógica por rua
+  const [ruasDisponiveis, setRuasDisponiveis] = useState<number[]>([]);
+  const [selectedRuaMaterial, setSelectedRuaMaterial] = useState<string>('');
+  const [ruaFilters, setRuaFilters] = useState<RuaFilters>({ colunas: [], niveis: [], posicoes: [] });
+  const [selectedColuna, setSelectedColuna] = useState<string>('');
+  const [selectedNivel, setSelectedNivel] = useState<string>('');
+  const [selectedPosicao, setSelectedPosicao] = useState<string>('');
+  const [isLoadingRuas, setIsLoadingRuas] = useState(false);
+  const [isLoadingFilters, setIsLoadingFilters] = useState(false);
+  const [isLoadingEnderecos, setIsLoadingEnderecos] = useState(false);
+  
   const [enderecos, setEnderecos] = useState<EnderecoMaterial[]>([]);
-  const [allEnderecos, setAllEnderecos] = useState<EnderecoMaterial[]>([]);
   const [selectedEnderecos, setSelectedEnderecos] = useState<Set<string>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
 
   // Estados para identificação de rua
-  const [ruasDisponiveis, setRuasDisponiveis] = useState<number[]>([]);
   const [selectedRua, setSelectedRua] = useState<string>('');
-  const [isLoadingRuas, setIsLoadingRuas] = useState(false);
 
-  // Carregar ruas disponíveis ao montar ou trocar para aba de rua
+  // Carregar ruas disponíveis ao montar
   useEffect(() => {
-    if (activeTab === 'rua') {
-      loadRuasDisponiveis();
+    loadRuasDisponiveis();
+  }, []);
+
+  // Carregar filtros quando selecionar rua para etiqueta de material
+  useEffect(() => {
+    if (selectedRuaMaterial) {
+      loadRuaFilters(parseInt(selectedRuaMaterial));
+    } else {
+      setRuaFilters({ colunas: [], niveis: [], posicoes: [] });
+      setSelectedColuna('');
+      setSelectedNivel('');
+      setSelectedPosicao('');
+      setEnderecos([]);
+      setSelectedEnderecos(new Set());
     }
-  }, [activeTab]);
+  }, [selectedRuaMaterial]);
+
+  // Buscar endereços quando mudar filtros
+  useEffect(() => {
+    if (selectedRuaMaterial) {
+      loadEnderecosByFilters();
+    }
+  }, [selectedRuaMaterial, selectedColuna, selectedNivel, selectedPosicao]);
 
   const loadRuasDisponiveis = async () => {
     setIsLoadingRuas(true);
@@ -84,35 +113,47 @@ const Etiquetas = () => {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchCode.trim()) {
+  const loadRuaFilters = async (rua: number) => {
+    setIsLoadingFilters(true);
+    try {
+      const result = await getRuaFilters(rua);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao buscar filtros');
+      }
+
+      setRuaFilters(result.data || { colunas: [], niveis: [], posicoes: [] });
+      setSelectedColuna('');
+      setSelectedNivel('');
+      setSelectedPosicao('');
+    } catch (error: any) {
       toast({
-        title: 'Atenção',
-        description: 'Digite o código do material',
+        title: 'Erro',
+        description: error.message || 'Não foi possível carregar os filtros',
         variant: 'destructive',
       });
-      return;
+    } finally {
+      setIsLoadingFilters(false);
     }
+  };
 
-    setIsSearching(true);
-
+  const loadEnderecosByFilters = async () => {
+    if (!selectedRuaMaterial) return;
+    
+    setIsLoadingEnderecos(true);
     try {
-      const result = await listEnderecos(searchCode.trim());
-      
+      const result = await listEnderecosByRua(
+        parseInt(selectedRuaMaterial),
+        selectedColuna ? parseInt(selectedColuna) : undefined,
+        selectedNivel ? parseInt(selectedNivel) : undefined,
+        selectedPosicao ? parseInt(selectedPosicao) : undefined
+      );
+
       if (!result.success) {
         throw new Error(result.error || 'Erro ao buscar endereços');
       }
 
-      if (!result.data || result.data.length === 0) {
-        toast({
-          title: 'Não encontrado',
-          description: 'Nenhum endereço encontrado com esse código',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const formatted: EnderecoMaterial[] = result.data.map((d: any) => ({
+      const formatted: EnderecoMaterial[] = (result.data || []).map((d: any) => ({
         id: d.id,
         codigo: d.codigo,
         descricao: d.descricao,
@@ -126,28 +167,9 @@ const Etiquetas = () => {
         ativo: d.ativo,
       }));
 
-      // Adicionar os novos resultados aos já existentes (sem duplicar)
-      const existingIds = new Set(allEnderecos.map(e => e.id));
-      const newEnderecos = formatted.filter(e => !existingIds.has(e.id));
-      const updatedAll = [...allEnderecos, ...newEnderecos];
-      
-      setAllEnderecos(updatedAll);
       setEnderecos(formatted);
-      
-      // Selecionar automaticamente os novos ativos
-      const newActiveIds = newEnderecos.filter(e => e.ativo).map(e => e.id);
-      setSelectedEnderecos(prev => {
-        const updated = new Set(prev);
-        newActiveIds.forEach(id => updated.add(id));
-        return updated;
-      });
-
-      toast({
-        title: 'Sucesso',
-        description: `${formatted.length} endereço(s) encontrado(s)${newEnderecos.length > 0 ? `, ${newEnderecos.length} novo(s) adicionado(s)` : ''}`,
-      });
-      
-      setSearchCode('');
+      // Auto-select all active
+      setSelectedEnderecos(new Set(formatted.filter(e => e.ativo).map(e => e.id)));
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -155,7 +177,7 @@ const Etiquetas = () => {
         variant: 'destructive',
       });
     } finally {
-      setIsSearching(false);
+      setIsLoadingEnderecos(false);
     }
   };
 
@@ -170,7 +192,7 @@ const Etiquetas = () => {
   };
 
   const selectAll = () => {
-    const activeIds = allEnderecos.filter(e => e.ativo).map(e => e.id);
+    const activeIds = enderecos.filter(e => e.ativo).map(e => e.id);
     setSelectedEnderecos(new Set(activeIds));
   };
 
@@ -178,8 +200,11 @@ const Etiquetas = () => {
     setSelectedEnderecos(new Set());
   };
 
-  const clearAll = () => {
-    setAllEnderecos([]);
+  const clearFilters = () => {
+    setSelectedRuaMaterial('');
+    setSelectedColuna('');
+    setSelectedNivel('');
+    setSelectedPosicao('');
     setEnderecos([]);
     setSelectedEnderecos(new Set());
   };
@@ -189,7 +214,7 @@ const Etiquetas = () => {
   };
 
   const getEtiquetasData = (): EtiquetaData[] => {
-    return allEnderecos
+    return enderecos
       .filter(e => selectedEnderecos.has(e.id))
       .map(e => ({
         codigo: e.codigo,
@@ -278,39 +303,113 @@ const Etiquetas = () => {
         <TabsContent value="material" className="flex-1 flex flex-col m-0">
           {!showPreview ? (
             <div className="flex flex-1 flex-col gap-4 p-4">
-              {/* Search */}
+              {/* Filtros por Rua */}
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex gap-2">
-                    <InputUppercase
-                      placeholder="Digite o código do material"
-                      value={searchCode}
-                      onChange={(e) => setSearchCode(e.target.value.replace(/\D/g, ''))}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      className="flex-1"
-                    />
-                    <Button onClick={handleSearch} disabled={isSearching}>
-                      {isSearching ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Plus className="h-4 w-4" />
-                      )}
-                    </Button>
+                <CardContent className="p-4 space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      1. Selecione a Rua
+                    </label>
+                    <Select value={selectedRuaMaterial} onValueChange={setSelectedRuaMaterial} disabled={isLoadingRuas}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={isLoadingRuas ? "Carregando..." : "Selecione uma rua"} />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border border-border z-50">
+                        {ruasDisponiveis.map((rua) => (
+                          <SelectItem key={rua} value={String(rua)}>
+                            Rua {String(rua).padStart(2, '0')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Você pode buscar vários códigos. Cada busca adiciona à lista de seleção.
-                  </p>
+
+                  {/* Filtros opcionais */}
+                  {selectedRuaMaterial && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Filter className="h-4 w-4" />
+                        <span>Filtros opcionais (para refinar a busca):</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Coluna</label>
+                          <Select value={selectedColuna} onValueChange={setSelectedColuna} disabled={isLoadingFilters}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Todas" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border border-border z-50">
+                              <SelectItem value="">Todas</SelectItem>
+                              {ruaFilters.colunas.map((coluna) => (
+                                <SelectItem key={coluna} value={String(coluna)}>
+                                  C{String(coluna).padStart(2, '0')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Nível</label>
+                          <Select value={selectedNivel} onValueChange={setSelectedNivel} disabled={isLoadingFilters}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Todos" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border border-border z-50">
+                              <SelectItem value="">Todos</SelectItem>
+                              {ruaFilters.niveis.map((nivel) => (
+                                <SelectItem key={nivel} value={String(nivel)}>
+                                  N{String(nivel).padStart(2, '0')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Posição</label>
+                          <Select value={selectedPosicao} onValueChange={setSelectedPosicao} disabled={isLoadingFilters}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Todas" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border border-border z-50">
+                              <SelectItem value="">Todas</SelectItem>
+                              {ruaFilters.posicoes.map((posicao) => (
+                                <SelectItem key={posicao} value={String(posicao)}>
+                                  P{String(posicao).padStart(2, '0')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRuaMaterial && (
+                    <Button variant="outline" size="sm" onClick={clearFilters} className="w-full">
+                      <X className="mr-1 h-3 w-3" />
+                      Limpar Filtros
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
+              {/* Loading state */}
+              {isLoadingEnderecos && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="ml-2 text-muted-foreground">Carregando endereços...</span>
+                </div>
+              )}
+
               {/* Selected Items Summary */}
-              {allEnderecos.length > 0 && (
+              {!isLoadingEnderecos && enderecos.length > 0 && (
                 <>
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
-                      {selectedEnderecos.size} de {allEnderecos.filter(e => e.ativo).length} selecionado(s)
+                      {selectedEnderecos.size} de {enderecos.filter(e => e.ativo).length} selecionado(s)
                     </p>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={selectAll}>
@@ -319,17 +418,13 @@ const Etiquetas = () => {
                       </Button>
                       <Button variant="outline" size="sm" onClick={deselectAll}>
                         <X className="mr-1 h-3 w-3" />
-                        Limpar
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={clearAll}>
-                        <X className="mr-1 h-3 w-3" />
-                        Resetar
+                        Nenhum
                       </Button>
                     </div>
                   </div>
 
                   <div className="flex-1 space-y-2 overflow-auto">
-                    {allEnderecos.map((endereco) => (
+                    {enderecos.map((endereco) => (
                       <Card
                         key={endereco.id}
                         className={`cursor-pointer transition-all ${
@@ -386,6 +481,25 @@ const Etiquetas = () => {
                     Gerar Etiquetas ({selectedEnderecos.size})
                   </Button>
                 </>
+              )}
+
+              {/* Empty state */}
+              {!isLoadingEnderecos && selectedRuaMaterial && enderecos.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Tag className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                  <p className="text-muted-foreground">Nenhum endereço encontrado com os filtros selecionados.</p>
+                </div>
+              )}
+
+              {/* Initial state */}
+              {!selectedRuaMaterial && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <MapPin className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                  <p className="text-muted-foreground">Selecione uma rua para visualizar os endereços disponíveis.</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    A etiqueta identifica a posição de alocação do material no rack.
+                  </p>
+                </div>
               )}
             </div>
           ) : (

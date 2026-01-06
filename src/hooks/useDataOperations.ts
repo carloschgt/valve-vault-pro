@@ -83,6 +83,19 @@ export async function listRuasDisponiveis(): Promise<DataOperationResult> {
   return invokeDataOperation('enderecos_list_ruas');
 }
 
+export async function listEnderecosByRua(
+  rua: number,
+  coluna?: number,
+  nivel?: number,
+  posicao?: number
+): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_list_by_rua', { rua, coluna, nivel, posicao });
+}
+
+export async function getRuaFilters(rua: number): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_get_rua_filters', { rua });
+}
+
 export async function getEndereco(id: string): Promise<DataOperationResult> {
   return invokeDataOperation('enderecos_get', { id });
 }
