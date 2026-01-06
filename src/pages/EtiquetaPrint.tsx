@@ -74,7 +74,7 @@ const EtiquetaPrint = () => {
         id="print-area"
       >
         <div className="mx-auto max-w-[210mm] p-4 print:p-0">
-          <div className="grid grid-cols-2 gap-4 print:gap-2">
+          <div className="flex flex-col items-center gap-6 print:gap-4">
             {etiquetas.map((etiqueta, index) => (
               <EtiquetaCard key={index} data={etiqueta} />
             ))}
