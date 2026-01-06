@@ -61,22 +61,32 @@ const Catalogo = () => {
   const { data: produtos = [], isLoading } = useQuery({
     queryKey: ['catalogo_produtos', searchTerm],
     queryFn: async () => {
-      let query = supabase
-        .from('catalogo_produtos')
-        .select('*')
-        .eq('ativo', true)
-        .order('codigo');
+      const trimmedSearch = searchTerm.trim();
       
-      if (searchTerm) {
-        const safeSearch = sanitizeSearchTerm(searchTerm);
-        if (safeSearch) {
-          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
-        }
+      if (trimmedSearch) {
+        // Busca com filtro
+        const { data, error } = await supabase
+          .from('catalogo_produtos')
+          .select('*')
+          .eq('ativo', true)
+          .or(`codigo.ilike.%${trimmedSearch}%,descricao.ilike.%${trimmedSearch}%`)
+          .order('codigo')
+          .limit(500);
+        
+        if (error) throw error;
+        return data as Produto[];
+      } else {
+        // Lista todos sem filtro
+        const { data, error } = await supabase
+          .from('catalogo_produtos')
+          .select('*')
+          .eq('ativo', true)
+          .order('codigo')
+          .limit(500);
+        
+        if (error) throw error;
+        return data as Produto[];
       }
-      
-      const { data, error } = await query.limit(500);
-      if (error) throw error;
-      return data as Produto[];
     },
   });
 
