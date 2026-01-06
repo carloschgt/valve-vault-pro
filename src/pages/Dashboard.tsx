@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, RefreshCw, MapPin, Package } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, MapPin, Package, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +41,8 @@ interface InventarioItem {
   };
 }
 
+const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -50,14 +52,17 @@ const Dashboard = () => {
   const [enderecos, setEnderecos] = useState<EnderecoMaterial[]>([]);
   const [inventario, setInventario] = useState<InventarioItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Carregar dados iniciais
-  const loadData = async () => {
+  // Carregar dados
+  const loadData = useCallback(async (showToast = false) => {
     setIsLoading(true);
     try {
       const [enderecosRes, inventarioRes] = await Promise.all([
-        listEnderecos(undefined, 50),
-        listInventario(undefined, 50),
+        listEnderecos(undefined, 100),
+        listInventario(undefined, 100),
       ]);
 
       if (enderecosRes.success && enderecosRes.data) {
@@ -66,20 +71,57 @@ const Dashboard = () => {
       if (inventarioRes.success && inventarioRes.data) {
         setInventario(inventarioRes.data as InventarioItem[]);
       }
+      
+      setLastUpdate(new Date());
+      
+      if (showToast) {
+        toast({
+          title: 'Atualizado!',
+          description: 'Dados atualizados com sucesso',
+        });
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao carregar dados. Verifique sua sessão.',
-        variant: 'destructive',
-      });
+      if (showToast) {
+        toast({
+          title: 'Erro',
+          description: 'Erro ao carregar dados. Verifique sua sessão.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
+  // Initial load
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Auto-refresh
+  useEffect(() => {
+    if (autoRefreshEnabled) {
+      intervalRef.current = setInterval(() => {
+        loadData(false);
+      }, AUTO_REFRESH_INTERVAL);
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [autoRefreshEnabled, loadData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
   }, []);
 
   // Exportar para Excel/CSV
@@ -134,6 +176,14 @@ const Dashboard = () => {
     });
   };
 
+  const formatLastUpdate = () => {
+    return lastUpdate.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
@@ -143,8 +193,29 @@ const Dashboard = () => {
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-8" />
         <h1 className="flex-1 text-lg font-bold">Dashboard</h1>
-        <Button variant="ghost" size="icon" onClick={loadData} disabled={isLoading}>
+        <Button variant="ghost" size="icon" onClick={() => loadData(true)} disabled={isLoading}>
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+
+      {/* Auto-refresh indicator */}
+      <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          <span>Atualizado às {formatLastUpdate()}</span>
+          {autoRefreshEnabled && (
+            <Badge variant="secondary" className="text-[10px]">
+              Auto-refresh: 30s
+            </Badge>
+          )}
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-6 text-xs"
+          onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+        >
+          {autoRefreshEnabled ? 'Pausar' : 'Retomar'} auto-refresh
         </Button>
       </div>
 

@@ -146,6 +146,7 @@ export type Database = {
         Row: {
           comentario: string | null
           contado_por: string
+          contagem_num: number
           created_at: string
           endereco_material_id: string
           id: string
@@ -155,6 +156,7 @@ export type Database = {
         Insert: {
           comentario?: string | null
           contado_por: string
+          contagem_num?: number
           created_at?: string
           endereco_material_id: string
           id?: string
@@ -164,6 +166,7 @@ export type Database = {
         Update: {
           comentario?: string | null
           contado_por?: string
+          contagem_num?: number
           created_at?: string
           endereco_material_id?: string
           id?: string
@@ -179,6 +182,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      inventario_audit: {
+        Row: {
+          editado_em: string
+          editado_por: string
+          id: string
+          inventario_id: string
+          motivo: string
+          quantidade_anterior: number
+          quantidade_nova: number
+        }
+        Insert: {
+          editado_em?: string
+          editado_por: string
+          id?: string
+          inventario_id: string
+          motivo: string
+          quantidade_anterior: number
+          quantidade_nova: number
+        }
+        Update: {
+          editado_em?: string
+          editado_por?: string
+          id?: string
+          inventario_id?: string
+          motivo?: string
+          quantidade_anterior?: number
+          quantidade_nova?: number
+        }
+        Relationships: []
+      }
+      inventario_config: {
+        Row: {
+          contagem_ativa: number
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          contagem_ativa?: number
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          contagem_ativa?: number
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       login_logs: {
         Row: {

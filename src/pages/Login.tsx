@@ -221,7 +221,7 @@ const Login = () => {
   );
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-primary/20 via-background to-accent/30 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-[hsl(171,97%,26%,0.15)] via-background to-[hsl(171,60%,40%,0.1)] p-4">
       <Card className="w-full max-w-sm shadow-2xl border-primary/20">
         <CardHeader className="space-y-4 text-center pb-2">
           <div className="mx-auto">

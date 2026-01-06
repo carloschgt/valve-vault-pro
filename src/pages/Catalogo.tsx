@@ -1,13 +1,13 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Plus, Trash2, Loader2, Search, FileSpreadsheet, Download, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Upload, Plus, Trash2, Loader2, Search, Download, AlertTriangle, Edit2, Save, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { insertCatalogo, deleteCatalogo, upsertCatalogo } from '@/hooks/useDataOperations';
+import { insertCatalogo, deleteCatalogo, upsertCatalogo, updateCatalogo } from '@/hooks/useDataOperations';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
@@ -25,6 +25,7 @@ interface Produto {
   codigo: string;
   descricao: string;
   peso_kg?: number | null;
+  ativo?: boolean;
 }
 
 interface DuplicateItem {
@@ -50,8 +51,13 @@ const Catalogo = () => {
   const [duplicates, setDuplicates] = useState<DuplicateItem[]>([]);
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ codigo: string; descricao: string; peso_kg?: number }[]>([]);
+  
+  // Edit mode state
+  const [editingProduct, setEditingProduct] = useState<Produto | null>(null);
+  const [editDescricao, setEditDescricao] = useState('');
+  const [editPeso, setEditPeso] = useState('');
 
-  // Buscar produtos
+  // Buscar produtos - lista todos automaticamente
   const { data: produtos = [], isLoading } = useQuery({
     queryKey: ['catalogo_produtos', searchTerm],
     queryFn: async () => {
@@ -68,7 +74,7 @@ const Catalogo = () => {
         }
       }
       
-      const { data, error } = await query.limit(100);
+      const { data, error } = await query.limit(500);
       if (error) throw error;
       return data as Produto[];
     },
@@ -142,6 +148,29 @@ const Catalogo = () => {
           variant: 'destructive',
         });
       }
+    },
+  });
+
+  // Editar produto
+  const editMutation = useMutation({
+    mutationFn: async ({ id, codigo, descricao, peso_kg }: { id: string; codigo: string; descricao: string; peso_kg?: number }) => {
+      const result = await updateCatalogo(id, codigo, descricao, peso_kg);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalogo_produtos'] });
+      setEditingProduct(null);
+      toast({ title: 'Sucesso', description: 'Produto atualizado!' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -308,6 +337,30 @@ const Catalogo = () => {
     addMutation.mutate({ codigo: novoCodigo, descricao: novaDescricao, peso_kg: pesoNum });
   };
 
+  const startEditing = (produto: Produto) => {
+    setEditingProduct(produto);
+    setEditDescricao(produto.descricao);
+    setEditPeso(produto.peso_kg?.toString() || '');
+  };
+
+  const cancelEditing = () => {
+    setEditingProduct(null);
+    setEditDescricao('');
+    setEditPeso('');
+  };
+
+  const saveEdit = () => {
+    if (!editingProduct) return;
+    
+    const pesoNum = editPeso.trim() ? parseFloat(editPeso) : undefined;
+    editMutation.mutate({
+      id: editingProduct.id,
+      codigo: editingProduct.codigo,
+      descricao: editDescricao,
+      peso_kg: pesoNum,
+    });
+  };
+
   if (!isAdmin) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
@@ -376,7 +429,7 @@ const Catalogo = () => {
                 id="novoCodigo"
                 placeholder="Ex: 12345"
                 value={novoCodigo}
-                onChange={(e) => setNovoCodigo(e.target.value)}
+                onChange={(e) => setNovoCodigo(e.target.value.replace(/\D/g, ''))}
                 inputMode="numeric"
                 pattern="[0-9]*"
               />
@@ -399,6 +452,7 @@ const Catalogo = () => {
                 placeholder="0.00"
                 value={novoPeso}
                 onChange={(e) => setNovoPeso(e.target.value)}
+                inputMode="decimal"
               />
             </div>
             <div className="flex items-end">
@@ -425,6 +479,7 @@ const Catalogo = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
+              inputMode="text"
             />
           </div>
         </div>
@@ -446,27 +501,88 @@ const Catalogo = () => {
                   key={produto.id}
                   className="flex items-center justify-between rounded-lg border border-border bg-card p-3"
                 >
-                  <div className="flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <p className="font-medium text-primary">{produto.codigo}</p>
-                      {produto.peso_kg && (
-                        <span className="text-xs text-muted-foreground">
-                          {produto.peso_kg} kg
-                        </span>
-                      )}
+                  {editingProduct?.id === produto.id ? (
+                    // Edit mode
+                    <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                      <div className="font-medium text-primary shrink-0">{produto.codigo}</div>
+                      <div className="flex-1">
+                        <Input
+                          value={editDescricao}
+                          onChange={(e) => setEditDescricao(e.target.value)}
+                          placeholder="Descrição"
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <Input
+                          value={editPeso}
+                          onChange={(e) => setEditPeso(e.target.value)}
+                          placeholder="Peso (kg)"
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal"
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="default"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={saveEdit}
+                          disabled={editMutation.isPending}
+                        >
+                          {editMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={cancelEditing}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-1">
-                      {produto.descricao}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteMutation.mutate(produto.id)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  ) : (
+                    // View mode
+                    <>
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <p className="font-medium text-primary">{produto.codigo}</p>
+                          {produto.peso_kg && (
+                            <span className="text-xs text-muted-foreground">
+                              {produto.peso_kg} kg
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-1">
+                          {produto.descricao}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => startEditing(produto)}
+                        >
+                          <Edit2 className="h-4 w-4 text-primary" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(produto.id)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

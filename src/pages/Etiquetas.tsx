@@ -174,8 +174,11 @@ const Etiquetas = () => {
     setShowPreview(true);
   };
 
-  const executePrint = () => {
-    window.print();
+  // Open dedicated print page
+  const openPrintPage = () => {
+    const etiquetas = getEtiquetasData();
+    const dataParam = encodeURIComponent(JSON.stringify(etiquetas));
+    navigate(`/etiquetas/print?data=${dataParam}`);
   };
 
   const etiquetas = getEtiquetasData();
@@ -202,7 +205,7 @@ const Etiquetas = () => {
                 <InputUppercase
                   placeholder="Digite o código do material"
                   value={searchCode}
-                  onChange={(e) => setSearchCode(e.target.value)}
+                  onChange={(e) => setSearchCode(e.target.value.replace(/\D/g, ''))}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -308,20 +311,20 @@ const Etiquetas = () => {
       ) : (
         <div className="flex flex-1 flex-col">
           {/* Print Preview Controls */}
-          <div className="flex items-center justify-between border-b border-border bg-card p-4 print:hidden">
+          <div className="flex items-center justify-between border-b border-border bg-card p-4">
             <Button variant="outline" onClick={() => setShowPreview(false)}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Voltar
             </Button>
-            <Button onClick={executePrint}>
+            <Button onClick={openPrintPage}>
               <Printer className="mr-2 h-4 w-4" />
-              Imprimir
+              Abrir para Impressão
             </Button>
           </div>
 
           {/* Print Preview */}
-          <div ref={printRef} className="flex-1 bg-white p-4 print:p-0">
-            <div className="mx-auto grid max-w-[210mm] grid-cols-2 gap-4 print:gap-2">
+          <div ref={printRef} className="flex-1 bg-white p-4">
+            <div className="mx-auto grid max-w-[210mm] grid-cols-2 gap-4">
               {etiquetas.map((etiqueta, index) => (
                 <EtiquetaCard key={index} data={etiqueta} />
               ))}
@@ -329,36 +332,6 @@ const Etiquetas = () => {
           </div>
         </div>
       )}
-
-      {/* Print Styles */}
-      <style>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 10mm;
-          }
-          
-          body * {
-            visibility: hidden;
-          }
-          
-          .print-area, .print-area * {
-            visibility: visible;
-          }
-          
-          .print\\:hidden {
-            display: none !important;
-          }
-          
-          .print\\:p-0 {
-            padding: 0 !important;
-          }
-          
-          .print\\:gap-2 {
-            gap: 0.5rem !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
@@ -379,12 +352,12 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
   });
 
   return (
-    <div className="flex h-[120mm] w-full flex-col rounded-lg border-2 border-border bg-white p-4 print:h-[95mm] print:rounded-none print:border print:p-3">
+    <div className="flex h-[120mm] w-full flex-col rounded-lg border-2 border-border bg-white p-4">
       {/* Header with Logo */}
       <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
-        <img src={logoImex} alt="IMEX" className="h-8 print:h-6" />
+        <img src={logoImex} alt="IMEX" className="h-8" />
         <div className="text-right">
-          <div className="text-2xl font-bold text-primary print:text-xl">{data.endereco}</div>
+          <div className="text-2xl font-bold text-primary">{data.endereco}</div>
         </div>
       </div>
 
@@ -396,7 +369,6 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             value={qrData}
             size={100}
             level="M"
-            className="print:h-[80px] print:w-[80px]"
           />
           <span className="mt-1 text-[10px] text-muted-foreground">Escaneie para info</span>
         </div>
@@ -407,14 +379,14 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             <label className="text-[10px] font-medium uppercase text-muted-foreground">
               Código
             </label>
-            <p className="text-xl font-bold text-foreground print:text-lg">{data.codigo}</p>
+            <p className="text-xl font-bold text-foreground">{data.codigo}</p>
           </div>
           
           <div>
             <label className="text-[10px] font-medium uppercase text-muted-foreground">
               Descrição
             </label>
-            <p className="text-sm font-medium text-foreground line-clamp-2 print:text-xs">
+            <p className="text-sm font-medium text-foreground line-clamp-2">
               {data.descricao}
             </p>
           </div>
@@ -424,7 +396,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
               <label className="text-[10px] font-medium uppercase text-muted-foreground">
                 Fabricante
               </label>
-              <p className="text-sm font-semibold text-foreground print:text-xs">
+              <p className="text-sm font-semibold text-foreground">
                 {data.fabricante}
               </p>
             </div>
@@ -432,7 +404,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
               <label className="text-[10px] font-medium uppercase text-muted-foreground">
                 Tipo
               </label>
-              <p className="text-sm font-semibold text-foreground print:text-xs">
+              <p className="text-sm font-semibold text-foreground">
                 {data.tipoMaterial}
               </p>
             </div>
@@ -442,7 +414,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             <label className="text-[10px] font-medium uppercase text-muted-foreground">
               Peso
             </label>
-            <p className="text-sm font-semibold text-foreground print:text-xs">
+            <p className="text-sm font-semibold text-foreground">
               {data.peso} kg
             </p>
           </div>
