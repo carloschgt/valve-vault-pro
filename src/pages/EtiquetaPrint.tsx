@@ -153,7 +153,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       {/* Main Content - Código em destaque */}
       <div className="flex flex-1 gap-4">
         {/* QR Code - Maior e em destaque */}
-        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-gray-300 bg-gray-50 p-2">
+        <div className="flex flex-col items-center justify-center">
           <div className="rounded-md border-2 border-gray-800 bg-white p-2">
             <QRCodeSVG
               value={qrData}
