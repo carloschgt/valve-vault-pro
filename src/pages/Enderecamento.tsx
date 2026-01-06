@@ -28,14 +28,20 @@ import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
 const TIPOS_MATERIAL = [
-  'Válvula',
   'Atuador',
-  'Flange',
+  'Chapa',
   'Conexão',
-  'Tubo',
-  'Instrumento',
   'Elétrico',
+  'Flange',
+  'Instrumento',
   'Mecânico',
+  'Tubo',
+  'Válvula Borboleta',
+  'Válvula Esfera',
+  'Válvula Gaveta',
+  'Válvula Globo',
+  'Válvula Macho',
+  'Válvula Retenção',
   'Outro',
 ];
 
