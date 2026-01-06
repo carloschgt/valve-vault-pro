@@ -84,52 +84,48 @@ const IdentificacaoRuaPrint = () => {
             />
           </div>
 
-          {/* Título Principal - RUA XX */}
-          <div className="flex-1 flex flex-col items-center justify-center py-8">
+          {/* Título Principal + QR Code - Mais próximos */}
+          <div className="flex-1 flex flex-col items-center justify-center">
             <h1 
               className="text-center font-black text-gray-900 tracking-tight"
               style={{ 
-                fontSize: 'clamp(80px, 20vw, 180px)',
+                fontSize: 'clamp(100px, 25vw, 200px)',
                 lineHeight: '1',
               }}
             >
               RUA
             </h1>
             <h2 
-              className="text-center font-black text-gray-900 tracking-tight mt-4"
+              className="text-center font-black text-gray-900 tracking-tight mt-2"
               style={{ 
-                fontSize: 'clamp(100px, 25vw, 220px)',
+                fontSize: 'clamp(140px, 35vw, 280px)',
                 lineHeight: '1',
               }}
             >
               {ruaFormatada}
             </h2>
-          </div>
-
-          {/* QR Code Section */}
-          <div className="flex flex-col items-center py-8">
-            <div className="rounded-lg border-4 border-gray-800 bg-white p-4">
-              <QRCodeSVG
-                value={qrUrl}
-                size={200}
-                level="H"
-                bgColor="#ffffff"
-                fgColor="#000000"
-                includeMargin={false}
-              />
+            
+            {/* QR Code - Mais próximo do título */}
+            <div className="mt-8 flex flex-col items-center">
+              <div className="rounded-lg border-4 border-gray-800 bg-white p-4">
+                <QRCodeSVG
+                  value={qrUrl}
+                  size={220}
+                  level="H"
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  includeMargin={false}
+                />
+              </div>
+              <p className="mt-4 text-xl font-medium text-gray-700 text-center">
+                Escaneie para consultar os materiais desta rua
+              </p>
             </div>
-            <p className="mt-4 text-xl font-medium text-gray-700 text-center">
-              Escaneie para consultar os materiais desta rua
-            </p>
           </div>
 
-          {/* Footer */}
+          {/* Footer - Simplificado */}
           <div className="w-full border-t-2 border-gray-300 pt-4">
-            <div className="flex justify-between items-center text-sm text-gray-500">
-              <p>Desenvolvido por Carlos Teixeira</p>
-              <p>Gerado em: {dataGeracao}</p>
-            </div>
-            <p className="text-center text-xs text-gray-400 mt-2">
+            <p className="text-center text-sm text-gray-500">
               IMEX SOLUTIONS - Sistema de Gerenciamento de Materiais
             </p>
           </div>

@@ -106,6 +106,16 @@ const EstoqueRua = () => {
     setShowScanner(false);
     
     try {
+      // Primeiro tenta extrair da URL (formato gerado pela identificação de rua)
+      // Exemplo: https://site.com/estoque-rua?rua=1
+      const urlMatch = data.match(/[?&]rua=(\d+)/i);
+      if (urlMatch) {
+        const ruaNum = parseInt(urlMatch[1], 10);
+        setRua(String(ruaNum));
+        buscarMateriaisRua(ruaNum);
+        return;
+      }
+
       // Tenta parsear como JSON
       let parsed: any;
       try {
