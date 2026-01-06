@@ -30,6 +30,13 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
+// Sanitize search term to prevent ILIKE pattern injection
+function sanitizeSearchTerm(input: string, maxLength: number = 100): string {
+  if (!input || typeof input !== 'string') return '';
+  const cleaned = input.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, maxLength);
+  return cleaned.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
 // Server-side admin verification - CRITICAL for security
 async function verifyAdminUser(supabase: any, userEmail: string): Promise<boolean> {
   if (!userEmail) return false;
@@ -130,7 +137,10 @@ serve(async (req) => {
         .order("created_at", { ascending: false });
 
       if (search) {
-        query = query.or(`nome.ilike.%${search}%,email.ilike.%${search}%`);
+        const sanitizedSearch = sanitizeSearchTerm(search);
+        if (sanitizedSearch) {
+          query = query.or(`nome.ilike.%${sanitizedSearch}%,email.ilike.%${sanitizedSearch}%`);
+        }
       }
 
       // Filter by status

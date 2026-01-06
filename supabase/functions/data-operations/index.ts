@@ -1111,6 +1111,48 @@ serve(async (req) => {
       );
     }
 
+    // ========== EXPORT ALL DATA (admin only) ==========
+    if (action === "export_all_data") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem exportar dados' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const [catalogoResult, enderecosResult, inventarioResult, fabricantesResult, usuariosResult, logsResult] = await Promise.all([
+        supabase.from('catalogo_produtos').select('*').order('codigo'),
+        supabase.from('enderecos_materiais').select('*, fabricantes(nome)').order('created_at', { ascending: false }),
+        supabase.from('inventario').select('*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao)').order('created_at', { ascending: false }),
+        supabase.from('fabricantes').select('*').order('nome'),
+        supabase.from('usuarios').select('id, nome, email, tipo, status, aprovado, created_at').order('nome'),
+        supabase.from('login_logs').select('*').order('logged_at', { ascending: false }).limit(500),
+      ]);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: {
+            catalogo: catalogoResult.data || [],
+            enderecos: enderecosResult.data || [],
+            inventario: inventarioResult.data || [],
+            fabricantes: fabricantesResult.data || [],
+            usuarios: usuariosResult.data || [],
+            logs: logsResult.data || []
+          },
+          errors: {
+            catalogo: catalogoResult.error?.message || null,
+            enderecos: enderecosResult.error?.message || null,
+            inventario: inventarioResult.error?.message || null,
+            fabricantes: fabricantesResult.error?.message || null,
+            usuarios: usuariosResult.error?.message || null,
+            logs: logsResult.error?.message || null
+          }
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error(`Ação inválida: ${action}`);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";
