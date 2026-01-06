@@ -340,12 +340,17 @@ serve(async (req) => {
         );
       }
 
+      // Sanitize and validate deviceInfo before storing
+      const sanitizedDeviceInfo = deviceInfo && typeof deviceInfo === 'string' 
+        ? deviceInfo.slice(0, 500).replace(/[\x00-\x1F\x7F]/g, '') 
+        : null;
+
       // Log the login
       await supabase.from("login_logs").insert({
         user_id: user.id,
         user_email: user.email,
         user_nome: user.nome,
-        device_info: deviceInfo || null,
+        device_info: sanitizedDeviceInfo,
       });
 
       // Generate a secure session token
@@ -373,7 +378,7 @@ serve(async (req) => {
         user_email: user.email,
         token: sessionToken,
         expires_at: expiresAt.toISOString(),
-        device_info: deviceInfo || null,
+        device_info: sanitizedDeviceInfo,
       });
 
       // Return user data with session token
@@ -409,6 +414,22 @@ serve(async (req) => {
       if (!passwordValidation.valid) {
         return new Response(
           JSON.stringify({ success: false, error: passwordValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate nome length
+      if (nome && nome.trim().length > 100) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Nome deve ter no máximo 100 caracteres" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate deviceInfo length
+      if (deviceInfo && deviceInfo.length > 500) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Informações do dispositivo inválidas" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
