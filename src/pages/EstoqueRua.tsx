@@ -269,14 +269,12 @@ const EstoqueRua = () => {
                         </p>
                       )}
                     </div>
-                    {material.quantidade_inventario !== null && (
-                      <div className="text-right shrink-0">
-                        <div className="text-xs text-muted-foreground">Qtd</div>
-                        <div className="text-lg font-bold text-primary">
-                          {material.quantidade_inventario}
-                        </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs text-muted-foreground">Qtd</div>
+                      <div className="text-lg font-bold text-primary">
+                        {material.quantidade_inventario ?? 0}
                       </div>
-                    )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border pt-2 mt-2">
                     <span>
