@@ -131,7 +131,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
 
   return (
     <div 
-      className="flex flex-col rounded-lg border-2 border-gray-800 bg-white p-3 print:rounded-none print:border print:p-2"
+      className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-4 print:rounded-none print:border-2 print:p-3"
       style={{ 
         width: '128mm',
         height: '80mm',
@@ -139,73 +139,76 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
         breakInside: 'avoid',
       }}
     >
-      {/* Header with Logo and Procedure */}
-      <div className="mb-2 flex items-center justify-between border-b border-gray-300 pb-1">
-        <img src={logoImex} alt="IMEX" className="h-6 print:h-5" />
+      {/* Header with Logo, Procedure and Address */}
+      <div className="mb-2 flex items-center justify-between border-b-2 border-gray-400 pb-2">
+        <img src={logoImex} alt="IMEX" className="h-8 print:h-7" />
         <div className="text-center">
-          <span className="text-[8px] font-medium text-gray-600">F03/01 - 8.5.2-01</span>
+          <span className="text-[9px] font-medium text-gray-600">F03/01 - 8.5.2-01</span>
         </div>
-        <div className="text-right">
-          <div className="text-xl font-bold text-gray-900 print:text-lg">{data.endereco}</div>
+        <div className="rounded-md bg-gray-900 px-3 py-1">
+          <div className="text-xl font-black text-white print:text-lg">{data.endereco}</div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex flex-1 gap-3">
-        {/* QR Code */}
-        <div className="flex flex-col items-center justify-center">
-          <div className="rounded border border-gray-200 bg-white p-1">
+      {/* Main Content - Código em destaque */}
+      <div className="flex flex-1 gap-4">
+        {/* QR Code - Maior e em destaque */}
+        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-gray-300 bg-gray-50 p-2">
+          <div className="rounded-md border-2 border-gray-800 bg-white p-2">
             <QRCodeSVG
               value={qrData}
-              size={70}
+              size={90}
               level="M"
               bgColor="#ffffff"
               fgColor="#000000"
             />
           </div>
-          <span className="mt-1 text-[8px] text-gray-500">Escaneie para info</span>
+          <span className="mt-1.5 text-[9px] font-medium text-gray-600">Escaneie para info</span>
         </div>
 
-        {/* Info */}
-        <div className="flex flex-1 flex-col justify-center space-y-0.5">
-          <div>
-            <label className="text-[8px] font-medium uppercase text-gray-500">
+        {/* Info - Código em destaque */}
+        <div className="flex flex-1 flex-col justify-between py-1">
+          {/* Código - Grande e em destaque */}
+          <div className="rounded-lg bg-gray-100 px-3 py-2">
+            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-600">
               Código
             </label>
-            <p className="text-base font-bold text-gray-900 print:text-sm">{data.codigo}</p>
+            <p className="text-2xl font-black tracking-wide text-gray-900 print:text-xl">{data.codigo}</p>
           </div>
           
-          <div>
-            <label className="text-[8px] font-medium uppercase text-gray-500">
+          {/* Descrição */}
+          <div className="mt-1">
+            <label className="text-[9px] font-semibold uppercase text-gray-500">
               Descrição
             </label>
-            <p className="text-[10px] font-medium text-gray-800 line-clamp-2">
+            <p className="text-sm font-semibold leading-tight text-gray-800 line-clamp-2 print:text-xs">
               {data.descricao}
             </p>
           </div>
 
-          <div className="flex gap-3">
+          {/* Detalhes em linha */}
+          <div className="mt-1 flex gap-4">
             <div className="flex-1">
-              <label className="text-[8px] font-medium uppercase text-gray-500">
+              <label className="text-[9px] font-semibold uppercase text-gray-500">
                 Fabricante
               </label>
-              <p className="text-[10px] font-semibold text-gray-800">
+              <p className="text-sm font-bold text-gray-800 print:text-xs">
                 {data.fabricante}
               </p>
             </div>
             <div className="flex-1">
-              <label className="text-[8px] font-medium uppercase text-gray-500">
+              <label className="text-[9px] font-semibold uppercase text-gray-500">
                 Tipo
               </label>
-              <p className="text-[10px] font-semibold text-gray-800">
+              <p className="text-sm font-bold text-gray-800 print:text-xs">
                 {data.tipoMaterial}
               </p>
             </div>
             <div className="flex-1">
-              <label className="text-[8px] font-medium uppercase text-gray-500">
-                Peso Unitário
+              <label className="text-[9px] font-semibold uppercase text-gray-500">
+                Peso Unit.
               </label>
-              <p className="text-[10px] font-semibold text-gray-800">
+              <p className="text-sm font-bold text-gray-800 print:text-xs">
                 {data.peso} kg
               </p>
             </div>
@@ -214,8 +217,8 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       </div>
 
       {/* Footer */}
-      <div className="mt-1 border-t border-gray-300 pt-1 text-center">
-        <p className="text-[7px] text-gray-500">
+      <div className="mt-2 border-t border-gray-300 pt-1.5 text-center">
+        <p className="text-[8px] font-medium text-gray-500">
           IMEX SOLUTIONS - Sistema de Gerenciamento de Materiais
         </p>
       </div>
