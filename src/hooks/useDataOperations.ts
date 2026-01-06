@@ -108,6 +108,10 @@ export async function getInventarioByEndereco(endereco_material_id: string): Pro
   return invokeDataOperation('inventario_get', { endereco_material_id });
 }
 
+export async function consultaMaterial(codigo: string, endereco?: string): Promise<DataOperationResult> {
+  return invokeDataOperation('material_consulta', { codigo, endereco });
+}
+
 // ========== FABRICANTES ==========
 export async function insertFabricante(nome: string, codigo: string): Promise<DataOperationResult> {
   return invokeDataOperation('fabricantes_insert', { nome, codigo });
