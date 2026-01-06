@@ -378,7 +378,7 @@ const EstoqueAtual = () => {
       )}
 
       {/* Tabela */}
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 flex flex-col min-h-0">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -389,70 +389,78 @@ const EstoqueAtual = () => {
             <p className="text-sm">Nenhum item com saldo em estoque</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-card sticky top-0 z-10 shadow-sm">
-                <tr>
-                  <th className="px-2 py-2 text-left font-semibold border-b-2 border-border bg-card">Código</th>
-                  <th className="px-2 py-2 text-left font-semibold border-b-2 border-border bg-card">Descrição</th>
-                  <th className="px-2 py-2 text-left font-semibold border-b-2 border-border bg-card">Tipo</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Rua</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Col</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Nív</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Pos</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Qtd</th>
-                  <th className="px-2 py-2 text-center font-semibold border-b-2 border-border bg-primary/10">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {estoque.map((item, idx) => (
-                  item.enderecos.map((end, endIdx) => (
-                    <tr 
-                      key={`${item.codigo}-${end.endereco_id}`}
-                      className={`border-b border-border/50 ${endIdx === 0 && idx > 0 ? 'border-t-2 border-t-border' : ''}`}
-                    >
-                      {endIdx === 0 ? (
-                        <>
+          <>
+            {/* Header fixo */}
+            <div className="overflow-x-auto shrink-0 bg-card border-b-2 border-border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr>
+                    <th className="px-2 py-2 text-left font-semibold bg-card min-w-[80px]">Código</th>
+                    <th className="px-2 py-2 text-left font-semibold bg-card min-w-[120px]">Descrição</th>
+                    <th className="px-2 py-2 text-left font-semibold bg-card min-w-[60px]">Tipo</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Rua</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Col</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Nív</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Pos</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Qtd</th>
+                    <th className="px-2 py-2 text-center font-semibold bg-primary/10 min-w-[50px]">Total</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            {/* Body com scroll */}
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-xs">
+                <tbody>
+                  {estoque.map((item, idx) => (
+                    item.enderecos.map((end, endIdx) => (
+                      <tr 
+                        key={`${item.codigo}-${end.endereco_id}`}
+                        className={`border-b border-border/50 ${endIdx === 0 && idx > 0 ? 'border-t-2 border-t-border' : ''}`}
+                      >
+                        {endIdx === 0 ? (
+                          <>
+                            <td 
+                              className="px-2 py-1.5 font-medium text-foreground align-top min-w-[80px]"
+                              rowSpan={item.enderecos.length}
+                            >
+                              {item.codigo}
+                            </td>
+                            <td 
+                              className="px-2 py-1.5 text-muted-foreground align-top min-w-[120px] max-w-[120px] truncate"
+                              rowSpan={item.enderecos.length}
+                              title={item.descricao}
+                            >
+                              {item.descricao}
+                            </td>
+                            <td 
+                              className="px-2 py-1.5 text-muted-foreground align-top min-w-[60px]"
+                              rowSpan={item.enderecos.length}
+                            >
+                              {item.tipo_material}
+                            </td>
+                          </>
+                        ) : null}
+                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.rua).padStart(2, '0')}</td>
+                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.coluna).padStart(2, '0')}</td>
+                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.nivel).padStart(2, '0')}</td>
+                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.posicao).padStart(2, '0')}</td>
+                        <td className="px-1 py-1.5 text-center font-medium min-w-[40px]">{end.quantidade}</td>
+                        {endIdx === 0 ? (
                           <td 
-                            className="px-2 py-1.5 font-medium text-foreground align-top"
+                            className="px-2 py-1.5 text-center font-bold text-primary bg-primary/5 align-top min-w-[50px]"
                             rowSpan={item.enderecos.length}
                           >
-                            {item.codigo}
+                            {item.qtd_total}
                           </td>
-                          <td 
-                            className="px-2 py-1.5 text-muted-foreground align-top max-w-[120px] truncate"
-                            rowSpan={item.enderecos.length}
-                            title={item.descricao}
-                          >
-                            {item.descricao}
-                          </td>
-                          <td 
-                            className="px-2 py-1.5 text-muted-foreground align-top"
-                            rowSpan={item.enderecos.length}
-                          >
-                            {item.tipo_material}
-                          </td>
-                        </>
-                      ) : null}
-                      <td className="px-1 py-1.5 text-center">{String(end.rua).padStart(2, '0')}</td>
-                      <td className="px-1 py-1.5 text-center">{String(end.coluna).padStart(2, '0')}</td>
-                      <td className="px-1 py-1.5 text-center">{String(end.nivel).padStart(2, '0')}</td>
-                      <td className="px-1 py-1.5 text-center">{String(end.posicao).padStart(2, '0')}</td>
-                      <td className="px-1 py-1.5 text-center font-medium">{end.quantidade}</td>
-                      {endIdx === 0 ? (
-                        <td 
-                          className="px-2 py-1.5 text-center font-bold text-primary bg-primary/5 align-top"
-                          rowSpan={item.enderecos.length}
-                        >
-                          {item.qtd_total}
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        ) : null}
+                      </tr>
+                    ))
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
