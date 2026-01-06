@@ -8,10 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { listEnderecos } from '@/hooks/useDataOperations';
+import { listEnderecos, listRuasDisponiveis } from '@/hooks/useDataOperations';
 import { QRCodeSVG } from 'qrcode.react';
 import logoImex from '@/assets/logo-imex.png';
-import { supabase } from '@/integrations/supabase/client';
 
 interface EnderecoMaterial {
   id: string;
@@ -67,20 +66,17 @@ const Etiquetas = () => {
   const loadRuasDisponiveis = async () => {
     setIsLoadingRuas(true);
     try {
-      const { data, error } = await supabase
-        .from('enderecos_materiais')
-        .select('rua')
-        .eq('ativo', true);
+      const result = await listRuasDisponiveis();
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao buscar ruas');
+      }
 
-      // Extrair ruas únicas e ordenar
-      const ruasUnicas = [...new Set(data?.map(d => d.rua) || [])].sort((a, b) => a - b);
-      setRuasDisponiveis(ruasUnicas);
+      setRuasDisponiveis(result.data || []);
     } catch (error: any) {
       toast({
         title: 'Erro',
-        description: 'Não foi possível carregar as ruas disponíveis',
+        description: error.message || 'Não foi possível carregar as ruas disponíveis',
         variant: 'destructive',
       });
     } finally {

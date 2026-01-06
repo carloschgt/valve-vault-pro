@@ -79,6 +79,10 @@ export async function listEnderecos(search?: string, limit?: number): Promise<Da
   return invokeDataOperation('enderecos_list', { search, limit });
 }
 
+export async function listRuasDisponiveis(): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_list_ruas');
+}
+
 export async function getEndereco(id: string): Promise<DataOperationResult> {
   return invokeDataOperation('enderecos_get', { id });
 }

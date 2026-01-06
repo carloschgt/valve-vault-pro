@@ -306,6 +306,24 @@ serve(async (req) => {
       );
     }
 
+    // List distinct ruas for dropdown
+    if (action === "enderecos_list_ruas") {
+      const { data, error } = await supabase
+        .from("enderecos_materiais")
+        .select("rua")
+        .eq("ativo", true);
+      
+      if (error) throw error;
+      
+      // Extract unique ruas and sort
+      const ruasUnicas = [...new Set((data || []).map((d: any) => d.rua))].sort((a, b) => a - b);
+      
+      return new Response(
+        JSON.stringify({ success: true, data: ruasUnicas }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get inventory config
     if (action === "inventario_config_get") {
       const { data, error } = await supabase
