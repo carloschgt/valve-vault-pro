@@ -131,12 +131,13 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
 
   return (
     <div 
-      className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-4 print:rounded-none print:border-2 print:p-3"
+      className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-3 print:rounded-none print:border-2"
       style={{ 
         width: '128mm',
         height: '80mm',
         pageBreakInside: 'avoid',
         breakInside: 'avoid',
+        boxSizing: 'border-box',
       }}
     >
       {/* Header with Logo, Procedure and Address */}
@@ -217,7 +218,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       </div>
 
       {/* Footer */}
-      <div className="mt-2 border-t border-gray-300 pt-1.5 text-center">
+      <div className="mt-auto border-t border-gray-300 pt-1 text-center">
         <p className="text-[8px] font-medium text-gray-500">
           IMEX SOLUTIONS - Sistema de Gerenciamento de Materiais
         </p>
