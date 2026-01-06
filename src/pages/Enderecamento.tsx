@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Search, Edit2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search, Edit2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById } from '@/hooks/useDataOperations';
+import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos } from '@/hooks/useDataOperations';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -58,11 +58,28 @@ interface EnderecoExistente {
   endereco_formatado: string;
 }
 
+interface EnderecoResult {
+  id: string;
+  codigo: string;
+  descricao: string;
+  tipo_material: string;
+  fabricante_id: string | null;
+  peso: number;
+  rua: number;
+  coluna: number;
+  nivel: number;
+  posicao: number;
+  comentario: string | null;
+  ativo: boolean;
+  fabricantes?: { nome: string } | null;
+}
+
 const Enderecamento = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
+  const isAdmin = user?.tipo === 'admin';
   
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -83,6 +100,12 @@ const Enderecamento = () => {
   // Estado para modal de duplicado
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [enderecoExistente, setEnderecoExistente] = useState<EnderecoExistente | null>(null);
+  
+  // Estados para busca de endereçamentos (admin)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<EnderecoResult[]>([]);
+  const [isSearchingEnderecos, setIsSearchingEnderecos] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   // Carregar fabricantes do banco
   useEffect(() => {
@@ -129,7 +152,74 @@ const Enderecamento = () => {
     }
   };
 
-  // Buscar descrição no catálogo
+  // Buscar endereçamentos cadastrados (admin)
+  const handleSearchEnderecos = async () => {
+    if (!searchTerm.trim()) {
+      toast({
+        title: 'Atenção',
+        description: 'Digite um termo para buscar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSearchingEnderecos(true);
+    setShowSearchResults(true);
+    try {
+      const result = await listEnderecos(searchTerm.trim(), 50);
+      if (!result.success) throw new Error(result.error);
+      setSearchResults(result.data || []);
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao buscar endereçamentos',
+        variant: 'destructive',
+      });
+      setSearchResults([]);
+    } finally {
+      setIsSearchingEnderecos(false);
+    }
+  };
+
+  const handleSelectEndereco = (endereco: EnderecoResult) => {
+    setEditingId(endereco.id);
+    setCodigo(endereco.codigo);
+    setDescricao(endereco.descricao);
+    setTipoMaterial(endereco.tipo_material);
+    setFabricanteId(endereco.fabricante_id || '');
+    setPeso(String(endereco.peso));
+    setRua(String(endereco.rua));
+    setColuna(String(endereco.coluna));
+    setNivel(String(endereco.nivel));
+    setPosicao(String(endereco.posicao));
+    setComentario(endereco.comentario || '');
+    setShowSearchResults(false);
+    setSearchTerm('');
+    setSearchResults([]);
+    toast({
+      title: 'Registro carregado',
+      description: 'Edite os campos e salve as alterações',
+    });
+  };
+
+  const handleClearEdit = () => {
+    setEditingId(null);
+    setCodigo('');
+    setDescricao('');
+    setTipoMaterial('');
+    setFabricanteId('');
+    setPeso('');
+    setRua('');
+    setColuna('');
+    setNivel('');
+    setPosicao('');
+    setComentario('');
+    if (searchParams.get('edit')) {
+      navigate('/enderecamento', { replace: true });
+    }
+  };
+
+
   const handleBuscarDescricao = async () => {
     if (!codigo.trim()) {
       toast({
@@ -293,13 +383,103 @@ const Enderecamento = () => {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-5" />
-        <h1 className="text-sm font-bold">
+        <h1 className="text-sm font-bold flex-1">
           {editingId ? 'Editar Endereçamento' : 'Endereçamento'}
         </h1>
+        {editingId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearEdit}
+            className="h-7 px-2 text-xs"
+          >
+            <X className="h-3.5 w-3.5 mr-1" />
+            Limpar
+          </Button>
+        )}
       </div>
 
       {/* Form ultra compacto */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        {/* Busca de Endereçamentos (Admin) */}
+        {isAdmin && !editingId && (
+          <div className="border border-border rounded-lg p-2 bg-muted/30 space-y-2">
+            <Label className="text-[10px] font-medium text-muted-foreground">
+              Buscar Endereçamento Cadastrado (Admin)
+            </Label>
+            <div className="flex gap-1.5">
+              <Input
+                placeholder="Buscar por código ou descrição..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearchEnderecos()}
+                className="h-8 text-sm flex-1"
+              />
+              <Button
+                onClick={handleSearchEnderecos}
+                disabled={isSearchingEnderecos}
+                variant="secondary"
+                size="sm"
+                className="h-8 px-3"
+              >
+                {isSearchingEnderecos ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Search className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </div>
+            
+            {/* Resultados da busca */}
+            {showSearchResults && (
+              <div className="max-h-48 overflow-y-auto border border-border rounded-md bg-background">
+                {isSearchingEnderecos ? (
+                  <div className="p-3 text-center text-muted-foreground text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
+                    Buscando...
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="p-3 text-center text-muted-foreground text-sm">
+                    Nenhum endereçamento encontrado
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {searchResults.map((end) => (
+                      <button
+                        key={end.id}
+                        onClick={() => handleSelectEndereco(end)}
+                        className="w-full p-2 text-left hover:bg-accent transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{end.codigo}</div>
+                            <div className="text-xs text-muted-foreground truncate">{end.descricao}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs font-medium text-primary">
+                              {formatEndereco(end.rua, end.coluna, end.nivel, end.posicao)}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">{end.tipo_material}</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setShowSearchResults(false);
+                    setSearchResults([]);
+                  }}
+                  className="w-full p-2 text-center text-xs text-muted-foreground hover:bg-muted border-t border-border"
+                >
+                  Fechar resultados
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Código + Buscar */}
         <div className="flex gap-1.5">
           <div className="flex-1">
