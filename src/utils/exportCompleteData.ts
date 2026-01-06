@@ -18,46 +18,67 @@ function formatDate(dateString: string | null): string {
   });
 }
 
+// Auth key for session token
+const AUTH_KEY = 'auth_user';
+
+function getSessionToken(): string | null {
+  try {
+    const stored = localStorage.getItem(AUTH_KEY);
+    if (!stored) return null;
+    const userData = JSON.parse(stored);
+    return userData.sessionToken || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function exportCompleteData(): Promise<ExportResult> {
   try {
-    // Buscar todos os dados em paralelo
-    const [
-      catalogoResult,
-      enderecosResult,
-      inventarioResult,
-      fabricantesResult,
-      usuariosResult,
-      logsResult,
-    ] = await Promise.all([
-      supabase.from('catalogo_produtos').select('*').order('codigo'),
-      supabase.from('enderecos_materiais').select('*, fabricantes(nome)').order('created_at', { ascending: false }),
-      supabase.from('inventario').select('*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao)').order('created_at', { ascending: false }),
-      supabase.from('fabricantes').select('*').order('nome'),
-      supabase.from('usuarios').select('id, nome, email, tipo, status, aprovado, created_at').order('nome'),
-      supabase.from('login_logs').select('*').order('logged_at', { ascending: false }).limit(500),
-    ]);
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+      return { success: false, error: 'Não autenticado. Faça login novamente.' };
+    }
 
-    // Verificar erros
-    if (catalogoResult.error) throw new Error('Erro ao buscar catálogo: ' + catalogoResult.error.message);
-    if (enderecosResult.error) throw new Error('Erro ao buscar endereços: ' + enderecosResult.error.message);
-    if (inventarioResult.error) throw new Error('Erro ao buscar inventário: ' + inventarioResult.error.message);
-    if (fabricantesResult.error) throw new Error('Erro ao buscar fabricantes: ' + fabricantesResult.error.message);
-    if (usuariosResult.error) throw new Error('Erro ao buscar usuários: ' + usuariosResult.error.message);
-    if (logsResult.error) throw new Error('Erro ao buscar logs: ' + logsResult.error.message);
+    // Call Edge Function to get all data (bypasses RLS with service role)
+    const { data: result, error: invokeError } = await supabase.functions.invoke('data-operations', {
+      body: {
+        action: 'export_all_data',
+        sessionToken,
+      },
+    });
+
+    if (invokeError) {
+      console.error('Edge function invoke error:', invokeError);
+      return { success: false, error: invokeError.message || 'Erro ao chamar função de exportação' };
+    }
+
+    if (!result?.success) {
+      return { success: false, error: result?.error || 'Erro ao buscar dados para exportação' };
+    }
+
+    const { data, errors } = result;
+
+    // Check for any errors in individual queries
+    if (errors?.catalogo) console.warn('Erro ao buscar catálogo:', errors.catalogo);
+    if (errors?.enderecos) console.warn('Erro ao buscar endereços:', errors.enderecos);
+    if (errors?.inventario) console.warn('Erro ao buscar inventário:', errors.inventario);
+    if (errors?.fabricantes) console.warn('Erro ao buscar fabricantes:', errors.fabricantes);
+    if (errors?.usuarios) console.warn('Erro ao buscar usuários:', errors.usuarios);
+    if (errors?.logs) console.warn('Erro ao buscar logs:', errors.logs);
 
     // Preparar dados para cada aba
-    const catalogoData = (catalogoResult.data || []).map(item => ({
+    const catalogoData = (data.catalogo || []).map((item: any) => ({
       'Código': item.codigo,
       'Descrição': item.descricao,
       'Ativo': item.ativo ? 'Sim' : 'Não',
       'Criado em': formatDate(item.created_at),
     }));
 
-    const enderecosData = (enderecosResult.data || []).map(item => ({
+    const enderecosData = (data.enderecos || []).map((item: any) => ({
       'Código': item.codigo,
       'Descrição': item.descricao,
       'Tipo Material': item.tipo_material,
-      'Fabricante': (item as any).fabricantes?.nome || 'N/A',
+      'Fabricante': item.fabricantes?.nome || 'N/A',
       'Peso (kg)': item.peso,
       'Rua': item.rua,
       'Coluna': item.coluna,
@@ -71,11 +92,11 @@ export async function exportCompleteData(): Promise<ExportResult> {
       'Criado em': formatDate(item.created_at),
     }));
 
-    const inventarioData = (inventarioResult.data || []).map(item => ({
-      'Código': (item as any).enderecos_materiais?.codigo || 'N/A',
-      'Descrição': (item as any).enderecos_materiais?.descricao || 'N/A',
-      'Endereço': (item as any).enderecos_materiais
-        ? `R${String((item as any).enderecos_materiais.rua).padStart(2, '0')}.C${String((item as any).enderecos_materiais.coluna).padStart(2, '0')}.N${String((item as any).enderecos_materiais.nivel).padStart(2, '0')}.P${String((item as any).enderecos_materiais.posicao).padStart(2, '0')}`
+    const inventarioData = (data.inventario || []).map((item: any) => ({
+      'Código': item.enderecos_materiais?.codigo || 'N/A',
+      'Descrição': item.enderecos_materiais?.descricao || 'N/A',
+      'Endereço': item.enderecos_materiais
+        ? `R${String(item.enderecos_materiais.rua).padStart(2, '0')}.C${String(item.enderecos_materiais.coluna).padStart(2, '0')}.N${String(item.enderecos_materiais.nivel).padStart(2, '0')}.P${String(item.enderecos_materiais.posicao).padStart(2, '0')}`
         : 'N/A',
       'Quantidade': item.quantidade,
       'Contado por': item.contado_por,
@@ -84,14 +105,14 @@ export async function exportCompleteData(): Promise<ExportResult> {
       'Criado em': formatDate(item.created_at),
     }));
 
-    const fabricantesData = (fabricantesResult.data || []).map(item => ({
+    const fabricantesData = (data.fabricantes || []).map((item: any) => ({
       'Nome': item.nome,
       'Cadastrado por': item.cadastrado_por || 'N/A',
       'Ativo': 'Sim',
       'Data Cadastro': formatDate(item.data_cadastro),
     }));
 
-    const usuariosData = (usuariosResult.data || []).map((item: any) => ({
+    const usuariosData = (data.usuarios || []).map((item: any) => ({
       'Nome': item.nome,
       'Email': item.email,
       'Tipo': item.tipo === 'admin' ? 'Administrador' : item.tipo === 'estoque' ? 'Estoque' : 'Usuário',
@@ -99,7 +120,7 @@ export async function exportCompleteData(): Promise<ExportResult> {
       'Criado em': formatDate(item.created_at),
     }));
 
-    const logsData = (logsResult.data || []).map(item => ({
+    const logsData = (data.logs || []).map((item: any) => ({
       'Usuário': item.user_nome,
       'Email': item.user_email,
       'Dispositivo': item.device_info || 'N/A',
