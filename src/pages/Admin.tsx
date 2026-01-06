@@ -47,7 +47,7 @@ import {
 } from '@/hooks/useDataOperations';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
-import { sanitizeSearchTerm } from '@/lib/security';
+
 import { USER_STATUS_LABELS, USER_STATUS_COLORS } from '@/types/user';
 import type { UserStatus } from '@/types/user';
 import { exportCompleteData } from '@/utils/exportCompleteData';
@@ -114,69 +114,57 @@ const Admin = () => {
     },
   });
 
-  // Buscar endereços
+  // Buscar endereços via edge function
   const { data: enderecos = [], isLoading: loadingEnderecos } = useQuery({
     queryKey: ['admin_enderecos', searchEnderecos],
     queryFn: async () => {
-      let query = supabase
-        .from('enderecos_materiais')
-        .select('*, fabricantes(nome)')
-        .order('created_at', { ascending: false });
-      
-      if (searchEnderecos) {
-        const safeSearch = sanitizeSearchTerm(searchEnderecos);
-        if (safeSearch) {
-          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
-        }
-      }
-      
-      const { data, error } = await query.limit(100);
+      const { data, error } = await supabase.functions.invoke('data-operations', {
+        body: { 
+          action: 'admin_enderecos_list', 
+          sessionToken: JSON.parse(localStorage.getItem('imex_auth_user') || '{}').sessionToken,
+          search: searchEnderecos,
+          limit: 100
+        },
+      });
       if (error) throw error;
-      return data;
+      if (!data.success) throw new Error(data.error);
+      return data.data || [];
     },
   });
 
-  // Buscar inventário
+  // Buscar inventário via edge function
   const { data: inventario = [], isLoading: loadingInventario } = useQuery({
     queryKey: ['admin_inventario', searchInventario],
     queryFn: async () => {
-      let query = supabase
-        .from('inventario')
-        .select('*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao, ativo, inativado_por)')
-        .order('created_at', { ascending: false });
-      
-      const { data, error } = await query.limit(100);
+      const { data, error } = await supabase.functions.invoke('data-operations', {
+        body: { 
+          action: 'admin_inventario_list', 
+          sessionToken: JSON.parse(localStorage.getItem('imex_auth_user') || '{}').sessionToken,
+          search: searchInventario,
+          limit: 100
+        },
+      });
       if (error) throw error;
-      
-      if (searchInventario) {
-        return data.filter((i: any) => 
-          i.enderecos_materiais?.codigo?.toLowerCase().includes(searchInventario.toLowerCase()) ||
-          i.enderecos_materiais?.descricao?.toLowerCase().includes(searchInventario.toLowerCase())
-        );
-      }
-      return data;
+      if (!data.success) throw new Error(data.error);
+      return data.data || [];
     },
   });
 
-  // Buscar catálogo
+  // Buscar catálogo via edge function
   const { data: catalogo = [], isLoading: loadingCatalogo } = useQuery({
     queryKey: ['admin_catalogo', searchCatalogo],
     queryFn: async () => {
-      let query = supabase
-        .from('catalogo_produtos')
-        .select('*')
-        .order('codigo');
-      
-      if (searchCatalogo) {
-        const safeSearch = sanitizeSearchTerm(searchCatalogo);
-        if (safeSearch) {
-          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
-        }
-      }
-      
-      const { data, error } = await query.limit(100);
+      const { data, error } = await supabase.functions.invoke('data-operations', {
+        body: { 
+          action: 'admin_catalogo_list', 
+          sessionToken: JSON.parse(localStorage.getItem('imex_auth_user') || '{}').sessionToken,
+          search: searchCatalogo,
+          limit: 100
+        },
+      });
       if (error) throw error;
-      return data;
+      if (!data.success) throw new Error(data.error);
+      return data.data || [];
     },
   });
 

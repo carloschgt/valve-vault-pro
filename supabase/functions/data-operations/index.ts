@@ -1110,6 +1110,96 @@ serve(async (req) => {
       );
     }
 
+    // ========== ADMIN LIST OPERATIONS ==========
+    if (action === "admin_enderecos_list") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Acesso restrito a administradores' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { search, limit = 100 } = params;
+      let query = supabase
+        .from("enderecos_materiais")
+        .select("*, fabricantes(nome)")
+        .order("created_at", { ascending: false });
+      
+      if (search) {
+        const safeSearch = sanitizeSearchTerm(search);
+        if (safeSearch) {
+          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
+        }
+      }
+      
+      const { data, error } = await query.limit(limit);
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "admin_inventario_list") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Acesso restrito a administradores' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { search, limit = 100 } = params;
+      let query = supabase
+        .from("inventario")
+        .select("*, enderecos_materiais(codigo, descricao, rua, coluna, nivel, posicao, ativo, inativado_por)")
+        .order("created_at", { ascending: false });
+      
+      const { data, error } = await query.limit(limit);
+      if (error) throw error;
+      
+      let result = data || [];
+      if (search) {
+        result = result.filter((i: any) => 
+          i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
+          i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "admin_catalogo_list") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Acesso restrito a administradores' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { search, limit = 100 } = params;
+      let query = supabase
+        .from("catalogo_produtos")
+        .select("*")
+        .order("codigo");
+      
+      if (search) {
+        const safeSearch = sanitizeSearchTerm(search);
+        if (safeSearch) {
+          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
+        }
+      }
+      
+      const { data, error } = await query.limit(limit);
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== MATERIAIS POR RUA ==========
     if (action === "materiais_por_rua") {
       const { rua } = params;
