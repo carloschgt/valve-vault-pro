@@ -1110,6 +1110,87 @@ serve(async (req) => {
       );
     }
 
+    // ========== MATERIAIS POR RUA ==========
+    if (action === "materiais_por_rua") {
+      const { rua } = params;
+      
+      if (!rua || isNaN(parseInt(rua))) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Número da rua inválido' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const ruaNum = parseInt(rua);
+
+      // Buscar todos os endereços na rua especificada
+      const { data: enderecos, error: endError } = await supabase
+        .from("enderecos_materiais")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          tipo_material,
+          coluna,
+          nivel,
+          posicao,
+          peso,
+          fabricante_id,
+          fabricantes (nome)
+        `)
+        .eq("rua", ruaNum)
+        .eq("ativo", true)
+        .order("coluna")
+        .order("nivel")
+        .order("posicao");
+
+      if (endError) throw endError;
+
+      // Buscar a configuração de contagem ativa
+      const { data: configData } = await supabase
+        .from("inventario_config")
+        .select("contagem_ativa")
+        .limit(1)
+        .single();
+
+      const contagemAtiva = configData?.contagem_ativa || 1;
+
+      // Buscar inventário da contagem ativa para esses endereços
+      const enderecoIds = (enderecos || []).map((e: any) => e.id);
+      
+      let inventarioMap: Record<string, number> = {};
+      if (enderecoIds.length > 0) {
+        const { data: invData } = await supabase
+          .from("inventario")
+          .select("endereco_material_id, quantidade")
+          .in("endereco_material_id", enderecoIds)
+          .eq("contagem_num", contagemAtiva);
+
+        (invData || []).forEach((inv: any) => {
+          inventarioMap[inv.endereco_material_id] = inv.quantidade;
+        });
+      }
+
+      // Formatar resultado
+      const result = (enderecos || []).map((e: any) => ({
+        id: e.id,
+        codigo: e.codigo,
+        descricao: e.descricao,
+        tipo_material: e.tipo_material,
+        coluna: e.coluna,
+        nivel: e.nivel,
+        posicao: e.posicao,
+        peso: e.peso,
+        fabricante_nome: e.fabricantes?.nome || null,
+        quantidade_inventario: inventarioMap[e.id] ?? null,
+      }));
+
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== EXPORT ALL DATA (admin only) ==========
     if (action === "export_all_data") {
       if (!isAdmin) {

@@ -23,6 +23,7 @@ import EstoqueAtual from "./pages/EstoqueAtual";
 import ControleInventario from "./pages/ControleInventario";
 import RelatorioInventario from "./pages/RelatorioInventario";
 import AjusteInventario from "./pages/AjusteInventario";
+import EstoqueRua from "./pages/EstoqueRua";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/gerenciamento-dados" element={<ProtectedRoute adminOnly><GerenciamentoDados /></ProtectedRoute>} />
             <Route path="/etiquetas" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><Etiquetas /></ProtectedRoute>} />
             <Route path="/estoque-atual" element={<ProtectedRoute><EstoqueAtual /></ProtectedRoute>} />
+            <Route path="/estoque-rua" element={<ProtectedRoute><EstoqueRua /></ProtectedRoute>} />
             <Route path="/controle-inventario" element={<ProtectedRoute adminOnly><ControleInventario /></ProtectedRoute>} />
             <Route path="/relatorio-inventario" element={<ProtectedRoute adminOnly><RelatorioInventario /></ProtectedRoute>} />
             <Route path="/ajuste-inventario" element={<ProtectedRoute adminOnly><AjusteInventario /></ProtectedRoute>} />
