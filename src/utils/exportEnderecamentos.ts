@@ -9,6 +9,7 @@ interface EnderecoMaterial {
   coluna: number;
   nivel: number;
   posicao: number;
+  comentario?: string;
   created_by: string;
   created_at: string;
 }
@@ -72,6 +73,7 @@ export function exportEnderecamentosToCSV(dados: EnderecoMaterial[]): void {
     'Coluna',
     'Nivel',
     'Posicao',
+    'Comentario',
     'Cadastrado Por',
     'Data Cadastro',
   ];
@@ -86,6 +88,7 @@ export function exportEnderecamentosToCSV(dados: EnderecoMaterial[]): void {
     d.coluna,
     d.nivel,
     d.posicao,
+    escapeCSV(d.comentario || ''),
     escapeCSV(d.created_by),
     formatDate(d.created_at),
   ]);
