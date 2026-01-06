@@ -131,88 +131,91 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
 
   return (
     <div 
-      className="flex flex-col rounded-lg border-2 border-gray-800 bg-white p-4 print:rounded-none print:border print:p-3"
+      className="flex flex-col rounded-lg border-2 border-gray-800 bg-white p-3 print:rounded-none print:border print:p-2"
       style={{ 
-        height: '95mm',
+        width: '128mm',
+        height: '80mm',
         pageBreakInside: 'avoid',
         breakInside: 'avoid',
       }}
     >
-      {/* Header with Logo */}
-      <div className="mb-3 flex items-center justify-between border-b border-gray-300 pb-2">
-        <img src={logoImex} alt="IMEX" className="h-8 print:h-6" />
+      {/* Header with Logo and Procedure */}
+      <div className="mb-2 flex items-center justify-between border-b border-gray-300 pb-1">
+        <img src={logoImex} alt="IMEX" className="h-6 print:h-5" />
+        <div className="text-center">
+          <span className="text-[8px] font-medium text-gray-600">F03/01 - 8.5.2-01</span>
+        </div>
         <div className="text-right">
-          <div className="text-2xl font-bold text-gray-900 print:text-xl">{data.endereco}</div>
+          <div className="text-xl font-bold text-gray-900 print:text-lg">{data.endereco}</div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-1 gap-4">
+      <div className="flex flex-1 gap-3">
         {/* QR Code */}
         <div className="flex flex-col items-center justify-center">
           <div className="rounded border border-gray-200 bg-white p-1">
             <QRCodeSVG
               value={qrData}
-              size={80}
+              size={70}
               level="M"
               bgColor="#ffffff"
               fgColor="#000000"
             />
           </div>
-          <span className="mt-1 text-[9px] text-gray-500">Escaneie para info</span>
+          <span className="mt-1 text-[8px] text-gray-500">Escaneie para info</span>
         </div>
 
         {/* Info */}
-        <div className="flex flex-1 flex-col justify-center space-y-1">
+        <div className="flex flex-1 flex-col justify-center space-y-0.5">
           <div>
-            <label className="text-[9px] font-medium uppercase text-gray-500">
+            <label className="text-[8px] font-medium uppercase text-gray-500">
               Código
             </label>
-            <p className="text-lg font-bold text-gray-900 print:text-base">{data.codigo}</p>
+            <p className="text-base font-bold text-gray-900 print:text-sm">{data.codigo}</p>
           </div>
           
           <div>
-            <label className="text-[9px] font-medium uppercase text-gray-500">
+            <label className="text-[8px] font-medium uppercase text-gray-500">
               Descrição
             </label>
-            <p className="text-xs font-medium text-gray-800 line-clamp-2">
+            <p className="text-[10px] font-medium text-gray-800 line-clamp-2">
               {data.descricao}
             </p>
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-[9px] font-medium uppercase text-gray-500">
+              <label className="text-[8px] font-medium uppercase text-gray-500">
                 Fabricante
               </label>
-              <p className="text-xs font-semibold text-gray-800">
+              <p className="text-[10px] font-semibold text-gray-800">
                 {data.fabricante}
               </p>
             </div>
             <div className="flex-1">
-              <label className="text-[9px] font-medium uppercase text-gray-500">
+              <label className="text-[8px] font-medium uppercase text-gray-500">
                 Tipo
               </label>
-              <p className="text-xs font-semibold text-gray-800">
+              <p className="text-[10px] font-semibold text-gray-800">
                 {data.tipoMaterial}
               </p>
             </div>
-          </div>
-
-          <div>
-            <label className="text-[9px] font-medium uppercase text-gray-500">
-              Peso
-            </label>
-            <p className="text-xs font-semibold text-gray-800">
-              {data.peso} kg
-            </p>
+            <div className="flex-1">
+              <label className="text-[8px] font-medium uppercase text-gray-500">
+                Peso
+              </label>
+              <p className="text-[10px] font-semibold text-gray-800">
+                {data.peso} kg
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="mt-2 border-t border-gray-300 pt-1 text-center">
-        <p className="text-[8px] text-gray-500">
+      <div className="mt-1 border-t border-gray-300 pt-1 text-center">
+        <p className="text-[7px] text-gray-500">
           IMEX SOLUTIONS - Sistema de Gerenciamento de Materiais
         </p>
       </div>
