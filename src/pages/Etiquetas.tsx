@@ -335,12 +335,12 @@ const Etiquetas = () => {
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="text-xs font-medium text-muted-foreground mb-1 block">Coluna</label>
-                          <Select value={selectedColuna} onValueChange={setSelectedColuna} disabled={isLoadingFilters}>
+                          <Select value={selectedColuna || "_all"} onValueChange={(v) => setSelectedColuna(v === "_all" ? "" : v)} disabled={isLoadingFilters}>
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Todas" />
                             </SelectTrigger>
                             <SelectContent className="bg-card border border-border z-50">
-                              <SelectItem value="">Todas</SelectItem>
+                              <SelectItem value="_all">Todas</SelectItem>
                               {ruaFilters.colunas.map((coluna) => (
                                 <SelectItem key={coluna} value={String(coluna)}>
                                   C{String(coluna).padStart(2, '0')}
@@ -352,12 +352,12 @@ const Etiquetas = () => {
                         
                         <div>
                           <label className="text-xs font-medium text-muted-foreground mb-1 block">Nível</label>
-                          <Select value={selectedNivel} onValueChange={setSelectedNivel} disabled={isLoadingFilters}>
+                          <Select value={selectedNivel || "_all"} onValueChange={(v) => setSelectedNivel(v === "_all" ? "" : v)} disabled={isLoadingFilters}>
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Todos" />
                             </SelectTrigger>
                             <SelectContent className="bg-card border border-border z-50">
-                              <SelectItem value="">Todos</SelectItem>
+                              <SelectItem value="_all">Todos</SelectItem>
                               {ruaFilters.niveis.map((nivel) => (
                                 <SelectItem key={nivel} value={String(nivel)}>
                                   N{String(nivel).padStart(2, '0')}
@@ -369,12 +369,12 @@ const Etiquetas = () => {
                         
                         <div>
                           <label className="text-xs font-medium text-muted-foreground mb-1 block">Posição</label>
-                          <Select value={selectedPosicao} onValueChange={setSelectedPosicao} disabled={isLoadingFilters}>
+                          <Select value={selectedPosicao || "_all"} onValueChange={(v) => setSelectedPosicao(v === "_all" ? "" : v)} disabled={isLoadingFilters}>
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Todas" />
                             </SelectTrigger>
                             <SelectContent className="bg-card border border-border z-50">
-                              <SelectItem value="">Todas</SelectItem>
+                              <SelectItem value="_all">Todas</SelectItem>
                               {ruaFilters.posicoes.map((posicao) => (
                                 <SelectItem key={posicao} value={String(posicao)}>
                                   P{String(posicao).padStart(2, '0')}
