@@ -378,7 +378,7 @@ const EstoqueAtual = () => {
       )}
 
       {/* Tabela */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto relative">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -391,17 +391,17 @@ const EstoqueAtual = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-muted/50 sticky top-0">
+              <thead className="bg-card sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-2 py-2 text-left font-semibold border-b border-border">Código</th>
-                  <th className="px-2 py-2 text-left font-semibold border-b border-border">Descrição</th>
-                  <th className="px-2 py-2 text-left font-semibold border-b border-border">Tipo</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b border-border">Rua</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b border-border">Col</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b border-border">Nív</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b border-border">Pos</th>
-                  <th className="px-1 py-2 text-center font-semibold border-b border-border">Qtd</th>
-                  <th className="px-2 py-2 text-center font-semibold border-b border-border bg-primary/10">Total</th>
+                  <th className="px-2 py-2 text-left font-semibold border-b-2 border-border bg-card">Código</th>
+                  <th className="px-2 py-2 text-left font-semibold border-b-2 border-border bg-card">Descrição</th>
+                  <th className="px-2 py-2 text-left font-semibold border-b-2 border-border bg-card">Tipo</th>
+                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Rua</th>
+                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Col</th>
+                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Nív</th>
+                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Pos</th>
+                  <th className="px-1 py-2 text-center font-semibold border-b-2 border-border bg-card">Qtd</th>
+                  <th className="px-2 py-2 text-center font-semibold border-b-2 border-border bg-primary/10">Total</th>
                 </tr>
               </thead>
               <tbody>
