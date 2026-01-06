@@ -203,7 +203,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             </div>
             <div className="flex-1">
               <label className="text-[8px] font-medium uppercase text-gray-500">
-                Peso
+                Peso Unitário
               </label>
               <p className="text-[10px] font-semibold text-gray-800">
                 {data.peso} kg
