@@ -234,6 +234,65 @@ export type Database = {
         }
         Relationships: []
       }
+      inventario_config_rua: {
+        Row: {
+          contagem_ativa: number
+          id: string
+          rua: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          contagem_ativa?: number
+          id?: string
+          rua: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          contagem_ativa?: number
+          id?: string
+          rua?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      inventario_selecao: {
+        Row: {
+          contagem_num: number
+          created_at: string
+          created_by: string
+          endereco_material_id: string
+          id: string
+          rua: number
+        }
+        Insert: {
+          contagem_num: number
+          created_at?: string
+          created_by: string
+          endereco_material_id: string
+          id?: string
+          rua: number
+        }
+        Update: {
+          contagem_num?: number
+          created_at?: string
+          created_by?: string
+          endereco_material_id?: string
+          id?: string
+          rua?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventario_selecao_endereco_material_id_fkey"
+            columns: ["endereco_material_id"]
+            isOneToOne: false
+            referencedRelation: "enderecos_materiais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_logs: {
         Row: {
           device_info: string | null
