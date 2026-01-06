@@ -1128,6 +1128,93 @@ serve(async (req) => {
       );
     }
 
+    // ========== ESTOQUE DETALHE (busca por QR Code) ==========
+    if (action === "estoque_detalhe") {
+      const { codigo, endereco } = params;
+
+      if (!codigo) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código do material não fornecido' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Buscar endereço do material com os atributos completos
+      let enderecoQuery = supabase
+        .from("enderecos_materiais")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          tipo_material,
+          peso,
+          rua,
+          coluna,
+          nivel,
+          posicao,
+          fabricante_id,
+          fabricantes (nome)
+        `)
+        .eq("codigo", codigo)
+        .eq("ativo", true);
+
+      // Se tiver endereço específico no QR, filtrar por ele
+      if (endereco) {
+        // Parse do endereço formatado (ex: "01-02-03-04")
+        const parts = endereco.split('-');
+        if (parts.length === 4) {
+          enderecoQuery = enderecoQuery
+            .eq("rua", parseInt(parts[0]))
+            .eq("coluna", parseInt(parts[1]))
+            .eq("nivel", parseInt(parts[2]))
+            .eq("posicao", parseInt(parts[3]));
+        }
+      }
+
+      const { data: endData, error: endError } = await enderecoQuery.maybeSingle();
+      
+      if (endError) throw endError;
+
+      if (!endData) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Material não encontrado', data: null }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Buscar quantidade no inventário
+      const { data: invData, error: invError } = await supabase
+        .from("inventario")
+        .select("quantidade")
+        .eq("endereco_material_id", endData.id)
+        .maybeSingle();
+
+      if (invError && invError.code !== 'PGRST116') throw invError;
+
+      // Formatar endereço
+      const enderecoFormatado = `${String(endData.rua).padStart(2, '0')}-${String(endData.coluna).padStart(2, '0')}-${String(endData.nivel).padStart(2, '0')}-${String(endData.posicao).padStart(2, '0')}`;
+
+      const result = {
+        codigo: endData.codigo,
+        descricao: endData.descricao,
+        tipo_material: endData.tipo_material,
+        peso: endData.peso || 0,
+        fabricante: (endData.fabricantes as any)?.nome || 'N/A',
+        endereco: enderecoFormatado,
+        rua: endData.rua,
+        coluna: endData.coluna,
+        nivel: endData.nivel,
+        posicao: endData.posicao,
+        quantidade: invData?.quantidade || 0,
+        endereco_id: endData.id,
+      };
+
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== ADMIN LIST OPERATIONS ==========
     if (action === "admin_enderecos_list") {
       if (!isAdmin) {

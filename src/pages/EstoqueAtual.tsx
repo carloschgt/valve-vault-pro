@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Package, Loader2 } from 'lucide-react';
+import { ArrowLeft, Search, Package, Loader2, ScanLine, X, MapPin, Scale, Tag, Factory } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import logoImex from '@/assets/logo-imex.png';
 import { supabase } from '@/integrations/supabase/client';
+import { QRScanner } from '@/components/QRScanner';
 
 const AUTH_KEY = 'imex_auth_user';
 
@@ -37,6 +39,35 @@ interface EstoqueItem {
   qtd_total: number;
 }
 
+interface MaterialDetail {
+  codigo: string;
+  descricao: string;
+  tipo_material: string;
+  peso: number;
+  fabricante: string;
+  endereco: string;
+  rua: number;
+  coluna: number;
+  nivel: number;
+  posicao: number;
+  quantidade: number;
+  endereco_id: string;
+}
+
+interface QRData {
+  cod?: string;
+  codigo?: string;
+  end?: string;
+  endereco?: string;
+  desc?: string;
+  descricao?: string;
+  fab?: string;
+  fabricante?: string;
+  tipo?: string;
+  tipoMaterial?: string;
+  peso?: number;
+}
+
 const EstoqueAtual = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -46,6 +77,9 @@ const EstoqueAtual = () => {
   const [search, setSearch] = useState('');
   const [estoque, setEstoque] = useState<EstoqueItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannedMaterial, setScannedMaterial] = useState<MaterialDetail | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -83,6 +117,85 @@ const EstoqueAtual = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleQRScan = async (data: string) => {
+    setShowScanner(false);
+    setIsLoadingDetail(true);
+    
+    try {
+      // Parse QR data
+      let qrData: QRData;
+      try {
+        qrData = JSON.parse(data);
+      } catch {
+        toast({
+          title: 'Erro',
+          description: 'QR Code inválido',
+          variant: 'destructive',
+        });
+        setIsLoadingDetail(false);
+        return;
+      }
+
+      const codigo = qrData.cod || qrData.codigo;
+      const endereco = qrData.end || qrData.endereco;
+
+      if (!codigo) {
+        toast({
+          title: 'Erro',
+          description: 'QR Code não contém código do material',
+          variant: 'destructive',
+        });
+        setIsLoadingDetail(false);
+        return;
+      }
+
+      const sessionToken = getSessionToken();
+      if (!sessionToken) {
+        toast({
+          title: 'Erro',
+          description: 'Sessão expirada. Faça login novamente.',
+          variant: 'destructive',
+        });
+        setIsLoadingDetail(false);
+        return;
+      }
+
+      // Buscar detalhes do material com endereço específico
+      const { data: result, error } = await supabase.functions.invoke('data-operations', {
+        body: { 
+          action: 'estoque_detalhe', 
+          sessionToken, 
+          codigo,
+          endereco 
+        },
+      });
+
+      if (error) throw error;
+      if (!result.success) throw new Error(result.error);
+
+      if (!result.data) {
+        toast({
+          title: 'Não encontrado',
+          description: 'Material não encontrado no estoque',
+          variant: 'destructive',
+        });
+        setIsLoadingDetail(false);
+        return;
+      }
+
+      setScannedMaterial(result.data);
+    } catch (error: any) {
+      console.error('Erro ao buscar material:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao buscar material',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingDetail(false);
     }
   };
 
@@ -142,16 +255,127 @@ const EstoqueAtual = () => {
 
       {/* Search */}
       <div className="border-b border-border bg-card px-3 py-2 shrink-0">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por código ou descrição..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por código ou descrição..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowScanner(true)}
+            className="h-9 w-9 shrink-0"
+          >
+            <ScanLine className="h-4 w-4" />
+          </Button>
         </div>
       </div>
+
+      {/* Material Detail Modal */}
+      {(scannedMaterial || isLoadingDetail) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-lg w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between border-b border-border p-4">
+              <h2 className="font-bold text-lg">Detalhes do Material</h2>
+              <button
+                onClick={() => setScannedMaterial(null)}
+                className="rounded-lg p-1.5 hover:bg-accent"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {isLoadingDetail ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : scannedMaterial ? (
+              <div className="p-4 space-y-4">
+                {/* Código e Descrição */}
+                <div className="bg-primary/10 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Tag className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-medium text-muted-foreground uppercase">Código</span>
+                  </div>
+                  <p className="text-xl font-bold text-foreground">{scannedMaterial.codigo}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{scannedMaterial.descricao}</p>
+                </div>
+
+                {/* Endereço e Quantidade */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase">Endereço</span>
+                    </div>
+                    <p className="text-lg font-bold text-foreground">{scannedMaterial.endereco}</p>
+                    <p className="text-xs text-muted-foreground">
+                      R{String(scannedMaterial.rua).padStart(2, '0')} - 
+                      C{String(scannedMaterial.coluna).padStart(2, '0')} - 
+                      N{String(scannedMaterial.nivel).padStart(2, '0')} - 
+                      P{String(scannedMaterial.posicao).padStart(2, '0')}
+                    </p>
+                  </div>
+
+                  <div className="bg-green-500/10 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Package className="h-4 w-4 text-green-600" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase">Quantidade</span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-600">{scannedMaterial.quantidade}</p>
+                    <p className="text-xs text-muted-foreground">unidades</p>
+                  </div>
+                </div>
+
+                {/* Atributos */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <span className="text-xs font-medium text-muted-foreground uppercase block mb-1">Tipo</span>
+                    <p className="text-sm font-semibold text-foreground">{scannedMaterial.tipo_material}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Scale className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase">Peso Unit.</span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">{scannedMaterial.peso} kg</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Factory className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase">Fabricante</span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground truncate" title={scannedMaterial.fabricante}>
+                      {scannedMaterial.fabricante}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Close Button */}
+                <Button 
+                  className="w-full" 
+                  onClick={() => setScannedMaterial(null)}
+                >
+                  Fechar
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* QR Scanner */}
+      {showScanner && (
+        <QRScanner
+          onScan={handleQRScan}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
 
       {/* Tabela */}
       <div className="flex-1 overflow-auto">
