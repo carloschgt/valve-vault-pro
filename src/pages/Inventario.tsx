@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Save, Loader2, MapPin, Edit2, QrCode, Calculator } from 'lucide-react';
+import { ArrowLeft, Search, Save, Loader2, MapPin, Edit2, QrCode, Calculator, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listEnderecos, getInventarioByEndereco, insertInventario, updateInventario } from '@/hooks/useDataOperations';
+import { listEnderecos, getInventarioByEndereco, insertInventario, updateInventario, getInventarioConfig } from '@/hooks/useDataOperations';
 import { QRScanner } from '@/components/QRScanner';
 import { CalculadoraModal } from '@/components/CalculadoraModal';
 import { formatEndereco } from '@/utils/formatEndereco';
+import { Skeleton } from '@/components/ui/skeleton';
 import logoImex from '@/assets/logo-imex.png';
 
 interface EnderecoMaterial {
@@ -35,6 +36,7 @@ interface InventarioItem {
   contado_por: string;
   updated_at: string;
   comentario?: string;
+  contagem_num?: number;
 }
 
 interface QRData {
@@ -56,7 +58,12 @@ interface QRData {
 const Inventario = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  
+  // Permission and config loading states
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [contagemAtiva, setContagemAtiva] = useState<number>(1);
+  const [configLoading, setConfigLoading] = useState(true);
   
   const [codigo, setCodigo] = useState('');
   const [enderecos, setEnderecos] = useState<EnderecoMaterial[]>([]);
@@ -72,6 +79,27 @@ const Inventario = () => {
   const [showCalculadora, setShowCalculadora] = useState(false);
 
   const isAdmin = user?.tipo === 'admin';
+
+  // Load permissions and config before showing UI (fix delay bug)
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (!authLoading && user) {
+        try {
+          const configResult = await getInventarioConfig();
+          if (configResult.success && configResult.data) {
+            setContagemAtiva(configResult.data.contagem_ativa || 1);
+          }
+        } catch (error) {
+          console.error('Error loading inventory config:', error);
+        } finally {
+          setConfigLoading(false);
+          setPermissionsLoaded(true);
+        }
+      }
+    };
+    
+    loadInitialData();
+  }, [authLoading, user]);
 
   const handleBuscar = async () => {
     if (!codigo.trim()) {
@@ -254,8 +282,8 @@ const Inventario = () => {
         // Atualizar existente (apenas admin)
         result = await updateInventario(inventarioExistente.id, quantidade, comentario.trim() || undefined);
       } else {
-        // Inserir novo
-        result = await insertInventario(selectedEndereco.id, quantidade, comentario.trim() || undefined);
+        // Inserir novo - pass active counting phase
+        result = await insertInventario(selectedEndereco.id, quantidade, comentario.trim() || undefined, contagemAtiva);
       }
 
       if (!result.success) {
@@ -287,6 +315,23 @@ const Inventario = () => {
     }
   };
 
+  // Show skeleton while loading permissions and config (fix UI delay bug)
+  if (!permissionsLoaded || authLoading || configLoading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <div className="flex items-center gap-4 border-b border-border bg-card p-4">
+          <Skeleton className="h-10 w-10 rounded-lg" />
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-6 w-24" />
+        </div>
+        <div className="flex-1 p-4 space-y-4">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* QR Scanner Modal */}
@@ -314,6 +359,9 @@ const Inventario = () => {
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-8" />
         <h1 className="text-lg font-bold">Inventário</h1>
+        <span className="ml-auto rounded-lg bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+          Contagem {contagemAtiva}
+        </span>
       </div>
 
       {/* Search */}
@@ -438,7 +486,12 @@ const Inventario = () => {
               <div className="rounded-xl border border-mrx-success/30 bg-mrx-success/10 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Quantidade contada:</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm text-muted-foreground">Quantidade contada</p>
+                      <span className="rounded bg-mrx-success/20 px-2 py-0.5 text-xs font-medium text-mrx-success">
+                        C{inventarioExistente.contagem_num || contagemAtiva}
+                      </span>
+                    </div>
                     <p className="text-3xl font-bold text-mrx-success">
                       {inventarioExistente.quantidade}
                     </p>
@@ -458,7 +511,7 @@ const Inventario = () => {
                   )}
                 </div>
               </div>
-            ) : (
+            ) : permissionsLoaded && (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

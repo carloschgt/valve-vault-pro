@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package } from 'lucide-react';
+import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -225,8 +225,48 @@ const Home = () => {
               <Shield className="mr-2 h-4 w-4" />
               Painel Administrativo
             </Button>
+
+            {/* Controle de Inventário */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/controle-inventario')}
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Controle de Inventário
+            </Button>
+
+            {/* Relatório de Inventário */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/relatorio-inventario')}
+            >
+              <FileBarChart className="mr-2 h-4 w-4" />
+              Relatório de Divergências
+            </Button>
+
+            {/* Ajuste de Inventário */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/ajuste-inventario')}
+            >
+              <Wrench className="mr-2 h-4 w-4" />
+              Ajustes de Inventário
+            </Button>
+
+            {/* Cadastro de Produto */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/catalogo-produto')}
+            >
+              <BookOpen className="mr-2 h-4 w-4" />
+              Cadastro de Produto
+            </Button>
             
-            {/* Catálogo de Produtos */}
+            {/* Catálogo de Produtos (Importar) */}
             <Button
               variant="outline"
               className="w-full"
