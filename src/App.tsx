@@ -17,6 +17,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import GerenciamentoDados from "./pages/GerenciamentoDados";
 import Etiquetas from "./pages/Etiquetas";
+import EtiquetaPrint from "./pages/EtiquetaPrint";
 import EstoqueAtual from "./pages/EstoqueAtual";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/etiquetas/print" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><EtiquetaPrint /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/enderecamento" element={<ProtectedRoute><Enderecamento /></ProtectedRoute>} />
             <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />

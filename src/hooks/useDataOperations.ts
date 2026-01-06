@@ -164,21 +164,31 @@ export async function getEnderecoById(id: string): Promise<DataOperationResult> 
 export async function insertInventario(
   endereco_material_id: string,
   quantidade: string,
-  comentario?: string
+  comentario?: string,
+  contagem_num?: number
 ): Promise<DataOperationResult> {
-  return invokeDataOperation('inventario_insert', { endereco_material_id, quantidade, comentario });
+  return invokeDataOperation('inventario_insert', { endereco_material_id, quantidade, comentario, contagem_num });
 }
 
 export async function updateInventario(
   id: string,
   quantidade: string,
-  comentario?: string
+  comentario?: string,
+  motivo?: string
 ): Promise<DataOperationResult> {
-  return invokeDataOperation('inventario_update', { id, quantidade, comentario });
+  return invokeDataOperation('inventario_update', { id, quantidade, comentario, motivo });
 }
 
 export async function deleteInventario(id: string): Promise<DataOperationResult> {
   return invokeDataOperation('inventario_delete', { id });
+}
+
+export async function getInventarioConfig(): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_config_get');
+}
+
+export async function updateInventarioConfig(contagem_ativa: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_config_update', { contagem_ativa });
 }
 
 // ========== CATALOGO INATIVAR ==========
@@ -186,8 +196,13 @@ export async function toggleCatalogoAtivo(id: string, ativo: boolean): Promise<D
   return invokeDataOperation('catalogo_toggle_ativo', { id, ativo });
 }
 
-export async function updateCatalogo(id: string, codigo: string, descricao: string): Promise<DataOperationResult> {
-  return invokeDataOperation('catalogo_update', { id, codigo, descricao });
+export async function updateCatalogo(
+  id: string, 
+  codigo: string, 
+  descricao: string, 
+  peso_kg?: number
+): Promise<DataOperationResult> {
+  return invokeDataOperation('catalogo_update', { id, codigo, descricao, peso_kg });
 }
 
 // ========== EXPORT OPERATIONS (ADMIN ONLY) ==========

@@ -282,12 +282,61 @@ serve(async (req) => {
     }
 
     if (action === "inventario_get") {
-      const { endereco_material_id } = params;
+      const { endereco_material_id, contagem_num } = params;
+      
+      // Get current active counting phase if not specified
+      let targetContagem = contagem_num;
+      if (!targetContagem) {
+        const { data: config } = await supabase
+          .from("inventario_config")
+          .select("contagem_ativa")
+          .single();
+        targetContagem = config?.contagem_ativa || 1;
+      }
+      
       const { data, error } = await supabase
         .from("inventario")
         .select("*")
         .eq("endereco_material_id", endereco_material_id)
+        .eq("contagem_num", targetContagem)
         .maybeSingle();
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get inventory config
+    if (action === "inventario_config_get") {
+      const { data, error } = await supabase
+        .from("inventario_config")
+        .select("*")
+        .single();
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Update inventory config (admin only)
+    if (action === "inventario_config_update") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem alterar configurações' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { contagem_ativa } = params;
+      const { data, error } = await supabase
+        .from("inventario_config")
+        .update({ contagem_ativa, updated_at: new Date().toISOString(), updated_by: user.nome })
+        .eq("id", (await supabase.from("inventario_config").select("id").single()).data?.id)
+        .select()
+        .single();
+      
       if (error) throw error;
       return new Response(
         JSON.stringify({ success: true, data }),
@@ -530,7 +579,43 @@ serve(async (req) => {
     // ========== INVENTARIO ==========
     if (action === "inventario_insert") {
       // Any approved user can create inventory counts
-      const { endereco_material_id, quantidade, comentario } = params;
+      const { endereco_material_id, quantidade, comentario, contagem_num: requestedContagem } = params;
+      
+      // Get current active counting phase
+      const { data: config } = await supabase
+        .from("inventario_config")
+        .select("contagem_ativa")
+        .single();
+      
+      const contagemAtiva = config?.contagem_ativa || 1;
+      const targetContagem = requestedContagem || contagemAtiva;
+      
+      // Non-admin users can only insert for active counting phase
+      if (!isAdmin && targetContagem !== contagemAtiva) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Somente contagem ${contagemAtiva} está ativa no momento` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Check if already exists for this material/phase (backend protection)
+      const { data: existing } = await supabase
+        .from("inventario")
+        .select("id")
+        .eq("endereco_material_id", endereco_material_id)
+        .eq("contagem_num", targetContagem)
+        .maybeSingle();
+      
+      if (existing) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Já existe uma contagem ${targetContagem} para este material. Use a opção de editar.`,
+            existingId: existing.id
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       
       const { data, error } = await supabase
         .from("inventario")
@@ -539,11 +624,21 @@ serve(async (req) => {
           quantidade: parseInt(quantidade),
           comentario: comentario?.trim() || null,
           contado_por: user.nome,
+          contagem_num: targetContagem,
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Handle unique constraint violation
+        if (error.code === '23505') {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Já existe uma contagem para este material nesta fase.' }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        throw error;
+      }
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -559,11 +654,23 @@ serve(async (req) => {
         );
       }
 
-      const { id, quantidade, comentario } = params;
+      const { id, quantidade, comentario, motivo } = params;
+      
+      // Get current value for audit
+      const { data: current } = await supabase
+        .from("inventario")
+        .select("quantidade")
+        .eq("id", id)
+        .single();
+      
+      const quantidadeAnterior = current?.quantidade || 0;
+      const quantidadeNova = parseInt(quantidade);
+      
+      // Update inventory
       const { data, error } = await supabase
         .from("inventario")
         .update({
-          quantidade: parseInt(quantidade),
+          quantidade: quantidadeNova,
           comentario: comentario?.trim() || null,
           contado_por: user.nome,
         })
@@ -572,6 +679,20 @@ serve(async (req) => {
         .single();
 
       if (error) throw error;
+      
+      // Create audit record if quantity changed
+      if (quantidadeAnterior !== quantidadeNova) {
+        await supabase
+          .from("inventario_audit")
+          .insert({
+            inventario_id: id,
+            quantidade_anterior: quantidadeAnterior,
+            quantidade_nova: quantidadeNova,
+            motivo: motivo?.trim() || 'Correção administrativa',
+            editado_por: user.nome,
+          });
+      }
+      
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -775,11 +896,14 @@ serve(async (req) => {
         );
       }
 
-      const { id, codigo, descricao } = params;
+      const { id, codigo, descricao, peso_kg } = params;
       
       const updateData: Record<string, any> = {};
       if (codigo !== undefined) updateData.codigo = codigo.trim().toUpperCase();
       if (descricao !== undefined) updateData.descricao = descricao.trim().toUpperCase();
+      if (peso_kg !== undefined && peso_kg !== null && peso_kg !== '') {
+        updateData.peso_kg = parseFloat(peso_kg);
+      }
 
       const { data, error } = await supabase
         .from("catalogo_produtos")
