@@ -403,8 +403,8 @@ const Etiquetas = () => {
               </div>
 
               {/* Print Preview */}
-              <div ref={printRef} className="flex-1 bg-white p-4">
-                <div className="mx-auto grid max-w-[210mm] grid-cols-2 gap-4">
+              <div ref={printRef} className="flex-1 bg-white p-4 overflow-auto">
+                <div className="mx-auto flex flex-col items-center gap-6">
                   {etiquetas.map((etiqueta, index) => (
                     <EtiquetaCard key={index} data={etiqueta} />
                   ))}
