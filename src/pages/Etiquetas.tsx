@@ -1,14 +1,17 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Printer, QrCode, Loader2, Check, X, Plus } from 'lucide-react';
+import { ArrowLeft, Search, Printer, QrCode, Loader2, Check, X, Plus, MapPin, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InputUppercase } from '@/components/ui/input-uppercase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { listEnderecos } from '@/hooks/useDataOperations';
 import { QRCodeSVG } from 'qrcode.react';
 import logoImex from '@/assets/logo-imex.png';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EnderecoMaterial {
   id: string;
@@ -38,12 +41,52 @@ const Etiquetas = () => {
   const { toast } = useToast();
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Estado para controle de abas
+  const [activeTab, setActiveTab] = useState('material');
+
+  // Estados para etiquetas de material
   const [searchCode, setSearchCode] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [enderecos, setEnderecos] = useState<EnderecoMaterial[]>([]);
   const [allEnderecos, setAllEnderecos] = useState<EnderecoMaterial[]>([]);
   const [selectedEnderecos, setSelectedEnderecos] = useState<Set<string>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
+
+  // Estados para identificação de rua
+  const [ruasDisponiveis, setRuasDisponiveis] = useState<number[]>([]);
+  const [selectedRua, setSelectedRua] = useState<string>('');
+  const [isLoadingRuas, setIsLoadingRuas] = useState(false);
+
+  // Carregar ruas disponíveis ao montar ou trocar para aba de rua
+  useEffect(() => {
+    if (activeTab === 'rua') {
+      loadRuasDisponiveis();
+    }
+  }, [activeTab]);
+
+  const loadRuasDisponiveis = async () => {
+    setIsLoadingRuas(true);
+    try {
+      const { data, error } = await supabase
+        .from('enderecos_materiais')
+        .select('rua')
+        .eq('ativo', true);
+
+      if (error) throw error;
+
+      // Extrair ruas únicas e ordenar
+      const ruasUnicas = [...new Set(data?.map(d => d.rua) || [])].sort((a, b) => a - b);
+      setRuasDisponiveis(ruasUnicas);
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar as ruas disponíveis',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingRuas(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchCode.trim()) {
@@ -174,14 +217,32 @@ const Etiquetas = () => {
     setShowPreview(true);
   };
 
-  // Open dedicated print page
+  // Open dedicated print page for material labels
   const openPrintPage = () => {
     const etiquetas = getEtiquetasData();
     const dataParam = encodeURIComponent(JSON.stringify(etiquetas));
     navigate(`/etiquetas/print?data=${dataParam}`);
   };
 
+  // Open dedicated print page for street identification
+  const openRuaPrintPage = () => {
+    if (!selectedRua) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione uma rua',
+        variant: 'destructive',
+      });
+      return;
+    }
+    navigate(`/etiquetas/identificacao-rua?rua=${selectedRua}`);
+  };
+
   const etiquetas = getEtiquetasData();
+
+  // URL para preview do QR
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const qrUrlPreview = selectedRua ? `${baseUrl}/estoque-rua?rua=${selectedRua}` : '';
+  const ruaFormatada = selectedRua ? `R${selectedRua.toString().padStart(2, '0')}` : '';
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -192,146 +253,259 @@ const Etiquetas = () => {
         </Button>
         <div>
           <h1 className="text-lg font-bold text-foreground">Gerar Etiquetas</h1>
-          <p className="text-sm text-muted-foreground">Imprimir etiquetas com QR Code</p>
+          <p className="text-sm text-muted-foreground">Etiquetas de material e identificação de rua</p>
         </div>
       </div>
 
-      {!showPreview ? (
-        <div className="flex flex-1 flex-col gap-4 p-4">
-          {/* Search */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex gap-2">
-                <InputUppercase
-                  placeholder="Digite o código do material"
-                  value={searchCode}
-                  onChange={(e) => setSearchCode(e.target.value.replace(/\D/g, ''))}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  className="flex-1"
-                />
-                <Button onClick={handleSearch} disabled={isSearching}>
-                  {isSearching ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <div className="border-b border-border bg-card px-4">
+          <TabsList className="h-12 w-full justify-start gap-4 bg-transparent p-0">
+            <TabsTrigger 
+              value="material" 
+              className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
+            >
+              <Tag className="h-4 w-4" />
+              Etiqueta de Material
+            </TabsTrigger>
+            <TabsTrigger 
+              value="rua" 
+              className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
+            >
+              <MapPin className="h-4 w-4" />
+              Identificação de Rua (A4)
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Tab: Etiqueta de Material */}
+        <TabsContent value="material" className="flex-1 flex flex-col m-0">
+          {!showPreview ? (
+            <div className="flex flex-1 flex-col gap-4 p-4">
+              {/* Search */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex gap-2">
+                    <InputUppercase
+                      placeholder="Digite o código do material"
+                      value={searchCode}
+                      onChange={(e) => setSearchCode(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      className="flex-1"
+                    />
+                    <Button onClick={handleSearch} disabled={isSearching}>
+                      {isSearching ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Você pode buscar vários códigos. Cada busca adiciona à lista de seleção.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Selected Items Summary */}
+              {allEnderecos.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {selectedEnderecos.size} de {allEnderecos.filter(e => e.ativo).length} selecionado(s)
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={selectAll}>
+                        <Check className="mr-1 h-3 w-3" />
+                        Todos
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={deselectAll}>
+                        <X className="mr-1 h-3 w-3" />
+                        Limpar
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={clearAll}>
+                        <X className="mr-1 h-3 w-3" />
+                        Resetar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 space-y-2 overflow-auto">
+                    {allEnderecos.map((endereco) => (
+                      <Card
+                        key={endereco.id}
+                        className={`cursor-pointer transition-all ${
+                          !endereco.ativo 
+                            ? 'opacity-50 bg-muted' 
+                            : selectedEnderecos.has(endereco.id)
+                              ? 'border-primary bg-primary/5'
+                              : ''
+                        }`}
+                        onClick={() => endereco.ativo && toggleSelection(endereco.id)}
+                      >
+                        <CardContent className="flex items-center gap-3 p-3">
+                          <Checkbox
+                            checked={selectedEnderecos.has(endereco.id)}
+                            disabled={!endereco.ativo}
+                            onCheckedChange={() => toggleSelection(endereco.id)}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-primary">
+                                {endereco.codigo}
+                              </span>
+                              {!endereco.ativo && (
+                                <span className="text-xs text-destructive">(INATIVO)</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-1">
+                              {endereco.descricao}
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                              <span className="rounded bg-secondary px-2 py-0.5">
+                                {formatEndereco(endereco)}
+                              </span>
+                              <span className="rounded bg-muted px-2 py-0.5">
+                                {endereco.fabricante_nome}
+                              </span>
+                              <span className="rounded bg-muted px-2 py-0.5">
+                                {endereco.tipo_material}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handlePrint}
+                    disabled={selectedEnderecos.size === 0}
+                  >
+                    <Printer className="mr-2 h-5 w-5" />
+                    Gerar Etiquetas ({selectedEnderecos.size})
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col">
+              {/* Print Preview Controls */}
+              <div className="flex items-center justify-between border-b border-border bg-card p-4">
+                <Button variant="outline" onClick={() => setShowPreview(false)}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Voltar
+                </Button>
+                <Button onClick={openPrintPage}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Abrir para Impressão
                 </Button>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Você pode buscar vários códigos. Cada busca adiciona à lista de seleção.
-              </p>
-            </CardContent>
-          </Card>
 
-          {/* Selected Items Summary */}
-          {allEnderecos.length > 0 && (
-            <>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {selectedEnderecos.size} de {allEnderecos.filter(e => e.ativo).length} selecionado(s)
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={selectAll}>
-                    <Check className="mr-1 h-3 w-3" />
-                    Todos
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={deselectAll}>
-                    <X className="mr-1 h-3 w-3" />
-                    Limpar
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={clearAll}>
-                    <X className="mr-1 h-3 w-3" />
-                    Resetar
-                  </Button>
+              {/* Print Preview */}
+              <div ref={printRef} className="flex-1 bg-white p-4">
+                <div className="mx-auto grid max-w-[210mm] grid-cols-2 gap-4">
+                  {etiquetas.map((etiqueta, index) => (
+                    <EtiquetaCard key={index} data={etiqueta} />
+                  ))}
                 </div>
               </div>
-
-              <div className="flex-1 space-y-2 overflow-auto">
-                {allEnderecos.map((endereco) => (
-                  <Card
-                    key={endereco.id}
-                    className={`cursor-pointer transition-all ${
-                      !endereco.ativo 
-                        ? 'opacity-50 bg-muted' 
-                        : selectedEnderecos.has(endereco.id)
-                          ? 'border-primary bg-primary/5'
-                          : ''
-                    }`}
-                    onClick={() => endereco.ativo && toggleSelection(endereco.id)}
-                  >
-                    <CardContent className="flex items-center gap-3 p-3">
-                      <Checkbox
-                        checked={selectedEnderecos.has(endereco.id)}
-                        disabled={!endereco.ativo}
-                        onCheckedChange={() => toggleSelection(endereco.id)}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-primary">
-                            {endereco.codigo}
-                          </span>
-                          {!endereco.ativo && (
-                            <span className="text-xs text-destructive">(INATIVO)</span>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-1">
-                          {endereco.descricao}
-                        </p>
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                          <span className="rounded bg-secondary px-2 py-0.5">
-                            {formatEndereco(endereco)}
-                          </span>
-                          <span className="rounded bg-muted px-2 py-0.5">
-                            {endereco.fabricante_nome}
-                          </span>
-                          <span className="rounded bg-muted px-2 py-0.5">
-                            {endereco.tipo_material}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={handlePrint}
-                disabled={selectedEnderecos.size === 0}
-              >
-                <Printer className="mr-2 h-5 w-5" />
-                Gerar Etiquetas ({selectedEnderecos.size})
-              </Button>
-            </>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-1 flex-col">
-          {/* Print Preview Controls */}
-          <div className="flex items-center justify-between border-b border-border bg-card p-4">
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar
-            </Button>
-            <Button onClick={openPrintPage}>
-              <Printer className="mr-2 h-4 w-4" />
-              Abrir para Impressão
-            </Button>
-          </div>
-
-          {/* Print Preview */}
-          <div ref={printRef} className="flex-1 bg-white p-4">
-            <div className="mx-auto grid max-w-[210mm] grid-cols-2 gap-4">
-              {etiquetas.map((etiqueta, index) => (
-                <EtiquetaCard key={index} data={etiqueta} />
-              ))}
             </div>
+          )}
+        </TabsContent>
+
+        {/* Tab: Identificação de Rua */}
+        <TabsContent value="rua" className="flex-1 flex flex-col m-0">
+          <div className="flex flex-1 flex-col gap-4 p-4">
+            {/* Seleção de Rua */}
+            <Card>
+              <CardContent className="p-4">
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Selecione a Rua
+                </label>
+                <Select value={selectedRua} onValueChange={setSelectedRua} disabled={isLoadingRuas}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={isLoadingRuas ? "Carregando..." : "Selecione uma rua"} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border border-border z-50">
+                    {ruasDisponiveis.map((rua) => (
+                      <SelectItem key={rua} value={String(rua)}>
+                        Rua {String(rua).padStart(2, '0')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Gera uma identificação A4 com QR code para consulta de materiais da rua.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Preview */}
+            {selectedRua && (
+              <Card className="flex-1">
+                <CardContent className="p-4">
+                  <h3 className="text-sm font-medium text-muted-foreground mb-4">
+                    Pré-visualização
+                  </h3>
+                  
+                  {/* Mini Preview */}
+                  <div className="mx-auto max-w-sm border-2 border-dashed border-border rounded-lg bg-white p-6">
+                    <div className="flex flex-col items-center text-center">
+                      {/* Logo */}
+                      <img src={logoImex} alt="IMEX" className="h-8 mb-4" />
+                      
+                      {/* Título */}
+                      <h2 className="text-4xl font-black text-gray-900 mb-1">RUA</h2>
+                      <h2 className="text-5xl font-black text-gray-900 mb-4">{ruaFormatada}</h2>
+                      
+                      {/* QR Code Preview */}
+                      <div className="border-2 border-gray-800 rounded p-2 bg-white">
+                        <QRCodeSVG
+                          value={qrUrlPreview}
+                          size={100}
+                          level="H"
+                          bgColor="#ffffff"
+                          fgColor="#000000"
+                        />
+                      </div>
+                      
+                      <p className="mt-3 text-xs text-gray-600">
+                        Escaneie para consultar os materiais
+                      </p>
+                      
+                      <div className="mt-4 pt-3 border-t border-gray-200 w-full">
+                        <p className="text-[10px] text-gray-400">
+                          Desenvolvido por Carlos Teixeira
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-center text-xs text-muted-foreground">
+                    O documento final será em tamanho A4 com fontes grandes para visualização a distância.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Botão de Impressão */}
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={openRuaPrintPage}
+              disabled={!selectedRua}
+            >
+              <Printer className="mr-2 h-5 w-5" />
+              Gerar Identificação A4
+            </Button>
           </div>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
