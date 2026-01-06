@@ -47,6 +47,14 @@ function escapeCSV(value: string | number | undefined | null): string {
   return stringValue;
 }
 
+// Força o Excel a tratar como texto (mantém zeros à esquerda)
+function forceTextCSV(value: string | undefined | null): string {
+  if (value === undefined || value === null) return '';
+  const stringValue = String(value);
+  // Formato ="valor" força Excel a tratar como texto
+  return `="${stringValue.replace(/"/g, '""')}"`;
+}
+
 // Normalize string to NFC for proper UTF-8 encoding
 function normalizeString(str: string | undefined | null): string {
   if (!str) return '';
@@ -69,7 +77,7 @@ export function exportEnderecamentosToCSV(dados: EnderecoMaterial[]): void {
   ];
 
   const rows = dados.map((d) => [
-    escapeCSV(d.codigo),
+    forceTextCSV(d.codigo), // Mantém zeros à esquerda
     escapeCSV(d.descricao),
     escapeCSV(d.tipo_material),
     escapeCSV(d.fabricante_nome || 'N/A'),
@@ -115,7 +123,7 @@ export function exportInventarioToCSV(dados: InventarioItem[]): void {
   ];
 
   const rows = dados.map((d) => [
-    escapeCSV(d.codigo),
+    forceTextCSV(d.codigo), // Mantém zeros à esquerda
     escapeCSV(d.descricao),
     escapeCSV(d.fabricante_nome || 'N/A'),
     d.peso,
