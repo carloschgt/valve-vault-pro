@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Search, Edit2, X } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search, Edit2, X, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos } from '@/hooks/useDataOperations';
+import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos, deleteEndereco } from '@/hooks/useDataOperations';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -106,6 +106,10 @@ const Enderecamento = () => {
   const [searchResults, setSearchResults] = useState<EnderecoResult[]>([]);
   const [isSearchingEnderecos, setIsSearchingEnderecos] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  
+  // Estado para confirmação de exclusão (admin)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Carregar fabricantes do banco
   useEffect(() => {
@@ -369,6 +373,32 @@ const Enderecamento = () => {
     if (enderecoExistente) {
       setShowDuplicateDialog(false);
       navigate(`/enderecamento?edit=${enderecoExistente.id}`);
+    }
+  };
+
+  const handleExcluir = async () => {
+    if (!editingId) return;
+    
+    setIsDeleting(true);
+    try {
+      const result = await deleteEndereco(editingId);
+      if (!result.success) throw new Error(result.error);
+      
+      toast({
+        title: 'Sucesso',
+        description: 'Endereçamento excluído com sucesso!',
+      });
+      
+      handleClearEdit();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao excluir endereçamento',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
     }
   };
 
@@ -636,22 +666,41 @@ const Enderecamento = () => {
           />
         </div>
 
-        {/* Botão Salvar */}
-        <Button
-          onClick={handleSalvar}
-          disabled={isSaving}
-          className="w-full h-10"
-          size="default"
-        >
-          {isSaving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : editingId ? (
-            <Edit2 className="mr-2 h-4 w-4" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
+        {/* Botões de ação */}
+        <div className="flex gap-2">
+          <Button
+            onClick={handleSalvar}
+            disabled={isSaving || isDeleting}
+            className="flex-1 h-10"
+            size="default"
+          >
+            {isSaving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : editingId ? (
+              <Edit2 className="mr-2 h-4 w-4" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            {editingId ? 'Atualizar' : 'Salvar'}
+          </Button>
+          
+          {/* Botão Excluir - apenas admin no modo edição */}
+          {isAdmin && editingId && (
+            <Button
+              onClick={() => setShowDeleteDialog(true)}
+              disabled={isSaving || isDeleting}
+              variant="destructive"
+              className="h-10 px-4"
+              size="default"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
           )}
-          {editingId ? 'Atualizar Endereçamento' : 'Salvar Endereçamento'}
-        </Button>
+        </div>
       </div>
 
       {/* Dialog de duplicado */}
@@ -680,6 +729,43 @@ const Enderecamento = () => {
             <AlertDialogAction onClick={handleAbrirRegistroExistente}>
               <Edit2 className="mr-2 h-4 w-4" />
               Abrir registro existente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              Confirmar Exclusão
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Tem certeza que deseja excluir este endereçamento?</p>
+              <div className="rounded-lg border border-border bg-muted p-3">
+                <p className="font-bold text-primary">{codigo}</p>
+                <p className="text-sm">{descricao}</p>
+                <p className="text-sm text-muted-foreground">
+                  Endereço: {formatEndereco(parseInt(rua) || 0, parseInt(coluna) || 0, parseInt(nivel) || 0, parseInt(posicao) || 0)}
+                </p>
+              </div>
+              <p className="text-destructive font-medium">Esta ação não pode ser desfeita!</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleExcluir}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
