@@ -66,16 +66,16 @@ export async function exportCompleteData(): Promise<ExportResult> {
     if (errors?.usuarios) console.warn('Erro ao buscar usuários:', errors.usuarios);
     if (errors?.logs) console.warn('Erro ao buscar logs:', errors.logs);
 
-    // Preparar dados para cada aba
+    // Preparar dados para cada aba (códigos como texto para manter zeros à esquerda)
     const catalogoData = (data.catalogo || []).map((item: any) => ({
-      'Código': item.codigo,
+      'Código': String(item.codigo), // Será formatado como texto na planilha
       'Descrição': item.descricao,
       'Ativo': item.ativo ? 'Sim' : 'Não',
       'Criado em': formatDate(item.created_at),
     }));
 
     const enderecosData = (data.enderecos || []).map((item: any) => ({
-      'Código': item.codigo,
+      'Código': String(item.codigo), // Mantém zeros à esquerda
       'Descrição': item.descricao,
       'Tipo Material': item.tipo_material,
       'Fabricante': item.fabricantes?.nome || 'N/A',
@@ -93,7 +93,7 @@ export async function exportCompleteData(): Promise<ExportResult> {
     }));
 
     const inventarioData = (data.inventario || []).map((item: any) => ({
-      'Código': item.enderecos_materiais?.codigo || 'N/A',
+      'Código': String(item.enderecos_materiais?.codigo || 'N/A'), // Mantém zeros à esquerda
       'Descrição': item.enderecos_materiais?.descricao || 'N/A',
       'Endereço': item.enderecos_materiais
         ? `R${String(item.enderecos_materiais.rua).padStart(2, '0')}.C${String(item.enderecos_materiais.coluna).padStart(2, '0')}.N${String(item.enderecos_materiais.nivel).padStart(2, '0')}.P${String(item.enderecos_materiais.posicao).padStart(2, '0')}`
@@ -130,19 +130,33 @@ export async function exportCompleteData(): Promise<ExportResult> {
     // Criar workbook
     const wb = XLSX.utils.book_new();
 
+    // Função para forçar coluna como texto (mantém zeros à esquerda)
+    const setColumnAsText = (ws: XLSX.WorkSheet, colIndex: number, rowCount: number) => {
+      for (let r = 1; r <= rowCount; r++) { // Começa em 1 para pular header
+        const cellRef = XLSX.utils.encode_cell({ r, c: colIndex });
+        if (ws[cellRef]) {
+          ws[cellRef].t = 's'; // Tipo texto
+          ws[cellRef].z = '@'; // Formato texto
+        }
+      }
+    };
+
     // Adicionar abas
     if (catalogoData.length > 0) {
       const wsCatalogo = XLSX.utils.json_to_sheet(catalogoData);
+      setColumnAsText(wsCatalogo, 0, catalogoData.length); // Coluna Código
       XLSX.utils.book_append_sheet(wb, wsCatalogo, 'Catálogo');
     }
 
     if (enderecosData.length > 0) {
       const wsEnderecos = XLSX.utils.json_to_sheet(enderecosData);
+      setColumnAsText(wsEnderecos, 0, enderecosData.length); // Coluna Código
       XLSX.utils.book_append_sheet(wb, wsEnderecos, 'Endereçamentos');
     }
 
     if (inventarioData.length > 0) {
       const wsInventario = XLSX.utils.json_to_sheet(inventarioData);
+      setColumnAsText(wsInventario, 0, inventarioData.length); // Coluna Código
       XLSX.utils.book_append_sheet(wb, wsInventario, 'Inventário');
     }
 

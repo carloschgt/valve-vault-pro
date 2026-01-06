@@ -20,6 +20,14 @@ function escapeCSV(value: string | number | undefined): string {
   return stringValue;
 }
 
+// Força o Excel a tratar como texto (mantém zeros à esquerda)
+function forceTextCSV(value: string | undefined): string {
+  if (value === undefined || value === null) return '';
+  const stringValue = String(value);
+  // Formato ="valor" força Excel a tratar como texto
+  return `="${stringValue.replace(/"/g, '""')}"`;
+}
+
 export function exportMateriaisToCSV(materiais: Material[]): void {
   const headers = [
     'Código',
@@ -38,7 +46,7 @@ export function exportMateriaisToCSV(materiais: Material[]): void {
   ];
 
   const rows = materiais.map((m) => [
-    escapeCSV(m.codigo),
+    forceTextCSV(m.codigo), // Mantém zeros à esquerda
     escapeCSV(m.descricao),
     escapeCSV(CATEGORIAS[m.categoria]),
     escapeCSV(m.localizacao),
@@ -48,8 +56,8 @@ export function exportMateriaisToCSV(materiais: Material[]): void {
     formatDate(m.dataEntrada),
     formatDate(m.dataUltimaMovimentacao),
     escapeCSV(m.responsavel),
-    escapeCSV(m.lote),
-    escapeCSV(m.numeroSerie),
+    forceTextCSV(m.lote), // Mantém zeros à esquerda
+    forceTextCSV(m.numeroSerie), // Mantém zeros à esquerda
     escapeCSV(m.observacoes),
   ]);
 
@@ -94,7 +102,7 @@ export function exportMovimentacoesToCSV(
     return [
       formatDate(mov.data),
       escapeCSV(TIPOS_MOVIMENTACAO[mov.tipo]),
-      escapeCSV(material?.codigo || 'N/A'),
+      forceTextCSV(material?.codigo || 'N/A'), // Mantém zeros à esquerda
       escapeCSV(material?.descricao || 'Material não encontrado'),
       mov.quantidade,
       escapeCSV(mov.origem),
