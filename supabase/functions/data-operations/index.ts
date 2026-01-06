@@ -1299,6 +1299,126 @@ serve(async (req) => {
       );
     }
 
+    // ========== CONSULTA MATERIAL COM TODAS ALOCAÇÕES ==========
+    if (action === "material_consulta") {
+      const { codigo, endereco } = params;
+
+      if (!codigo) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código do material não fornecido' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Buscar todas as alocações desse código (ativas)
+      const { data: todasAlocacoes, error: alocError } = await supabase
+        .from("enderecos_materiais")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          tipo_material,
+          peso,
+          rua,
+          coluna,
+          nivel,
+          posicao,
+          fabricante_id,
+          fabricantes (nome)
+        `)
+        .eq("codigo", codigo)
+        .eq("ativo", true)
+        .order("rua")
+        .order("coluna")
+        .order("nivel")
+        .order("posicao");
+
+      if (alocError) throw alocError;
+
+      if (!todasAlocacoes || todasAlocacoes.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Material não encontrado', data: null }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Buscar inventário para todas as alocações
+      const enderecoIds = todasAlocacoes.map(a => a.id);
+      const { data: inventarioData, error: invError } = await supabase
+        .from("inventario")
+        .select("endereco_material_id, quantidade")
+        .in("endereco_material_id", enderecoIds);
+
+      if (invError && invError.code !== 'PGRST116') throw invError;
+
+      // Criar mapa de quantidade por endereço
+      const quantidadeMap = new Map<string, number>();
+      (inventarioData || []).forEach((inv: any) => {
+        quantidadeMap.set(inv.endereco_material_id, inv.quantidade || 0);
+      });
+
+      // Formatar alocações
+      const alocacoes = todasAlocacoes.map((a: any) => {
+        const enderecoFormatado = `${String(a.rua).padStart(2, '0')}-${String(a.coluna).padStart(2, '0')}-${String(a.nivel).padStart(2, '0')}-${String(a.posicao).padStart(2, '0')}`;
+        return {
+          id: a.id,
+          endereco: enderecoFormatado,
+          rua: a.rua,
+          coluna: a.coluna,
+          nivel: a.nivel,
+          posicao: a.posicao,
+          quantidade: quantidadeMap.get(a.id) || 0,
+        };
+      });
+
+      // Determinar alocação principal (do QR escaneado)
+      let alocacaoPrincipal = alocacoes[0];
+      if (endereco) {
+        // Parse do endereço formatado (ex: "01-02-03-04" ou "R01.C02.N03.P04")
+        let parts = endereco.split('-');
+        if (parts.length !== 4) {
+          // Tentar formato R01.C02.N03.P04
+          const match = endereco.match(/R?(\d+)\.?C?(\d+)\.?N?(\d+)\.?P?(\d+)/i);
+          if (match) {
+            parts = [match[1], match[2], match[3], match[4]];
+          }
+        }
+        if (parts.length === 4) {
+          const rua = parseInt(parts[0]);
+          const coluna = parseInt(parts[1]);
+          const nivel = parseInt(parts[2]);
+          const posicao = parseInt(parts[3]);
+          
+          const found = alocacoes.find(a => 
+            a.rua === rua && a.coluna === coluna && a.nivel === nivel && a.posicao === posicao
+          );
+          if (found) {
+            alocacaoPrincipal = found;
+          }
+        }
+      }
+
+      // Dados do material (usar primeiro registro)
+      const first = todasAlocacoes[0];
+      
+      const result = {
+        codigo: first.codigo,
+        descricao: first.descricao,
+        tipo_material: first.tipo_material,
+        peso: first.peso || 0,
+        fabricante: (first.fabricantes as any)?.nome || 'N/A',
+        alocacao_principal: alocacaoPrincipal,
+        todas_alocacoes: alocacoes,
+        total_alocacoes: alocacoes.length,
+        quantidade_total: alocacoes.reduce((sum, a) => sum + a.quantidade, 0),
+      };
+
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== ADMIN LIST OPERATIONS ==========
     if (action === "admin_enderecos_list") {
       if (!isAdmin) {

@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer, Loader2, Check, X, MapPin, Tag, Filter } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2, Check, X, MapPin, Tag, Filter, QrCode, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { listRuasDisponiveis, listEnderecosByRua, getRuaFilters } from '@/hooks/useDataOperations';
+import { listRuasDisponiveis, listEnderecosByRua, getRuaFilters, consultaMaterial } from '@/hooks/useDataOperations';
 import { QRCodeSVG } from 'qrcode.react';
+import { QRScanner } from '@/components/QRScanner';
 import logoImex from '@/assets/logo-imex.png';
 
 interface EnderecoMaterial {
@@ -40,6 +41,34 @@ interface RuaFilters {
   posicoes: number[];
 }
 
+interface MaterialConsulta {
+  codigo: string;
+  descricao: string;
+  tipo_material: string;
+  peso: number;
+  fabricante: string;
+  alocacao_principal: {
+    id: string;
+    endereco: string;
+    rua: number;
+    coluna: number;
+    nivel: number;
+    posicao: number;
+    quantidade: number;
+  };
+  todas_alocacoes: Array<{
+    id: string;
+    endereco: string;
+    rua: number;
+    coluna: number;
+    nivel: number;
+    posicao: number;
+    quantidade: number;
+  }>;
+  total_alocacoes: number;
+  quantidade_total: number;
+}
+
 const Etiquetas = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -65,6 +94,11 @@ const Etiquetas = () => {
 
   // Estados para identificação de rua
   const [selectedRua, setSelectedRua] = useState<string>('');
+
+  // Estados para consulta de material via QR
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [materialConsulta, setMaterialConsulta] = useState<MaterialConsulta | null>(null);
+  const [isLoadingConsulta, setIsLoadingConsulta] = useState(false);
 
   // Carregar ruas disponíveis ao montar
   useEffect(() => {
@@ -258,6 +292,70 @@ const Etiquetas = () => {
     navigate(`/etiquetas/identificacao-rua?rua=${selectedRua}`);
   };
 
+  // Handler para leitura do QR Code
+  const handleQRScan = async (data: string) => {
+    setShowQRScanner(false);
+    setIsLoadingConsulta(true);
+    
+    try {
+      // Tentar parsear como JSON (QR da etiqueta de material)
+      let codigo: string | null = null;
+      let endereco: string | null = null;
+
+      try {
+        const parsed = JSON.parse(data);
+        codigo = parsed.cod || parsed.codigo;
+        endereco = parsed.end || parsed.endereco;
+      } catch {
+        // Se não for JSON, tratar como código simples
+        codigo = data;
+      }
+
+      if (!codigo) {
+        toast({
+          title: 'QR inválido',
+          description: 'Não foi possível identificar o código do material',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const result = await consultaMaterial(codigo, endereco || undefined);
+
+      if (!result.success || !result.data) {
+        toast({
+          title: 'Material não encontrado',
+          description: result.error || 'O código não foi encontrado no sistema',
+          variant: 'destructive',
+        });
+        setMaterialConsulta(null);
+        return;
+      }
+
+      setMaterialConsulta(result.data);
+
+      // Se tiver endereço no QR, filtrar automaticamente
+      if (endereco) {
+        const alocPrincipal = result.data.alocacao_principal;
+        setSelectedRuaMaterial(String(alocPrincipal.rua));
+        // Os filtros serão carregados automaticamente pelo useEffect
+      }
+
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao consultar material',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingConsulta(false);
+    }
+  };
+
+  const formatEnderecoFromAlocacao = (aloc: { rua: number; coluna: number; nivel: number; posicao: number }) => {
+    return `R${String(aloc.rua).padStart(2, '0')}.C${String(aloc.coluna).padStart(2, '0')}.N${String(aloc.nivel).padStart(2, '0')}.P${String(aloc.posicao).padStart(2, '0')}`;
+  };
+
   const etiquetas = getEtiquetasData();
 
   // URL para preview do QR
@@ -303,6 +401,107 @@ const Etiquetas = () => {
         <TabsContent value="material" className="flex-1 flex flex-col m-0">
           {!showPreview ? (
             <div className="flex flex-1 flex-col gap-4 p-4">
+              {/* Botão de Consulta via QR */}
+              <Card className="border-primary/30 bg-primary/5">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-foreground">Consultar Material</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Escaneie o QR da etiqueta para ver saldo e alocações
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => setShowQRScanner(true)} 
+                      variant="default"
+                      disabled={isLoadingConsulta}
+                    >
+                      {isLoadingConsulta ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <QrCode className="mr-2 h-4 w-4" />
+                      )}
+                      Ler QR
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Resultado da Consulta de Material */}
+              {materialConsulta && (
+                <Card className="border-2 border-primary/50">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-lg text-foreground">
+                        {materialConsulta.codigo}
+                      </h3>
+                      <Button variant="ghost" size="sm" onClick={() => setMaterialConsulta(null)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {materialConsulta.descricao}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Fabricante:</span>
+                        <p className="font-medium">{materialConsulta.fabricante}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Tipo:</span>
+                        <p className="font-medium">{materialConsulta.tipo_material}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Peso Unit.:</span>
+                        <p className="font-medium">{materialConsulta.peso} kg</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Qtde Total:</span>
+                        <p className="font-bold text-primary">{materialConsulta.quantidade_total}</p>
+                      </div>
+                    </div>
+
+                    {/* Alerta de múltiplas alocações */}
+                    {materialConsulta.total_alocacoes > 1 && (
+                      <div className="flex items-center gap-2 rounded-lg bg-mrx-warning/10 border border-mrx-warning/30 p-3">
+                        <AlertTriangle className="h-5 w-5 text-mrx-warning flex-shrink-0" />
+                        <p className="text-sm font-medium text-mrx-warning">
+                          Atenção: Este item tem saldo em {materialConsulta.total_alocacoes} alocações diferentes!
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Lista de alocações */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">
+                        {materialConsulta.total_alocacoes === 1 ? 'Alocação:' : 'Alocações:'}
+                      </h4>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {materialConsulta.todas_alocacoes.map((aloc) => (
+                          <div 
+                            key={aloc.id}
+                            className={`flex items-center justify-between rounded-lg border p-2 ${
+                              aloc.id === materialConsulta.alocacao_principal.id 
+                                ? 'border-primary bg-primary/10' 
+                                : 'border-border bg-muted/50'
+                            }`}
+                          >
+                            <span className="font-mono text-sm font-medium">
+                              {formatEnderecoFromAlocacao(aloc)}
+                            </span>
+                            <span className={`font-bold ${aloc.quantidade > 0 ? 'text-mrx-success' : 'text-muted-foreground'}`}>
+                              {aloc.quantidade} un
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Filtros por Rua */}
               <Card>
                 <CardContent className="p-4 space-y-4">
@@ -616,6 +815,14 @@ const Etiquetas = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* QR Scanner Modal */}
+      {showQRScanner && (
+        <QRScanner
+          onScan={handleQRScan}
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
     </div>
   );
 };
