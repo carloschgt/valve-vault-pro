@@ -405,36 +405,31 @@ const Inventario = () => {
 
       {/* Content */}
       <div className="flex-1 p-4">
-        {/* Endereços encontrados */}
+        {/* Endereços encontrados - Lista direta clicável */}
         {enderecos.length > 0 && !selectedEndereco && (
-          <div className="space-y-3">
-            <h2 className="font-semibold text-muted-foreground">
-              Selecione o endereço para contagem:
-            </h2>
+          <div className="space-y-2">
             {enderecos.map((endereco) => (
               <button
                 key={endereco.id}
                 onClick={() => handleSelectEndereco(endereco)}
-                className="w-full rounded-xl border border-border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md"
+                className="w-full rounded-xl border-2 border-primary/30 bg-card p-3 text-left transition-all hover:border-primary hover:bg-primary/5 active:scale-[0.99]"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="font-bold text-primary">{endereco.codigo}</p>
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-primary text-lg">{endereco.codigo}</p>
+                      <span className="text-xs text-muted-foreground">•</span>
+                      <span className="text-sm text-muted-foreground truncate">
+                        {endereco.fabricantes?.nome || '-'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground line-clamp-1">
                       {endereco.descricao}
                     </p>
-                    <p className="mt-1 text-sm">
-                      <span className="text-muted-foreground">Fabricante:</span>{' '}
-                      {endereco.fabricantes?.nome || '-'}
-                    </p>
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Peso:</span>{' '}
-                      {endereco.peso} kg
-                    </p>
                   </div>
-                  <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">
+                  <div className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground shrink-0">
+                    <MapPin className="h-4 w-4" />
+                    <span className="text-sm font-bold">
                       {formatEndereco(endereco.rua, endereco.coluna, endereco.nivel, endereco.posicao)}
                     </span>
                   </div>
