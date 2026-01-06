@@ -24,6 +24,7 @@ import ControleInventario from "./pages/ControleInventario";
 import RelatorioInventario from "./pages/RelatorioInventario";
 import AjusteInventario from "./pages/AjusteInventario";
 import EstoqueRua from "./pages/EstoqueRua";
+import IdentificacaoRuaPrint from "./pages/IdentificacaoRuaPrint";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/etiquetas/print" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><EtiquetaPrint /></ProtectedRoute>} />
+            <Route path="/etiquetas/identificacao-rua" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><IdentificacaoRuaPrint /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/enderecamento" element={<ProtectedRoute><Enderecamento /></ProtectedRoute>} />
             <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
