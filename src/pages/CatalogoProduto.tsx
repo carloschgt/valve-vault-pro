@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { updateCatalogo, listFabricantes } from '@/hooks/useDataOperations';
+import { getCatalogoDescricao, updateCatalogo } from '@/hooks/useDataOperations';
 import { Skeleton } from '@/components/ui/skeleton';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -62,21 +61,20 @@ const CatalogoProduto = () => {
       // Treat code as string to preserve leading zeros
       const codigoTrimmed = searchCodigo.trim();
       
-      const { data, error } = await supabase
-        .from('catalogo_produtos')
-        .select('*')
-        .eq('codigo', codigoTrimmed)
-        .maybeSingle();
+      // Use Edge Function to bypass RLS
+      const result = await getCatalogoDescricao(codigoTrimmed);
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      if (data) {
-        setProduto(data);
-        setEditDescricao(data.descricao || '');
-        setEditPeso(data.peso_kg?.toString() || '');
+      if (result.data) {
+        setProduto(result.data);
+        setEditDescricao(result.data.descricao || '');
+        setEditPeso(result.data.peso_kg?.toString() || '');
         toast({
           title: 'Produto encontrado',
-          description: `${data.codigo} - ${data.descricao}`,
+          description: `${result.data.codigo} - ${result.data.descricao}`,
         });
       } else {
         setNotFound(true);

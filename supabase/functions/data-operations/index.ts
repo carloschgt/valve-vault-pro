@@ -173,9 +173,8 @@ serve(async (req) => {
       const { codigo } = params;
       const { data, error } = await supabase
         .from("catalogo_produtos")
-        .select("descricao, peso_kg")
+        .select("id, codigo, descricao, peso_kg, ativo")
         .eq("codigo", codigo?.trim())
-        .eq("ativo", true)
         .maybeSingle();
       if (error) throw error;
       return new Response(
