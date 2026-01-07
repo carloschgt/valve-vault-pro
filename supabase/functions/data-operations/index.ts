@@ -1202,11 +1202,25 @@ serve(async (req) => {
       
       if (invError) throw invError;
 
-      // Filtrar por busca se fornecida
+      // Filtrar por busca se fornecida (suporta wildcard com *)
       let filteredData = inventarioData || [];
-      if (search) {
-        const safeSearch = sanitizeSearchTerm(search).toLowerCase();
-        if (safeSearch) {
+      if (search && typeof search === 'string' && search.trim()) {
+        const searchTerm = search.trim();
+        const hasWildcard = searchTerm.includes('*');
+        
+        if (hasWildcard) {
+          // Convert * to regex pattern
+          const escaped = searchTerm.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+          const regexPattern = escaped.replace(/\*/g, '.*');
+          const regex = new RegExp(regexPattern, 'i');
+          
+          filteredData = filteredData.filter((inv: any) => 
+            regex.test(inv.enderecos_materiais?.codigo || '') ||
+            regex.test(inv.enderecos_materiais?.descricao || '')
+          );
+        } else {
+          // No wildcard: simple contains search
+          const safeSearch = searchTerm.toLowerCase();
           filteredData = filteredData.filter((inv: any) => 
             inv.enderecos_materiais?.codigo?.toLowerCase().includes(safeSearch) ||
             inv.enderecos_materiais?.descricao?.toLowerCase().includes(safeSearch)
