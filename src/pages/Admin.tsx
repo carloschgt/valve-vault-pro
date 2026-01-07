@@ -599,7 +599,7 @@ const Admin = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por código ou descrição..."
+              placeholder="Buscar... (use * como coringa, ex: 002*)"
               value={searchEnderecos}
               onChange={(e) => setSearchEnderecos(e.target.value)}
               className="pl-10"
@@ -733,7 +733,7 @@ const Admin = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por código ou descrição..."
+              placeholder="Buscar... (use * como coringa, ex: 002*)"
               value={searchInventario}
               onChange={(e) => setSearchInventario(e.target.value)}
               className="pl-10"
@@ -810,7 +810,7 @@ const Admin = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por código ou descrição..."
+                placeholder="Buscar... (use * como coringa, ex: 002*)"
                 value={searchCatalogo}
                 onChange={(e) => setSearchCatalogo(e.target.value)}
                 className="pl-10"

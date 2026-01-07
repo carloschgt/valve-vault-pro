@@ -9,7 +9,33 @@ const corsHeaders = {
 };
 
 
-// Sanitize search term to prevent ILIKE pattern injection
+// Convert wildcard pattern to ILIKE pattern and sanitize
+// User can use * as wildcard (converted to %), otherwise defaults to contains search
+function wildcardToILike(input: string, maxLength: number = 100): string {
+  if (!input || typeof input !== 'string') return '%';
+  
+  // Clean control characters and trim
+  const cleaned = input.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, maxLength);
+  if (!cleaned) return '%';
+  
+  // Check if pattern contains wildcards (*)
+  const hasWildcard = cleaned.includes('*');
+  
+  // Escape SQL ILIKE special characters (% and _)
+  let escaped = cleaned.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  
+  if (!hasWildcard) {
+    // No wildcard: default to contains search
+    return `%${escaped}%`;
+  }
+  
+  // Replace * with % for SQL ILIKE
+  escaped = escaped.replace(/\*/g, '%');
+  
+  return escaped;
+}
+
+// Legacy function for backwards compatibility (used where wildcards aren't desired)
 function sanitizeSearchTerm(input: string, maxLength: number = 100): string {
   if (!input || typeof input !== 'string') return '';
   const cleaned = input.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, maxLength);
@@ -122,10 +148,8 @@ serve(async (req) => {
         .order("codigo");
       
       if (search) {
-        const safeSearch = sanitizeSearchTerm(search);
-        if (safeSearch) {
-          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
-        }
+        const pattern = wildcardToILike(search);
+        query = query.or(`codigo.ilike.${pattern},descricao.ilike.${pattern}`);
       }
       
       const { data, error } = await query.limit(limit);
@@ -172,10 +196,8 @@ serve(async (req) => {
         .order("created_at", { ascending: false });
       
       if (search) {
-        const safeSearch = sanitizeSearchTerm(search);
-        if (safeSearch) {
-          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
-        }
+        const pattern = wildcardToILike(search);
+        query = query.or(`codigo.ilike.${pattern},descricao.ilike.${pattern}`);
       }
       
       const { data, error } = await query.limit(limit);
@@ -234,11 +256,40 @@ serve(async (req) => {
       if (error) throw error;
       
       let result = data || [];
-      if (search) {
-        result = result.filter((i: any) => 
-          i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
-          i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
-        );
+      if (search && search.trim()) {
+        // Convert wildcard pattern to regex for local filtering
+        const pattern = search.trim();
+        const hasWildcard = pattern.includes('*');
+        
+        if (hasWildcard) {
+          // Convert * to .* and create regex
+          const regexPattern = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+          const startsWithWildcard = pattern.startsWith('*');
+          const endsWithWildcard = pattern.endsWith('*');
+          let finalPattern = regexPattern;
+          if (!startsWithWildcard) finalPattern = '^' + finalPattern;
+          if (!endsWithWildcard) finalPattern = finalPattern + '$';
+          
+          try {
+            const regex = new RegExp(finalPattern, 'i');
+            result = result.filter((i: any) => 
+              regex.test(i.enderecos_materiais?.codigo || '') ||
+              regex.test(i.enderecos_materiais?.descricao || '')
+            );
+          } catch {
+            // Fallback to includes search
+            result = result.filter((i: any) => 
+              i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
+              i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
+            );
+          }
+        } else {
+          // No wildcard: default to contains search
+          result = result.filter((i: any) => 
+            i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
+            i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
+          );
+        }
       }
       
       return new Response(
@@ -1442,10 +1493,8 @@ serve(async (req) => {
         .order("created_at", { ascending: false });
       
       if (search) {
-        const safeSearch = sanitizeSearchTerm(search);
-        if (safeSearch) {
-          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
-        }
+        const pattern = wildcardToILike(search);
+        query = query.or(`codigo.ilike.${pattern},descricao.ilike.${pattern}`);
       }
       
       const { data, error } = await query.limit(limit);
@@ -1474,11 +1523,37 @@ serve(async (req) => {
       if (error) throw error;
       
       let result = data || [];
-      if (search) {
-        result = result.filter((i: any) => 
-          i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
-          i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
-        );
+      if (search && search.trim()) {
+        // Convert wildcard pattern to regex for local filtering
+        const pattern = search.trim();
+        const hasWildcard = pattern.includes('*');
+        
+        if (hasWildcard) {
+          const regexPattern = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+          const startsWithWildcard = pattern.startsWith('*');
+          const endsWithWildcard = pattern.endsWith('*');
+          let finalPattern = regexPattern;
+          if (!startsWithWildcard) finalPattern = '^' + finalPattern;
+          if (!endsWithWildcard) finalPattern = finalPattern + '$';
+          
+          try {
+            const regex = new RegExp(finalPattern, 'i');
+            result = result.filter((i: any) => 
+              regex.test(i.enderecos_materiais?.codigo || '') ||
+              regex.test(i.enderecos_materiais?.descricao || '')
+            );
+          } catch {
+            result = result.filter((i: any) => 
+              i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
+              i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
+            );
+          }
+        } else {
+          result = result.filter((i: any) => 
+            i.enderecos_materiais?.codigo?.toLowerCase().includes(search.toLowerCase()) ||
+            i.enderecos_materiais?.descricao?.toLowerCase().includes(search.toLowerCase())
+          );
+        }
       }
       
       return new Response(
@@ -1502,10 +1577,8 @@ serve(async (req) => {
         .order("codigo");
       
       if (search) {
-        const safeSearch = sanitizeSearchTerm(search);
-        if (safeSearch) {
-          query = query.or(`codigo.ilike.%${safeSearch}%,descricao.ilike.%${safeSearch}%`);
-        }
+        const pattern = wildcardToILike(search);
+        query = query.or(`codigo.ilike.${pattern},descricao.ilike.${pattern}`);
       }
       
       const { data, error } = await query.limit(limit);

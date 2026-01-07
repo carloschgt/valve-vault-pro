@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 import * as XLSX from 'xlsx';
+import { matchesAnyWildcard } from '@/lib/wildcardSearch';
 
 interface InventarioReportItem {
   endereco_material_id: string;
@@ -179,11 +180,10 @@ const RelatorioInventario = () => {
   };
 
   const filteredData = reportData.filter((item) => {
-    const matchesSearch =
-      !searchTerm ||
-      item.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.endereco_formatado.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = matchesAnyWildcard(
+      [item.codigo, item.descricao, item.endereco_formatado],
+      searchTerm
+    );
 
     const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
 
@@ -311,7 +311,7 @@ const RelatorioInventario = () => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por código, descrição ou endereço..."
+            placeholder="Buscar... (use * como coringa, ex: 002*)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
