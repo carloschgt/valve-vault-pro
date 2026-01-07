@@ -170,11 +170,11 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
         {/* Info - Código em destaque */}
         <div className="flex flex-1 flex-col justify-between py-1">
           {/* Código - Grande e em destaque */}
-          <div className="rounded-lg bg-gray-100 px-3 py-2">
-            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-600">
+          <div className="rounded-lg bg-gray-100 px-3 py-1">
+            <label className="text-[9px] font-bold uppercase tracking-wide text-gray-600">
               Código
             </label>
-            <p className="text-2xl font-black tracking-wide text-gray-900 print:text-xl">{data.codigo}</p>
+            <p className="text-4xl font-black tracking-wider text-gray-900 print:text-3xl">{data.codigo}</p>
           </div>
           
           {/* Descrição */}
