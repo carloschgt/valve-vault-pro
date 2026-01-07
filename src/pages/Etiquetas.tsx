@@ -883,7 +883,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             <label className="text-[8px] font-bold uppercase text-gray-500">
               Código
             </label>
-            <p className="text-3xl font-black tracking-wider text-gray-900">{data.codigo}</p>
+            <p className="text-4xl font-black tracking-wider text-gray-900">{data.codigo}</p>
           </div>
           
           <div>
