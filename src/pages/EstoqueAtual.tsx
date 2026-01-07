@@ -80,12 +80,40 @@ const EstoqueAtual = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [scannedMaterial, setScannedMaterial] = useState<MaterialDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [bloqueadoParaUsuarios, setBloqueadoParaUsuarios] = useState(false);
+  const [isCheckingConfig, setIsCheckingConfig] = useState(true);
+
+  // Check inventory config for stock view block
+  useEffect(() => {
+    const checkConfig = async () => {
+      setIsCheckingConfig(true);
+      try {
+        const sessionToken = getSessionToken();
+        if (!sessionToken) return;
+
+        const { data, error } = await supabase.functions.invoke('data-operations', {
+          body: { action: 'inventario_config_get', sessionToken },
+        });
+
+        if (!error && data?.success && data?.data) {
+          setBloqueadoParaUsuarios(data.data.bloquear_visualizacao_estoque || false);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar configuração:', error);
+      } finally {
+        setIsCheckingConfig(false);
+      }
+    };
+    checkConfig();
+  }, []);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && !isCheckingConfig) {
+      loadEstoque();
+    } else if (!isAdmin && !isCheckingConfig && !bloqueadoParaUsuarios) {
       loadEstoque();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isCheckingConfig, bloqueadoParaUsuarios]);
 
   const loadEstoque = async () => {
     setIsLoading(true);
@@ -201,16 +229,39 @@ const EstoqueAtual = () => {
 
   // Recarregar quando busca mudar (com debounce)
   useEffect(() => {
-    if (!isAdmin) return;
+    if (isCheckingConfig) return;
+    if (!isAdmin && bloqueadoParaUsuarios) return;
     
     const timer = setTimeout(() => {
       loadEstoque();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, isAdmin]);
+  }, [search, isAdmin, isCheckingConfig, bloqueadoParaUsuarios]);
 
-  if (!isAdmin) {
+  // Show loading while checking config
+  if (isCheckingConfig) {
+    return (
+      <div className="flex h-screen flex-col bg-background">
+        <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 shrink-0">
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg p-1.5 hover:bg-accent"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <img src={logoImex} alt="IMEX Solutions" className="h-6" />
+          <h1 className="text-base font-bold">Estoque Atual</h1>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show blocked message for non-admin users when inventory is in progress
+  if (!isAdmin && bloqueadoParaUsuarios) {
     return (
       <div className="flex h-screen flex-col bg-background">
         {/* Header */}
@@ -225,14 +276,14 @@ const EstoqueAtual = () => {
           <h1 className="text-base font-bold">Estoque Atual</h1>
         </div>
 
-        {/* Em desenvolvimento */}
+        {/* Inventory in progress message */}
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <div className="rounded-full bg-amber-500/20 p-6 mb-4">
             <Package className="h-12 w-12 text-amber-600" />
           </div>
-          <h2 className="text-xl font-bold text-foreground mb-2">Em Desenvolvimento</h2>
+          <h2 className="text-xl font-bold text-foreground mb-2">Inventário em Andamento</h2>
           <p className="text-muted-foreground max-w-sm">
-            Esta funcionalidade estará disponível em breve para todos os usuários.
+            Está sendo realizado um inventário oficial. Os dados de estoque não podem ser visualizados até que o resultado oficial seja ajustado e publicado.
           </p>
         </div>
       </div>

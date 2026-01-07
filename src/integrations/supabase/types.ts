@@ -215,18 +215,21 @@ export type Database = {
       }
       inventario_config: {
         Row: {
+          bloquear_visualizacao_estoque: boolean
           contagem_ativa: number
           id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          bloquear_visualizacao_estoque?: boolean
           contagem_ativa?: number
           id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          bloquear_visualizacao_estoque?: boolean
           contagem_ativa?: number
           id?: string
           updated_at?: string
