@@ -182,7 +182,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             <label className="text-[8px] font-semibold uppercase text-gray-500">
               Descrição
             </label>
-            <p className="text-base font-semibold leading-snug text-gray-800 print:text-sm" style={{ wordBreak: 'break-word' }}>
+            <p className="text-lg font-bold leading-tight text-gray-800 print:text-base" style={{ wordBreak: 'break-word' }}>
               {data.descricao}
             </p>
           </div>
