@@ -146,8 +146,8 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
         <div className="text-center">
           <span className="text-[9px] font-medium text-gray-600">F03/01 - 8.5.2-01</span>
         </div>
-        <div className="rounded-md bg-gray-900 px-3 py-1">
-          <div className="text-xl font-black text-white print:text-lg">{data.endereco}</div>
+        <div className="rounded-md bg-gray-900 px-4 py-2">
+          <div className="text-3xl font-black text-white print:text-2xl">{data.endereco}</div>
         </div>
       </div>
 
