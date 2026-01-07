@@ -11,6 +11,7 @@ import { insertCatalogo, deleteCatalogo, upsertCatalogo, updateCatalogo } from '
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
+import { wildcardToILike } from '@/lib/wildcardSearch';
 import {
   Dialog,
   DialogContent,
@@ -64,12 +65,15 @@ const Catalogo = () => {
       const trimmedSearch = searchTerm.trim();
       
       if (trimmedSearch) {
-        // Busca com filtro
+        // Convert wildcard pattern to ILIKE pattern
+        const iLikePattern = wildcardToILike(trimmedSearch);
+        
+        // Busca com filtro usando pattern do wildcard
         const { data, error } = await supabase
           .from('catalogo_produtos')
           .select('*')
           .eq('ativo', true)
-          .or(`codigo.ilike.%${trimmedSearch}%,descricao.ilike.%${trimmedSearch}%`)
+          .or(`codigo.ilike.${iLikePattern},descricao.ilike.${iLikePattern}`)
           .order('codigo')
           .limit(500);
         
@@ -485,7 +489,7 @@ const Catalogo = () => {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por código ou descrição..."
+              placeholder="Buscar... (use * como coringa, ex: 002* ou *ABC*)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"

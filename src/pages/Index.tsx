@@ -9,6 +9,7 @@ import { useMateriais } from '@/hooks/useMateriais';
 import type { Material, CategoriaType } from '@/types/material';
 import { CATEGORIAS } from '@/types/material';
 import { cn } from '@/lib/utils';
+import { matchesAnyWildcard } from '@/lib/wildcardSearch';
 
 const Index = () => {
   const { materiais, addMaterial, updateMaterial, deleteMaterial, addMovimentacao, isLoading } = useMateriais();
@@ -18,10 +19,10 @@ const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState<CategoriaType | 'all'>('all');
 
   const filteredMateriais = materiais.filter((m) => {
-    const matchesSearch =
-      m.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.localizacao.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = matchesAnyWildcard(
+      [m.codigo, m.descricao, m.localizacao],
+      searchTerm
+    );
     const matchesCategory = selectedCategory === 'all' || m.categoria === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -66,7 +67,7 @@ const Index = () => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por código, descrição ou local..."
+            placeholder="Buscar... (use * como coringa, ex: 002* ou *ABC*)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"

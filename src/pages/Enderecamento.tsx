@@ -439,7 +439,7 @@ const Enderecamento = () => {
             </Label>
             <div className="flex gap-1.5">
               <Input
-                placeholder="Buscar por código ou descrição..."
+                placeholder="Buscar... (use * como coringa, ex: 002*)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearchEnderecos()}
