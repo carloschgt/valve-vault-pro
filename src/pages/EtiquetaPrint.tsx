@@ -141,10 +141,10 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       }}
     >
       {/* Header with Logo, Procedure and Address */}
-      <div className="mb-2 flex items-center justify-between border-b-2 border-gray-400 pb-2">
-        <img src={logoImex} alt="IMEX" className="h-8 print:h-7" />
+      <div className="mb-1 flex items-center justify-between border-b-2 border-gray-400 pb-1">
+        <img src={logoImex} alt="IMEX" className="h-7 print:h-6" />
         <div className="text-center">
-          <span className="text-[9px] font-medium text-gray-600">F03/01 - 8.5.2-01</span>
+          <span className="text-[8px] font-medium text-gray-600">F03/02 - 8.5.2-01</span>
         </div>
         <div className="rounded-md bg-gray-900 px-4 py-2">
           <div className="text-3xl font-black text-white print:text-2xl">{data.endereco}</div>
@@ -152,64 +152,64 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       </div>
 
       {/* Main Content - Código em destaque */}
-      <div className="flex flex-1 gap-4">
-        {/* QR Code - Maior e em destaque */}
+      <div className="flex flex-1 gap-3">
+        {/* QR Code */}
         <div className="flex flex-col items-center justify-center">
-          <div className="rounded-md border-2 border-gray-800 bg-white p-2">
+          <div className="rounded-md border-2 border-gray-800 bg-white p-1.5">
             <QRCodeSVG
               value={qrData}
-              size={90}
+              size={80}
               level="M"
               bgColor="#ffffff"
               fgColor="#000000"
             />
           </div>
-          <span className="mt-1.5 text-[9px] font-medium text-gray-600">Escaneie para info</span>
+          <span className="mt-1 text-[8px] font-medium text-gray-600">Escaneie para info</span>
         </div>
 
-        {/* Info - Código em destaque */}
-        <div className="flex flex-1 flex-col justify-between py-1">
-          {/* Código - Grande e em destaque */}
-          <div className="rounded-lg bg-gray-100 px-3 py-1">
-            <label className="text-[9px] font-bold uppercase tracking-wide text-gray-600">
+        {/* Info - Código em destaque máximo */}
+        <div className="flex flex-1 flex-col justify-between">
+          {/* Código - Extra grande */}
+          <div className="rounded-lg bg-gray-100 px-3 py-0.5">
+            <label className="text-[8px] font-bold uppercase tracking-wide text-gray-600">
               Código
             </label>
-            <p className="text-5xl font-black tracking-wider text-gray-900 print:text-5xl">{data.codigo}</p>
+            <p className="text-6xl font-black tracking-wider text-gray-900 print:text-6xl leading-none">{data.codigo}</p>
           </div>
           
-          {/* Descrição */}
-          <div className="mt-1">
-            <label className="text-[9px] font-semibold uppercase text-gray-500">
+          {/* Descrição - Maximizada */}
+          <div className="mt-0.5 flex-1">
+            <label className="text-[8px] font-semibold uppercase text-gray-500">
               Descrição
             </label>
-            <p className="text-sm font-semibold leading-tight text-gray-800 line-clamp-2 print:text-xs">
+            <p className="text-base font-semibold leading-snug text-gray-800 print:text-sm" style={{ wordBreak: 'break-word' }}>
               {data.descricao}
             </p>
           </div>
 
-          {/* Detalhes em linha */}
-          <div className="mt-1 flex gap-4">
+          {/* Detalhes em linha - Compacto */}
+          <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-[9px] font-semibold uppercase text-gray-500">
+              <label className="text-[8px] font-semibold uppercase text-gray-500">
                 Fabricante
               </label>
-              <p className="text-sm font-bold text-gray-800 print:text-xs">
+              <p className="text-xs font-bold text-gray-800 print:text-xs">
                 {data.fabricante}
               </p>
             </div>
             <div className="flex-1">
-              <label className="text-[9px] font-semibold uppercase text-gray-500">
+              <label className="text-[8px] font-semibold uppercase text-gray-500">
                 Tipo
               </label>
-              <p className="text-sm font-bold text-gray-800 print:text-xs">
+              <p className="text-xs font-bold text-gray-800 print:text-xs">
                 {data.tipoMaterial}
               </p>
             </div>
             <div className="flex-1">
-              <label className="text-[9px] font-semibold uppercase text-gray-500">
+              <label className="text-[8px] font-semibold uppercase text-gray-500">
                 Peso Unit.
               </label>
-              <p className="text-sm font-bold text-gray-800 print:text-xs">
+              <p className="text-xs font-bold text-gray-800 print:text-xs">
                 {data.peso} kg
               </p>
             </div>
