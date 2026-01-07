@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, RefreshCw, MapPin, Package, Clock } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, MapPin, Package, Clock, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listEnderecos, listInventario } from '@/hooks/useDataOperations';
+import { listEnderecos, listInventario, getInventarioConfig } from '@/hooks/useDataOperations';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -55,6 +55,29 @@ const Dashboard = () => {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [bloqueadoParaUsuarios, setBloqueadoParaUsuarios] = useState(false);
+  const [isCheckingConfig, setIsCheckingConfig] = useState(true);
+
+  // Verificar configuração de bloqueio
+  useEffect(() => {
+    const checkConfig = async () => {
+      if (isAdmin) {
+        setIsCheckingConfig(false);
+        return;
+      }
+      try {
+        const result = await getInventarioConfig();
+        if (result.success && result.data) {
+          setBloqueadoParaUsuarios(result.data.bloquear_visualizacao_estoque === true);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar config:', error);
+      } finally {
+        setIsCheckingConfig(false);
+      }
+    };
+    checkConfig();
+  }, [isAdmin]);
 
   // Carregar dados
   const loadData = useCallback(async (showToast = false) => {
@@ -62,7 +85,8 @@ const Dashboard = () => {
     try {
       const [enderecosRes, inventarioRes] = await Promise.all([
         listEnderecos(undefined, 100),
-        listInventario(undefined, 100),
+        // Só carrega inventário se não estiver bloqueado ou se for admin
+        (isAdmin || !bloqueadoParaUsuarios) ? listInventario(undefined, 100) : Promise.resolve({ success: true, data: [] }),
       ]);
 
       if (enderecosRes.success && enderecosRes.data) {
@@ -92,12 +116,14 @@ const Dashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, isAdmin, bloqueadoParaUsuarios]);
 
   // Initial load
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!isCheckingConfig) {
+      loadData();
+    }
+  }, [loadData, isCheckingConfig]);
 
   // Auto-refresh
   useEffect(() => {
@@ -278,46 +304,63 @@ const Dashboard = () => {
 
         {/* Inventário */}
         <TabsContent value="inventario" className="flex-1 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{inventario.length} registros</p>
-            {isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => exportToCSV('inventario')}>
-                <Download className="mr-2 h-4 w-4" />
-                Exportar Excel
-              </Button>
-            )}
-          </div>
-          
-          <div className="space-y-3">
-            {inventario.map((i) => (
-              <div 
-                key={i.id} 
-                className="rounded-xl border border-border bg-card p-4 transition-all"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="font-bold text-primary">{i.enderecos_materiais.codigo}</p>
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-1">
-                      {i.enderecos_materiais.descricao}
-                    </p>
-                    <div className="mt-1 flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {formatEndereco(i.enderecos_materiais.rua, i.enderecos_materiais.coluna, i.enderecos_materiais.nivel, i.enderecos_materiais.posicao)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="rounded-lg bg-green-500/10 px-3 py-1">
-                      <span className="text-xl font-bold text-green-600">{i.quantidade}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">Por: {i.contado_por}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(i.updated_at)}</p>
-                  </div>
-                </div>
+          {!isAdmin && bloqueadoParaUsuarios ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="rounded-full bg-amber-500/10 p-6 mb-4">
+                <AlertTriangle className="h-12 w-12 text-amber-500" />
               </div>
-            ))}
-          </div>
+              <h2 className="text-xl font-bold text-foreground mb-2">Inventário em Andamento</h2>
+              <p className="text-muted-foreground max-w-sm">
+                Os dados de inventário estão temporariamente indisponíveis enquanto o inventário oficial está sendo realizado.
+              </p>
+              <p className="text-sm text-muted-foreground mt-4">
+                A aba de Endereçamentos continua disponível para consulta.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">{inventario.length} registros</p>
+                {isAdmin && (
+                  <Button variant="outline" size="sm" onClick={() => exportToCSV('inventario')}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar Excel
+                  </Button>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                {inventario.map((i) => (
+                  <div 
+                    key={i.id} 
+                    className="rounded-xl border border-border bg-card p-4 transition-all"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-bold text-primary">{i.enderecos_materiais.codigo}</p>
+                        <p className="mt-1 text-sm text-muted-foreground line-clamp-1">
+                          {i.enderecos_materiais.descricao}
+                        </p>
+                        <div className="mt-1 flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            {formatEndereco(i.enderecos_materiais.rua, i.enderecos_materiais.coluna, i.enderecos_materiais.nivel, i.enderecos_materiais.posicao)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="rounded-lg bg-green-500/10 px-3 py-1">
+                          <span className="text-xl font-bold text-green-600">{i.quantidade}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">Por: {i.contado_por}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(i.updated_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>
