@@ -1,34 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// CORS configuration with origin validation
-const ALLOWED_ORIGINS = [
-  'https://bdetejjahokasedpghlp.lovableproject.com',
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000',
-];
+// CORS configuration - allow all origins for mobile compatibility
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
 
-const LOVABLE_PATTERN = /^https:\/\/[a-z0-9-]+\.lovable\.app$/;
-const LOVABLE_PROJECT_PATTERN = /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/;
-
-function isAllowedOrigin(origin: string | null): boolean {
-  if (!origin) return false;
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  if (LOVABLE_PATTERN.test(origin)) return true;
-  if (LOVABLE_PROJECT_PATTERN.test(origin)) return true;
-  return false;
-}
-
-function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0];
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin || ALLOWED_ORIGINS[0],
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  };
-}
 
 // Sanitize search term to prevent ILIKE pattern injection
 function sanitizeSearchTerm(input: string, maxLength: number = 100): string {
@@ -93,20 +72,8 @@ async function verifySession(supabase: any, sessionToken: string): Promise<{
 }
 
 serve(async (req) => {
-  const origin = req.headers.get('origin');
-  const corsHeaders = getCorsHeaders(origin);
-
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  }
-
-  // Validate origin
-  if (!isAllowedOrigin(origin)) {
-    console.warn(`Rejected request from unauthorized origin: ${origin}`);
-    return new Response(
-      JSON.stringify({ success: false, error: "Origin not allowed" }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   }
 
   try {
