@@ -121,6 +121,10 @@ export async function deleteFabricante(id: string): Promise<DataOperationResult>
   return invokeDataOperation('fabricantes_delete', { id });
 }
 
+export async function updateFabricante(id: string, nome: string, codigo: string): Promise<DataOperationResult> {
+  return invokeDataOperation('fabricantes_update', { id, nome, codigo });
+}
+
 // ========== CATALOGO ==========
 export async function insertCatalogo(codigo: string, descricao: string, peso_kg?: number): Promise<DataOperationResult> {
   return invokeDataOperation('catalogo_insert', { codigo, descricao, peso_kg });

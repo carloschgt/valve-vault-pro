@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Trash2, Pencil } from 'lucide-react';
 import { InputUppercase } from '@/components/ui/input-uppercase';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listFabricantes, insertFabricante, deleteFabricante } from '@/hooks/useDataOperations';
+import { listFabricantes, insertFabricante, deleteFabricante, updateFabricante } from '@/hooks/useDataOperations';
 import logoImex from '@/assets/logo-imex.png';
 
 interface Fabricante {
@@ -39,6 +46,13 @@ const Fabricantes = () => {
 
   const [nome, setNome] = useState('');
   const [codigo, setCodigo] = useState('');
+
+  // Estado para edição
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingFabricante, setEditingFabricante] = useState<Fabricante | null>(null);
+  const [editNome, setEditNome] = useState('');
+  const [editCodigo, setEditCodigo] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const loadFabricantes = async () => {
     setIsLoading(true);
@@ -120,6 +134,62 @@ const Fabricantes = () => {
     }
   };
 
+  const handleOpenEdit = (fab: Fabricante) => {
+    setEditingFabricante(fab);
+    setEditNome(fab.nome);
+    setEditCodigo(fab.codigo);
+    setEditDialogOpen(true);
+  };
+
+  const handleCloseEdit = () => {
+    setEditDialogOpen(false);
+    setEditingFabricante(null);
+    setEditNome('');
+    setEditCodigo('');
+  };
+
+  const handleSalvarEdicao = async () => {
+    if (!editingFabricante) return;
+
+    if (!editNome.trim() || !editCodigo.trim()) {
+      toast({
+        title: 'Atenção',
+        description: 'Preencha o nome e código do fabricante',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const result = await updateFabricante(
+        editingFabricante.id,
+        editNome.trim(),
+        editCodigo.trim().toUpperCase()
+      );
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: 'Fabricante atualizado com sucesso!',
+      });
+
+      handleCloseEdit();
+      loadFabricantes();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao atualizar fabricante',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
@@ -193,36 +263,84 @@ const Fabricantes = () => {
                     Código: {fab.codigo}
                   </p>
                 </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Excluir fabricante?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Deseja realmente excluir o fabricante "{fab.nome}"? Esta ação não pode ser desfeita.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleExcluir(fab.id)}>
-                        Excluir
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleOpenEdit(fab)}
+                    className="text-primary hover:bg-primary/10 hover:text-primary"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir fabricante?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Deseja realmente excluir o fabricante "{fab.nome}"? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleExcluir(fab.id)}>
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Dialog de Edição */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Fabricante</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-codigo">Código</Label>
+              <InputUppercase
+                id="edit-codigo"
+                value={editCodigo}
+                onChange={(e) => setEditCodigo(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-nome">Nome</Label>
+              <InputUppercase
+                id="edit-nome"
+                value={editNome}
+                onChange={(e) => setEditNome(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseEdit}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSalvarEdicao} disabled={isUpdating}>
+              {isUpdating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
