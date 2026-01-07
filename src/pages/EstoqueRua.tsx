@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, QrCode, Package, Loader2, MapPin } from 'lucide-react';
+import { ArrowLeft, QrCode, Package, Loader2, MapPin, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import logoImex from '@/assets/logo-imex.png';
 import { supabase } from '@/integrations/supabase/client';
 import { QRScanner } from '@/components/QRScanner';
+import { getInventarioConfig } from '@/hooks/useDataOperations';
 
 const AUTH_KEY = 'imex_auth_user';
 
@@ -41,12 +42,36 @@ const EstoqueRua = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const isAdmin = user?.tipo === 'admin';
 
   const [rua, setRua] = useState('');
   const [ruaSelecionada, setRuaSelecionada] = useState<number | null>(null);
   const [materiais, setMateriais] = useState<MaterialRua[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [bloqueadoParaUsuarios, setBloqueadoParaUsuarios] = useState(false);
+  const [isCheckingConfig, setIsCheckingConfig] = useState(true);
+
+  // Verificar configuração de bloqueio
+  useEffect(() => {
+    const checkConfig = async () => {
+      if (isAdmin) {
+        setIsCheckingConfig(false);
+        return;
+      }
+      try {
+        const result = await getInventarioConfig();
+        if (result.success && result.data) {
+          setBloqueadoParaUsuarios(result.data.bloquear_visualizacao_estoque === true);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar config:', error);
+      } finally {
+        setIsCheckingConfig(false);
+      }
+    };
+    checkConfig();
+  }, [isAdmin]);
 
   const buscarMateriaisRua = async (ruaNum: number) => {
     setIsLoading(true);
@@ -156,6 +181,60 @@ const EstoqueRua = () => {
   const formatEndereco = (coluna: number, nivel: number, posicao: number) => {
     return `${String(coluna).padStart(2, '0')}.${String(nivel).padStart(2, '0')}.${String(posicao).padStart(2, '0')}`;
   };
+
+  // Show loading while checking config
+  if (isCheckingConfig) {
+    return (
+      <div className="flex h-screen flex-col bg-background">
+        <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 shrink-0">
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg p-1.5 hover:bg-accent"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <img src={logoImex} alt="IMEX Solutions" className="h-6" />
+          <h1 className="text-base font-bold">Consulta por Rua</h1>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  // Bloqueio para usuários comuns durante inventário
+  if (!isAdmin && bloqueadoParaUsuarios) {
+    return (
+      <div className="flex h-screen flex-col bg-background">
+        <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 shrink-0">
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg p-1.5 hover:bg-accent"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <img src={logoImex} alt="IMEX Solutions" className="h-6" />
+          <h1 className="text-base font-bold">Consulta por Rua</h1>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div className="rounded-full bg-amber-500/10 p-6 mb-4">
+            <AlertTriangle className="h-12 w-12 text-amber-500" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Inventário em Andamento</h2>
+          <p className="text-muted-foreground max-w-sm">
+            Os dados de estoque estão temporariamente indisponíveis enquanto o inventário oficial está sendo realizado.
+          </p>
+          <p className="text-sm text-muted-foreground mt-4">
+            Aguarde a conclusão do inventário para acessar as informações.
+          </p>
+          <Button onClick={() => navigate('/')} className="mt-6">
+            Voltar ao Menu
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading while auth is loading
   if (authLoading) {
