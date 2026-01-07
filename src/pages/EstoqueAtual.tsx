@@ -129,7 +129,7 @@ const EstoqueAtual = () => {
       }
 
       const { data, error } = await supabase.functions.invoke('data-operations', {
-        body: { action: 'estoque_atual', sessionToken, search },
+        body: { action: 'estoque_atual', sessionToken, search, _t: Date.now() },
       });
 
       if (error) throw error;
