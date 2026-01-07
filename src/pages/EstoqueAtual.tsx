@@ -446,15 +446,15 @@ const EstoqueAtual = () => {
               <table className="w-full text-xs">
                 <thead>
                   <tr>
-                    <th className="px-2 py-2 text-left font-semibold bg-card min-w-[80px]">Código</th>
-                    <th className="px-2 py-2 text-left font-semibold bg-card min-w-[120px]">Descrição</th>
-                    <th className="px-2 py-2 text-left font-semibold bg-card min-w-[60px]">Tipo</th>
-                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Rua</th>
-                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Col</th>
-                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Nív</th>
-                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Pos</th>
-                    <th className="px-1 py-2 text-center font-semibold bg-card min-w-[40px]">Qtd</th>
-                    <th className="px-2 py-2 text-center font-semibold bg-primary/10 min-w-[50px]">Total</th>
+                    <th className="px-1.5 py-2 text-left font-semibold bg-card w-[52px] min-w-[52px]">Código</th>
+                    <th className="px-1.5 py-2 text-left font-semibold bg-card">Descrição</th>
+                    <th className="px-1 py-2 text-left font-semibold bg-card w-[45px] min-w-[45px]">Tipo</th>
+                    <th className="px-0.5 py-2 text-center font-semibold bg-card w-[28px] min-w-[28px]">R</th>
+                    <th className="px-0.5 py-2 text-center font-semibold bg-card w-[28px] min-w-[28px]">C</th>
+                    <th className="px-0.5 py-2 text-center font-semibold bg-card w-[28px] min-w-[28px]">N</th>
+                    <th className="px-0.5 py-2 text-center font-semibold bg-card w-[28px] min-w-[28px]">P</th>
+                    <th className="px-0.5 py-2 text-center font-semibold bg-card w-[32px] min-w-[32px]">Qtd</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-primary/10 w-[38px] min-w-[38px]">Total</th>
                   </tr>
                 </thead>
               </table>
@@ -472,34 +472,33 @@ const EstoqueAtual = () => {
                         {endIdx === 0 ? (
                           <>
                             <td 
-                              className="px-2 py-1.5 font-medium text-foreground align-top min-w-[80px]"
+                              className="px-1.5 py-1.5 font-medium text-foreground align-top w-[52px] min-w-[52px]"
                               rowSpan={item.enderecos.length}
                             >
                               {item.codigo}
                             </td>
                             <td 
-                              className="px-2 py-1.5 text-muted-foreground align-top min-w-[120px] max-w-[120px] truncate"
+                              className="px-1.5 py-1.5 text-muted-foreground align-top break-words"
                               rowSpan={item.enderecos.length}
-                              title={item.descricao}
                             >
                               {item.descricao}
                             </td>
                             <td 
-                              className="px-2 py-1.5 text-muted-foreground align-top min-w-[60px]"
+                              className="px-1 py-1.5 text-muted-foreground align-top w-[45px] min-w-[45px]"
                               rowSpan={item.enderecos.length}
                             >
                               {item.tipo_material}
                             </td>
                           </>
                         ) : null}
-                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.rua).padStart(2, '0')}</td>
-                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.coluna).padStart(2, '0')}</td>
-                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.nivel).padStart(2, '0')}</td>
-                        <td className="px-1 py-1.5 text-center min-w-[40px]">{String(end.posicao).padStart(2, '0')}</td>
-                        <td className="px-1 py-1.5 text-center font-medium min-w-[40px]">{end.quantidade}</td>
+                        <td className="px-0.5 py-1.5 text-center w-[28px] min-w-[28px]">{String(end.rua).padStart(2, '0')}</td>
+                        <td className="px-0.5 py-1.5 text-center w-[28px] min-w-[28px]">{String(end.coluna).padStart(2, '0')}</td>
+                        <td className="px-0.5 py-1.5 text-center w-[28px] min-w-[28px]">{String(end.nivel).padStart(2, '0')}</td>
+                        <td className="px-0.5 py-1.5 text-center w-[28px] min-w-[28px]">{String(end.posicao).padStart(2, '0')}</td>
+                        <td className="px-0.5 py-1.5 text-center font-medium w-[32px] min-w-[32px]">{end.quantidade}</td>
                         {endIdx === 0 ? (
                           <td 
-                            className="px-2 py-1.5 text-center font-bold text-primary bg-primary/5 align-top min-w-[50px]"
+                            className="px-1 py-1.5 text-center font-bold text-primary bg-primary/5 align-top w-[38px] min-w-[38px]"
                             rowSpan={item.enderecos.length}
                           >
                             {item.qtd_total}
