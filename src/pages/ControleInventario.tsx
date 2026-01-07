@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Settings, Loader2, Save, AlertTriangle, CheckCircle, 
-  Plus, Trash2, FileSpreadsheet, Printer, Filter, ChevronDown, ChevronUp 
+  Plus, Trash2, FileSpreadsheet, Printer, Filter, ChevronDown, ChevronUp, Eye, EyeOff 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -86,6 +86,7 @@ const ControleInventario = () => {
   
   // Global config
   const [contagemAtiva, setContagemAtiva] = useState<number>(1);
+  const [bloquearVisualizacaoEstoque, setBloquearVisualizacaoEstoque] = useState<boolean>(false);
   const [lastUpdatedBy, setLastUpdatedBy] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   
@@ -141,6 +142,7 @@ const ControleInventario = () => {
       
       if (configResult.success && configResult.data) {
         setContagemAtiva(configResult.data.contagem_ativa || 1);
+        setBloquearVisualizacaoEstoque(configResult.data.bloquear_visualizacao_estoque || false);
         setLastUpdatedBy(configResult.data.updated_by);
         setLastUpdatedAt(configResult.data.updated_at);
       }
@@ -622,6 +624,54 @@ const ControleInventario = () => {
                       </div>
                     ))}
                   </RadioGroup>
+
+                  {/* Bloqueio de visualização de estoque */}
+                  <div className="mt-6 rounded-lg border border-border p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {bloquearVisualizacaoEstoque ? (
+                          <EyeOff className="h-5 w-5 text-destructive" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <p className="font-semibold">Bloquear Visualização do Estoque</p>
+                          <p className="text-xs text-muted-foreground">
+                            Impede usuários comuns de ver o saldo do estoque durante o inventário
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant={bloquearVisualizacaoEstoque ? "destructive" : "outline"}
+                        size="sm"
+                        onClick={async () => {
+                          const newValue = !bloquearVisualizacaoEstoque;
+                          setBloquearVisualizacaoEstoque(newValue);
+                          try {
+                            const result = await updateInventarioConfig(undefined, newValue);
+                            if (!result.success) {
+                              setBloquearVisualizacaoEstoque(!newValue);
+                              throw new Error(result.error);
+                            }
+                            toast({
+                              title: 'Sucesso',
+                              description: newValue 
+                                ? 'Visualização bloqueada para usuários comuns' 
+                                : 'Visualização liberada para todos',
+                            });
+                          } catch (error: any) {
+                            toast({
+                              title: 'Erro',
+                              description: error.message || 'Erro ao atualizar',
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                      >
+                        {bloquearVisualizacaoEstoque ? 'Desbloquear' : 'Bloquear'}
+                      </Button>
+                    </div>
+                  </div>
 
                   {lastUpdatedBy && lastUpdatedAt && (
                     <div className="mt-4 text-xs text-muted-foreground">

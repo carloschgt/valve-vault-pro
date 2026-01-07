@@ -430,10 +430,24 @@ serve(async (req) => {
         );
       }
 
-      const { contagem_ativa } = params;
+      const { contagem_ativa, bloquear_visualizacao_estoque } = params;
+      
+      const updateData: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+        updated_by: user.nome
+      };
+      
+      if (contagem_ativa !== undefined) {
+        updateData.contagem_ativa = contagem_ativa;
+      }
+      
+      if (bloquear_visualizacao_estoque !== undefined) {
+        updateData.bloquear_visualizacao_estoque = bloquear_visualizacao_estoque;
+      }
+      
       const { data, error } = await supabase
         .from("inventario_config")
-        .update({ contagem_ativa, updated_at: new Date().toISOString(), updated_by: user.nome })
+        .update(updateData)
         .eq("id", (await supabase.from("inventario_config").select("id").single()).data?.id)
         .select()
         .single();

@@ -208,8 +208,11 @@ export async function getInventarioConfig(): Promise<DataOperationResult> {
   return invokeDataOperation('inventario_config_get');
 }
 
-export async function updateInventarioConfig(contagem_ativa: number): Promise<DataOperationResult> {
-  return invokeDataOperation('inventario_config_update', { contagem_ativa });
+export async function updateInventarioConfig(
+  contagem_ativa?: number, 
+  bloquear_visualizacao_estoque?: boolean
+): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_config_update', { contagem_ativa, bloquear_visualizacao_estoque });
 }
 
 // ========== CATALOGO INATIVAR ==========
