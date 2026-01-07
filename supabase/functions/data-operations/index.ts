@@ -491,6 +491,32 @@ serve(async (req) => {
       );
     }
 
+    if (action === "fabricantes_update") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem editar fabricantes' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { id, nome, codigo } = params;
+      const { data, error } = await supabase
+        .from("fabricantes")
+        .update({
+          nome: nome.trim().toUpperCase(),
+          codigo: codigo.trim().toUpperCase(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== CATALOGO PRODUTOS ==========
     if (action === "catalogo_insert") {
       if (!isAdmin) {
