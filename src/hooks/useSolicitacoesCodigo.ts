@@ -105,3 +105,13 @@ export async function marcarTodasNotificacoesLidas() {
 export async function contarNotificacoesNaoLidas() {
   return invokeFunction<number>('contar_nao_lidas');
 }
+
+// Admin: Excluir solicitação
+export async function excluirSolicitacao(solicitacao_id: string) {
+  return invokeFunction('excluir_solicitacao', { solicitacao_id });
+}
+
+// Admin: Listar todas solicitações
+export async function listarTodasSolicitacoes() {
+  return invokeFunction('listar_todas');
+}
