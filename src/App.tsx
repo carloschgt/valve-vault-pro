@@ -25,6 +25,7 @@ import RelatorioInventario from "./pages/RelatorioInventario";
 import AjusteInventario from "./pages/AjusteInventario";
 import EstoqueRua from "./pages/EstoqueRua";
 import IdentificacaoRuaPrint from "./pages/IdentificacaoRuaPrint";
+import NovaSolicitacao from "./pages/NovaSolicitacao";
 import SolicitacoesCodigo from "./pages/SolicitacoesCodigo";
 import AprovacaoCodigos from "./pages/AprovacaoCodigos";
 
@@ -57,7 +58,8 @@ const App = () => (
             <Route path="/controle-inventario" element={<ProtectedRoute adminOnly><ControleInventario /></ProtectedRoute>} />
             <Route path="/relatorio-inventario" element={<ProtectedRoute adminOnly><RelatorioInventario /></ProtectedRoute>} />
             <Route path="/ajuste-inventario" element={<ProtectedRoute adminOnly><AjusteInventario /></ProtectedRoute>} />
-            <Route path="/solicitacoes-codigo" element={<ProtectedRoute allowRoles={['admin', 'comercial']}><SolicitacoesCodigo /></ProtectedRoute>} />
+            <Route path="/solicitacoes-codigo" element={<ProtectedRoute allowRoles={['admin', 'user']}><NovaSolicitacao /></ProtectedRoute>} />
+            <Route path="/processar-codigos" element={<ProtectedRoute allowRoles={['comercial']}><SolicitacoesCodigo /></ProtectedRoute>} />
             <Route path="/aprovacao-codigos" element={<ProtectedRoute adminOnly><AprovacaoCodigos /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

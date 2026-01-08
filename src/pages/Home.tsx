@@ -13,7 +13,8 @@ const Home = () => {
   const { toast } = useToast();
   const { user, logout } = useAuth();
   const isAdmin = user?.tipo === 'admin';
-  const isComercialOrAdmin = user?.tipo === 'admin' || user?.tipo === 'comercial';
+  const isComercial = user?.tipo === 'comercial';
+  const canRequestCode = user?.tipo === 'user' || user?.tipo === 'admin';
 
   const [isExporting, setIsExporting] = useState<'enderecamentos' | 'inventario' | null>(null);
 
@@ -225,8 +226,8 @@ const Home = () => {
             </div>
           </button>
 
-          {/* Solicitação de Código - Comercial e Admin */}
-          {isComercialOrAdmin && (
+          {/* Solicitação de Código - Usuário e Admin */}
+          {canRequestCode && (
             <button
               onClick={() => navigate('/solicitacoes-codigo')}
               className="flex items-center gap-4 rounded-2xl border-2 border-purple-500/50 bg-purple-500/5 p-4 transition-all hover:bg-purple-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
@@ -238,6 +239,24 @@ const Home = () => {
                 <h2 className="text-lg font-bold text-foreground">Solicitar Código</h2>
                 <p className="text-sm text-muted-foreground">
                   Solicitar código para novo material
+                </p>
+              </div>
+            </button>
+          )}
+
+          {/* Processar Códigos - Apenas Comercial */}
+          {isComercial && (
+            <button
+              onClick={() => navigate('/processar-codigos')}
+              className="flex items-center gap-4 rounded-2xl border-2 border-orange-500/50 bg-orange-500/5 p-4 transition-all hover:bg-orange-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 shadow-md">
+                <CheckSquare className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 text-left">
+                <h2 className="text-lg font-bold text-foreground">Processar Códigos</h2>
+                <p className="text-sm text-muted-foreground">
+                  Gerar códigos para solicitações pendentes
                 </p>
               </div>
             </button>

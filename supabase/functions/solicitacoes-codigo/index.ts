@@ -83,12 +83,21 @@ serve(async (req) => {
     const user = authResult.user!;
     const isAdmin = user.tipo === 'admin';
     const isComercial = user.tipo === 'comercial';
-    const canProcessSolicitacoes = isAdmin || isComercial;
+    const isUser = user.tipo === 'user';
+    const canRequestCode = isAdmin || isUser; // Quem pode solicitar códigos
+    const canProcessCode = isComercial; // Quem pode processar/gerar códigos (apenas comercial)
 
     console.log(`User: ${user.email}, Tipo: ${user.tipo}`);
 
-    // ========== CRIAR SOLICITAÇÃO ==========
+    // ========== CRIAR SOLICITAÇÃO (user, admin) ==========
     if (action === "criar_solicitacao") {
+      if (!canRequestCode) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas usuários e administradores podem solicitar códigos' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const { descricao, fabricante_id } = params;
 
       if (!descricao || !descricao.trim()) {
@@ -158,11 +167,11 @@ serve(async (req) => {
       );
     }
 
-    // ========== LISTAR SOLICITAÇÕES PENDENTES (comercial/admin) ==========
+    // ========== LISTAR SOLICITAÇÕES PENDENTES (comercial apenas) ==========
     if (action === "listar_pendentes") {
-      if (!canProcessSolicitacoes) {
+      if (!canProcessCode) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Sem permissão para esta ação' }),
+          JSON.stringify({ success: false, error: 'Apenas o comercial pode processar solicitações' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -221,11 +230,11 @@ serve(async (req) => {
       );
     }
 
-    // ========== BLOQUEAR SOLICITAÇÃO (comercial/admin) ==========
+    // ========== BLOQUEAR SOLICITAÇÃO (comercial apenas) ==========
     if (action === "bloquear") {
-      if (!canProcessSolicitacoes) {
+      if (!canProcessCode) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Sem permissão para esta ação' }),
+          JSON.stringify({ success: false, error: 'Apenas o comercial pode processar solicitações' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -280,11 +289,11 @@ serve(async (req) => {
       );
     }
 
-    // ========== DESBLOQUEAR SOLICITAÇÃO (comercial/admin) ==========
+    // ========== DESBLOQUEAR SOLICITAÇÃO (comercial apenas) ==========
     if (action === "desbloquear") {
-      if (!canProcessSolicitacoes) {
+      if (!canProcessCode) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Sem permissão para esta ação' }),
+          JSON.stringify({ success: false, error: 'Apenas o comercial pode processar solicitações' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -333,11 +342,11 @@ serve(async (req) => {
       );
     }
 
-    // ========== SALVAR CÓDIGO (comercial/admin) ==========
+    // ========== SALVAR CÓDIGO (comercial apenas) ==========
     if (action === "salvar_codigo") {
-      if (!canProcessSolicitacoes) {
+      if (!canProcessCode) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Sem permissão para esta ação' }),
+          JSON.stringify({ success: false, error: 'Apenas o comercial pode gerar códigos' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

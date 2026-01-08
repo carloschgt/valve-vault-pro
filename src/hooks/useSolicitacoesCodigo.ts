@@ -44,12 +44,17 @@ async function invokeFunction<T = any>(action: string, params: Record<string, an
   }
 }
 
-// Criar nova solicitação
+// Criar nova solicitação (user, admin)
 export async function criarSolicitacao(descricao: string, fabricante_id?: string) {
   return invokeFunction('criar_solicitacao', { descricao, fabricante_id });
 }
 
-// Listar solicitações pendentes (comercial/admin)
+// Listar minhas solicitações (user, admin)
+export async function minhasSolicitacoes() {
+  return invokeFunction('listar_minhas');
+}
+
+// Listar solicitações pendentes (comercial)
 export async function listarPendentes() {
   return invokeFunction('listar_pendentes');
 }
@@ -59,22 +64,17 @@ export async function listarParaAprovacao() {
   return invokeFunction('listar_para_aprovacao');
 }
 
-// Listar minhas solicitações
-export async function listarMinhasSolicitacoes() {
-  return invokeFunction('listar_minhas');
-}
-
-// Bloquear solicitação para processar
+// Bloquear solicitação para processar (comercial)
 export async function bloquearSolicitacao(solicitacao_id: string) {
   return invokeFunction('bloquear', { solicitacao_id });
 }
 
-// Desbloquear solicitação
+// Desbloquear solicitação (comercial)
 export async function desbloquearSolicitacao(solicitacao_id: string) {
   return invokeFunction('desbloquear', { solicitacao_id });
 }
 
-// Salvar código criado
+// Salvar código criado (comercial)
 export async function salvarCodigo(solicitacao_id: string, codigo: string) {
   return invokeFunction('salvar_codigo', { solicitacao_id, codigo });
 }
