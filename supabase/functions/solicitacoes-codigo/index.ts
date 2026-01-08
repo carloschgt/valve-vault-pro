@@ -646,6 +646,83 @@ serve(async (req) => {
       );
     }
 
+    // ========== EXCLUIR SOLICITAÇÃO (admin) ==========
+    if (action === "excluir_solicitacao") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem excluir solicitações' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { solicitacao_id } = params;
+
+      const { data: solicitacao } = await supabase
+        .from("solicitacoes_codigo")
+        .select("*")
+        .eq("id", solicitacao_id)
+        .single();
+
+      if (!solicitacao) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Solicitação não encontrada' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Não permitir excluir solicitações já aprovadas
+      if (solicitacao.status === 'aprovado') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Não é possível excluir solicitações já aprovadas' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Excluir notificações relacionadas
+      await supabase
+        .from("notificacoes_usuario")
+        .delete()
+        .eq("dados->>solicitacao_id", solicitacao_id);
+
+      // Excluir solicitação
+      const { error } = await supabase
+        .from("solicitacoes_codigo")
+        .delete()
+        .eq("id", solicitacao_id);
+
+      if (error) throw error;
+
+      console.log(`Solicitação #${solicitacao.numero_solicitacao} excluída por ${user.nome}`);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== LISTAR TODAS SOLICITAÇÕES (admin) ==========
+    if (action === "listar_todas") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem ver todas as solicitações' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("solicitacoes_codigo")
+        .select("*, fabricantes(nome)")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      return new Response(
+        JSON.stringify({ success: true, data: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error(`Ação inválida: ${action}`);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";

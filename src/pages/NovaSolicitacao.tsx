@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Clock, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { criarSolicitacao, minhasSolicitacoes } from '@/hooks/useSolicitacoesCodigo';
+import { criarSolicitacao, minhasSolicitacoes, listarTodasSolicitacoes, excluirSolicitacao } from '@/hooks/useSolicitacoesCodigo';
 import { listFabricantes } from '@/hooks/useDataOperations';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -58,8 +68,11 @@ const NovaSolicitacao = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; solicitacao: Solicitacao | null }>({ open: false, solicitacao: null });
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const canAccess = user?.tipo === 'user' || user?.tipo === 'admin';
+  const isAdmin = user?.tipo === 'admin';
+  const canAccess = user?.tipo === 'user' || isAdmin;
 
   const loadFabricantes = async () => {
     const result = await listFabricantes();
@@ -68,23 +81,24 @@ const NovaSolicitacao = () => {
     }
   };
 
-  const loadMinhasSolicitacoes = useCallback(async () => {
+  const loadSolicitacoes = useCallback(async () => {
     if (!canAccess) return;
     setIsLoading(true);
     try {
-      const result = await minhasSolicitacoes();
+      // Admin vê todas, user vê só as suas
+      const result = isAdmin ? await listarTodasSolicitacoes() : await minhasSolicitacoes();
       if (result.success) {
         setSolicitacoes(result.data || []);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [canAccess]);
+  }, [canAccess, isAdmin]);
 
   useEffect(() => {
     if (canAccess) {
       loadFabricantes();
-      loadMinhasSolicitacoes();
+      loadSolicitacoes();
 
       // Realtime para atualizar status
       const channel = supabase
@@ -96,7 +110,7 @@ const NovaSolicitacao = () => {
             schema: 'public',
             table: 'solicitacoes_codigo'
           },
-          () => loadMinhasSolicitacoes()
+          () => loadSolicitacoes()
         )
         .subscribe();
 
@@ -104,7 +118,7 @@ const NovaSolicitacao = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [canAccess, loadMinhasSolicitacoes]);
+  }, [canAccess, loadSolicitacoes]);
 
   const handleSubmit = async () => {
     if (!descricao.trim()) {
@@ -126,7 +140,7 @@ const NovaSolicitacao = () => {
         });
         setDescricao('');
         setFabricanteId('');
-        loadMinhasSolicitacoes();
+        loadSolicitacoes();
       } else {
         toast({
           title: 'Erro',
@@ -136,6 +150,31 @@ const NovaSolicitacao = () => {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDialog.solicitacao) return;
+    
+    setIsDeleting(true);
+    try {
+      const result = await excluirSolicitacao(deleteDialog.solicitacao.id);
+      if (result.success) {
+        toast({
+          title: 'Sucesso',
+          description: 'Solicitação excluída com sucesso!',
+        });
+        loadSolicitacoes();
+      } else {
+        toast({
+          title: 'Erro',
+          description: result.error || 'Erro ao excluir solicitação',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialog({ open: false, solicitacao: null });
     }
   };
 
@@ -215,9 +254,11 @@ const NovaSolicitacao = () => {
           </Button>
         </div>
 
-        {/* Minhas Solicitações */}
+        {/* Solicitações */}
         <div className="space-y-2">
-          <h2 className="font-semibold text-sm">Minhas Solicitações</h2>
+          <h2 className="font-semibold text-sm">
+            {isAdmin ? 'Todas as Solicitações' : 'Minhas Solicitações'}
+          </h2>
           
           {isLoading ? (
             <div className="flex items-center justify-center h-24">
@@ -232,6 +273,7 @@ const NovaSolicitacao = () => {
             solicitacoes.map((s) => {
               const status = statusConfig[s.status] || statusConfig.pendente;
               const StatusIcon = status.icon;
+              const canDelete = isAdmin && s.status !== 'aprovado';
               
               return (
                 <div key={s.id} className="border border-border rounded-lg p-3 bg-card">
@@ -239,10 +281,22 @@ const NovaSolicitacao = () => {
                     <Badge variant="outline" className="text-xs">
                       #{s.numero_solicitacao}
                     </Badge>
-                    <Badge className={`text-xs ${status.color}`}>
-                      <StatusIcon className="h-3 w-3 mr-1" />
-                      {status.label}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge className={`text-xs ${status.color}`}>
+                        <StatusIcon className="h-3 w-3 mr-1" />
+                        {status.label}
+                      </Badge>
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteDialog({ open: true, solicitacao: s })}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <p className="font-medium text-sm mb-1 line-clamp-2">{s.descricao}</p>
                   {s.fabricantes && (
@@ -269,6 +323,33 @@ const NovaSolicitacao = () => {
           )}
         </div>
       </div>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, solicitacao: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Solicitação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a solicitação #{deleteDialog.solicitacao?.numero_solicitacao}?
+              <br />
+              <span className="font-medium">"{deleteDialog.solicitacao?.descricao}"</span>
+              <br /><br />
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
