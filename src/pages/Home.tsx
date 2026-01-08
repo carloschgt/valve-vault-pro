@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse, FilePlus, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,12 @@ const Home = () => {
   const isComercial = user?.tipo === 'comercial';
   const canRequestCode = user?.tipo === 'user' || user?.tipo === 'admin';
 
+  // Redirecionar usuário comercial diretamente para processar códigos
+  React.useEffect(() => {
+    if (isComercial) {
+      navigate('/processar-codigos', { replace: true });
+    }
+  }, [isComercial, navigate]);
   const [isExporting, setIsExporting] = useState<'enderecamentos' | 'inventario' | null>(null);
 
   const handleExportEnderecamentos = async () => {
