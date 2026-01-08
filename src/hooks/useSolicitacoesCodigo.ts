@@ -115,3 +115,14 @@ export async function excluirSolicitacao(solicitacao_id: string) {
 export async function listarTodasSolicitacoes() {
   return invokeFunction('listar_todas');
 }
+
+// Admin: Editar solicitação pendente
+export async function editarSolicitacao(
+  solicitacao_id: string, 
+  descricao: string, 
+  fabricante_id: string, 
+  tipo_material: string, 
+  peso?: number
+) {
+  return invokeFunction('editar_solicitacao', { solicitacao_id, descricao, fabricante_id, tipo_material, peso });
+}
