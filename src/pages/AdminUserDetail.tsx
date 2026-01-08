@@ -237,7 +237,7 @@ const AdminUserDetail = () => {
               {/* Perfil */}
               <div className="space-y-2">
                 <Label>Perfil</Label>
-                <Select value={selectedRole} onValueChange={(v) => handleRoleChange(v as UserRole)}>
+              <Select value={selectedRole} onValueChange={(v) => handleRoleChange(v as UserRole)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -245,6 +245,7 @@ const AdminUserDetail = () => {
                     <SelectItem value="admin">{USER_ROLE_LABELS.admin}</SelectItem>
                     <SelectItem value="user">{USER_ROLE_LABELS.user}</SelectItem>
                     <SelectItem value="estoque">{USER_ROLE_LABELS.estoque}</SelectItem>
+                    <SelectItem value="comercial">{USER_ROLE_LABELS.comercial}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
