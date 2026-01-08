@@ -25,6 +25,8 @@ import RelatorioInventario from "./pages/RelatorioInventario";
 import AjusteInventario from "./pages/AjusteInventario";
 import EstoqueRua from "./pages/EstoqueRua";
 import IdentificacaoRuaPrint from "./pages/IdentificacaoRuaPrint";
+import SolicitacoesCodigo from "./pages/SolicitacoesCodigo";
+import AprovacaoCodigos from "./pages/AprovacaoCodigos";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +57,8 @@ const App = () => (
             <Route path="/controle-inventario" element={<ProtectedRoute adminOnly><ControleInventario /></ProtectedRoute>} />
             <Route path="/relatorio-inventario" element={<ProtectedRoute adminOnly><RelatorioInventario /></ProtectedRoute>} />
             <Route path="/ajuste-inventario" element={<ProtectedRoute adminOnly><AjusteInventario /></ProtectedRoute>} />
+            <Route path="/solicitacoes-codigo" element={<ProtectedRoute allowRoles={['admin', 'comercial']}><SolicitacoesCodigo /></ProtectedRoute>} />
+            <Route path="/aprovacao-codigos" element={<ProtectedRoute adminOnly><AprovacaoCodigos /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

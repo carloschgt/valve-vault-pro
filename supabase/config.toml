@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.auth]
 verify_jwt = false
+
+[functions.data-operations]
+verify_jwt = false
+
+[functions.solicitacoes-codigo]
+verify_jwt = false

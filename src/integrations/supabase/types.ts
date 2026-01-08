@@ -323,6 +323,39 @@ export type Database = {
         }
         Relationships: []
       }
+      notificacoes_usuario: {
+        Row: {
+          created_at: string
+          dados: Json | null
+          id: string
+          lida: boolean
+          mensagem: string
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dados?: Json | null
+          id?: string
+          lida?: boolean
+          mensagem: string
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dados?: Json | null
+          id?: string
+          lida?: boolean
+          mensagem?: string
+          tipo?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       session_tokens: {
         Row: {
           created_at: string
@@ -352,6 +385,80 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      solicitacoes_codigo: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          aprovado_por_id: string | null
+          codigo_gerado: string | null
+          created_at: string
+          descricao: string
+          fabricante_id: string | null
+          id: string
+          locked_at: string | null
+          locked_by_id: string | null
+          motivo_rejeicao: string | null
+          numero_solicitacao: number
+          processado_em: string | null
+          processado_por: string | null
+          processado_por_id: string | null
+          solicitado_por: string
+          solicitado_por_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          aprovado_por_id?: string | null
+          codigo_gerado?: string | null
+          created_at?: string
+          descricao: string
+          fabricante_id?: string | null
+          id?: string
+          locked_at?: string | null
+          locked_by_id?: string | null
+          motivo_rejeicao?: string | null
+          numero_solicitacao?: number
+          processado_em?: string | null
+          processado_por?: string | null
+          processado_por_id?: string | null
+          solicitado_por: string
+          solicitado_por_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          aprovado_por_id?: string | null
+          codigo_gerado?: string | null
+          created_at?: string
+          descricao?: string
+          fabricante_id?: string | null
+          id?: string
+          locked_at?: string | null
+          locked_by_id?: string | null
+          motivo_rejeicao?: string | null
+          numero_solicitacao?: number
+          processado_em?: string | null
+          processado_por?: string | null
+          processado_por_id?: string | null
+          solicitado_por?: string
+          solicitado_por_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitacoes_codigo_fabricante_id_fkey"
+            columns: ["fabricante_id"]
+            isOneToOne: false
+            referencedRelation: "fabricantes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       usuarios: {
         Row: {

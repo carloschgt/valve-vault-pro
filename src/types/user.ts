@@ -16,12 +16,13 @@ export const USER_STATUS_COLORS: Record<UserStatus, string> = {
 };
 
 // Tipos de perfil/role
-export type UserRole = 'admin' | 'user' | 'estoque';
+export type UserRole = 'admin' | 'user' | 'estoque' | 'comercial';
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   user: 'Usuário',
   estoque: 'Estoque',
+  comercial: 'Comercial',
 };
 
 export interface Usuario {
