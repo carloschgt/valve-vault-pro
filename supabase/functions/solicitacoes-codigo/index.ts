@@ -107,6 +107,13 @@ serve(async (req) => {
         );
       }
 
+      if (!fabricante_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Fabricante é obrigatório' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Verificar se já existe descrição similar no catálogo
       const descricaoUpper = descricao.trim().toUpperCase();
       const { data: catalogoExistente } = await supabase
