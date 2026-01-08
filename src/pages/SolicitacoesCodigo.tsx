@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Lock, Unlock, Save, RefreshCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock, Unlock, Save, RefreshCw, AlertCircle, LogOut } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +34,9 @@ interface Solicitacao {
 const SolicitacoesCodigo = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  
+  const isComercial = user?.tipo === 'comercial';
   
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -197,16 +199,23 @@ const SolicitacoesCodigo = () => {
     );
   }
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <div className="flex h-screen flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border bg-card px-2 py-1.5 shrink-0">
-        <button
-          onClick={() => navigate('/')}
-          className="rounded-lg p-1 hover:bg-accent"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
+        {!isComercial && (
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg p-1 hover:bg-accent"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        )}
         <img src={logoImex} alt="IMEX Solutions" className="h-5" />
         <h1 className="text-sm font-bold flex-1">Processar Solicitações</h1>
         <Button
@@ -218,6 +227,17 @@ const SolicitacoesCodigo = () => {
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
+        {isComercial && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="h-7 px-2 text-muted-foreground hover:text-destructive"
+            title="Sair"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
       {/* Content */}
