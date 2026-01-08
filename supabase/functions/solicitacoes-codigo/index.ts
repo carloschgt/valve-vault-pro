@@ -98,7 +98,7 @@ serve(async (req) => {
         );
       }
 
-      const { descricao, fabricante_id } = params;
+      const { descricao, fabricante_id, tipo_material, peso } = params;
 
       if (!descricao || !descricao.trim()) {
         return new Response(
@@ -110,6 +110,13 @@ serve(async (req) => {
       if (!fabricante_id) {
         return new Response(
           JSON.stringify({ success: false, error: 'Fabricante é obrigatório' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!tipo_material) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Tipo de material é obrigatório' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -151,12 +158,14 @@ serve(async (req) => {
         );
       }
 
-      // Criar solicitação
+      // Criar solicitação com tipo_material e peso
       const { data, error } = await supabase
         .from("solicitacoes_codigo")
         .insert({
           descricao: descricaoUpper,
           fabricante_id: fabricante_id || null,
+          tipo_material: tipo_material,
+          peso: peso || null,
           solicitado_por: user.nome,
           solicitado_por_id: user.id,
           status: 'pendente'

@@ -46,6 +46,8 @@ interface Solicitacao {
   status: string;
   codigo_gerado: string | null;
   motivo_rejeicao: string | null;
+  tipo_material: string | null;
+  peso: number | null;
   created_at: string;
 }
 
@@ -57,6 +59,24 @@ const statusConfig: Record<string, { label: string; icon: any; color: string }> 
   rejeitado: { label: 'Rejeitado', icon: XCircle, color: 'bg-red-100 text-red-800' },
 };
 
+const TIPOS_MATERIAL = [
+  'Atuador',
+  'Chapa',
+  'Conexão',
+  'Elétrico',
+  'Flange',
+  'Instrumento',
+  'Mecânico',
+  'Tubo',
+  'Válvula Borboleta',
+  'Válvula Esfera',
+  'Válvula Gaveta',
+  'Válvula Globo',
+  'Válvula Macho',
+  'Válvula Retenção',
+  'Outro',
+];
+
 const NovaSolicitacao = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -64,6 +84,8 @@ const NovaSolicitacao = () => {
   
   const [descricao, setDescricao] = useState('');
   const [fabricanteId, setFabricanteId] = useState('');
+  const [tipoMaterial, setTipoMaterial] = useState('');
+  const [peso, setPeso] = useState('');
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
@@ -139,9 +161,19 @@ const NovaSolicitacao = () => {
       return;
     }
 
+    if (!tipoMaterial) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione o tipo do material',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const result = await criarSolicitacao(descricao.trim(), fabricanteId);
+      const pesoNumerico = peso.trim() ? parseFloat(peso.replace(',', '.')) : undefined;
+      const result = await criarSolicitacao(descricao.trim(), fabricanteId, tipoMaterial, pesoNumerico);
       if (result.success) {
         toast({
           title: 'Sucesso',
@@ -149,6 +181,8 @@ const NovaSolicitacao = () => {
         });
         setDescricao('');
         setFabricanteId('');
+        setTipoMaterial('');
+        setPeso('');
         loadSolicitacoes();
       } else {
         toast({
@@ -249,9 +283,38 @@ const NovaSolicitacao = () => {
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label className="text-xs">Tipo de Material *</Label>
+            <Select value={tipoMaterial} onValueChange={setTipoMaterial} disabled={isSubmitting}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_MATERIAL.map((tipo) => (
+                  <SelectItem key={tipo} value={tipo}>
+                    {tipo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs">Peso Unitário (kg) - Opcional</Label>
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="Ex: 2.5"
+              value={peso}
+              onChange={(e) => setPeso(e.target.value)}
+              className="h-9"
+              disabled={isSubmitting}
+            />
+          </div>
+
           <Button 
             onClick={handleSubmit} 
-            disabled={isSubmitting || !descricao.trim() || !fabricanteId}
+            disabled={isSubmitting || !descricao.trim() || !fabricanteId || !tipoMaterial}
             className="w-full"
           >
             {isSubmitting ? (

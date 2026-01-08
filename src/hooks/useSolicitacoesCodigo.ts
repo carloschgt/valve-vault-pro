@@ -45,8 +45,8 @@ async function invokeFunction<T = any>(action: string, params: Record<string, an
 }
 
 // Criar nova solicitação (user, admin)
-export async function criarSolicitacao(descricao: string, fabricante_id?: string) {
-  return invokeFunction('criar_solicitacao', { descricao, fabricante_id });
+export async function criarSolicitacao(descricao: string, fabricante_id?: string, tipo_material?: string, peso?: number) {
+  return invokeFunction('criar_solicitacao', { descricao, fabricante_id, tipo_material, peso });
 }
 
 // Listar minhas solicitações (user, admin)
