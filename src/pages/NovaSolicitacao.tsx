@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus, Clock, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Clock, CheckCircle, XCircle, AlertCircle, Trash2, Edit2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -23,10 +23,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { criarSolicitacao, minhasSolicitacoes, listarTodasSolicitacoes, excluirSolicitacao } from '@/hooks/useSolicitacoesCodigo';
+import { criarSolicitacao, minhasSolicitacoes, listarTodasSolicitacoes, excluirSolicitacao, editarSolicitacao } from '@/hooks/useSolicitacoesCodigo';
 import { listFabricantes } from '@/hooks/useDataOperations';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -42,6 +48,7 @@ interface Solicitacao {
   id: string;
   numero_solicitacao: number;
   descricao: string;
+  fabricante_id: string | null;
   fabricantes: { nome: string } | null;
   status: string;
   codigo_gerado: string | null;
@@ -92,6 +99,14 @@ const NovaSolicitacao = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; solicitacao: Solicitacao | null }>({ open: false, solicitacao: null });
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Estados para edição (admin)
+  const [editDialog, setEditDialog] = useState<{ open: boolean; solicitacao: Solicitacao | null }>({ open: false, solicitacao: null });
+  const [editDescricao, setEditDescricao] = useState('');
+  const [editFabricanteId, setEditFabricanteId] = useState('');
+  const [editTipoMaterial, setEditTipoMaterial] = useState('');
+  const [editPeso, setEditPeso] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
   const isAdmin = user?.tipo === 'admin';
   const canAccess = user?.tipo === 'user' || isAdmin;
@@ -221,6 +236,74 @@ const NovaSolicitacao = () => {
     }
   };
 
+  const handleOpenEdit = (s: Solicitacao) => {
+    setEditDescricao(s.descricao);
+    setEditFabricanteId(s.fabricante_id || '');
+    setEditTipoMaterial(s.tipo_material || '');
+    setEditPeso(s.peso ? String(s.peso) : '');
+    setEditDialog({ open: true, solicitacao: s });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editDialog.solicitacao) return;
+    
+    if (!editDescricao.trim()) {
+      toast({
+        title: 'Atenção',
+        description: 'Informe a descrição do material',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!editFabricanteId) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione o fabricante',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!editTipoMaterial) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione o tipo de material',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsEditing(true);
+    try {
+      const pesoNumerico = editPeso.trim() ? parseFloat(editPeso.replace(',', '.')) : undefined;
+      const result = await editarSolicitacao(
+        editDialog.solicitacao.id,
+        editDescricao.trim(),
+        editFabricanteId,
+        editTipoMaterial,
+        pesoNumerico
+      );
+      
+      if (result.success) {
+        toast({
+          title: 'Sucesso',
+          description: 'Solicitação atualizada com sucesso!',
+        });
+        loadSolicitacoes();
+        setEditDialog({ open: false, solicitacao: null });
+      } else {
+        toast({
+          title: 'Erro',
+          description: result.error || 'Erro ao atualizar solicitação',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   if (!canAccess) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-background p-4">
@@ -346,6 +429,7 @@ const NovaSolicitacao = () => {
               const status = statusConfig[s.status] || statusConfig.pendente;
               const StatusIcon = status.icon;
               const canDelete = isAdmin && s.status !== 'aprovado';
+              const canEdit = isAdmin && s.status === 'pendente';
               
               return (
                 <div key={s.id} className="border border-border rounded-lg p-3 bg-card">
@@ -358,6 +442,16 @@ const NovaSolicitacao = () => {
                         <StatusIcon className="h-3 w-3 mr-1" />
                         {status.label}
                       </Badge>
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={() => handleOpenEdit(s)}
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                      )}
                       {canDelete && (
                         <Button
                           variant="ghost"
@@ -374,6 +468,16 @@ const NovaSolicitacao = () => {
                   {s.fabricantes && (
                     <p className="text-xs text-muted-foreground">
                       Fabricante: {s.fabricantes.nome}
+                    </p>
+                  )}
+                  {s.tipo_material && (
+                    <p className="text-xs text-muted-foreground">
+                      Tipo: {s.tipo_material}
+                    </p>
+                  )}
+                  {s.peso && (
+                    <p className="text-xs text-muted-foreground">
+                      Peso: {s.peso} kg
                     </p>
                   )}
                   {s.codigo_gerado && (
@@ -422,6 +526,93 @@ const NovaSolicitacao = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de edição (admin) */}
+      <Dialog open={editDialog.open} onOpenChange={(open) => !open && setEditDialog({ open: false, solicitacao: null })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Solicitação #{editDialog.solicitacao?.numero_solicitacao}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-xs">Descrição do Material *</Label>
+              <Textarea
+                placeholder="Descreva o material detalhadamente..."
+                value={editDescricao}
+                onChange={(e) => setEditDescricao(e.target.value)}
+                className="min-h-[80px] text-sm"
+                disabled={isEditing}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Fabricante *</Label>
+              <Select value={editFabricanteId} onValueChange={setEditFabricanteId} disabled={isEditing}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Selecione o fabricante" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fabricantes.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Tipo de Material *</Label>
+              <Select value={editTipoMaterial} onValueChange={setEditTipoMaterial} disabled={isEditing}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPOS_MATERIAL.map((tipo) => (
+                    <SelectItem key={tipo} value={tipo}>
+                      {tipo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Peso Unitário (kg) - Opcional</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                placeholder="Ex: 2.5"
+                value={editPeso}
+                onChange={(e) => setEditPeso(e.target.value)}
+                className="h-9"
+                disabled={isEditing}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditDialog({ open: false, solicitacao: null })}
+                disabled={isEditing}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={isEditing || !editDescricao.trim() || !editFabricanteId || !editTipoMaterial}
+                className="flex-1"
+              >
+                {isEditing ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

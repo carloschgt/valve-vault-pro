@@ -716,6 +716,86 @@ serve(async (req) => {
       );
     }
 
+    // ========== EDITAR SOLICITAÇÃO PENDENTE (admin) ==========
+    if (action === "editar_solicitacao") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem editar solicitações' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { solicitacao_id, descricao, fabricante_id, tipo_material, peso } = params;
+
+      const { data: solicitacao } = await supabase
+        .from("solicitacoes_codigo")
+        .select("*")
+        .eq("id", solicitacao_id)
+        .single();
+
+      if (!solicitacao) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Solicitação não encontrada' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Apenas permitir edição de solicitações pendentes
+      if (solicitacao.status !== 'pendente') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas solicitações pendentes podem ser editadas' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validações
+      if (!descricao || !descricao.trim()) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Descrição é obrigatória' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!fabricante_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Fabricante é obrigatório' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!tipo_material) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Tipo de material é obrigatório' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const descricaoUpper = descricao.trim().toUpperCase();
+
+      // Atualizar solicitação
+      const { data, error } = await supabase
+        .from("solicitacoes_codigo")
+        .update({
+          descricao: descricaoUpper,
+          fabricante_id: fabricante_id,
+          tipo_material: tipo_material,
+          peso: peso || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", solicitacao_id)
+        .select("*, fabricantes(nome)")
+        .single();
+
+      if (error) throw error;
+
+      console.log(`Solicitação #${data.numero_solicitacao} editada por ${user.nome}`);
+
+      return new Response(
+        JSON.stringify({ success: true, data }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== LISTAR TODAS SOLICITAÇÕES (admin) ==========
     if (action === "listar_todas") {
       if (!isAdmin) {
