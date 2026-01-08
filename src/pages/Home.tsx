@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse } from 'lucide-react';
+import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse, FilePlus, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ const Home = () => {
   const { toast } = useToast();
   const { user, logout } = useAuth();
   const isAdmin = user?.tipo === 'admin';
+  const isComercialOrAdmin = user?.tipo === 'admin' || user?.tipo === 'comercial';
 
   const [isExporting, setIsExporting] = useState<'enderecamentos' | 'inventario' | null>(null);
 
@@ -223,6 +224,24 @@ const Home = () => {
               </p>
             </div>
           </button>
+
+          {/* Solicitação de Código - Comercial e Admin */}
+          {isComercialOrAdmin && (
+            <button
+              onClick={() => navigate('/solicitacoes-codigo')}
+              className="flex items-center gap-4 rounded-2xl border-2 border-purple-500/50 bg-purple-500/5 p-4 transition-all hover:bg-purple-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500 shadow-md">
+                <FilePlus className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 text-left">
+                <h2 className="text-lg font-bold text-foreground">Solicitar Código</h2>
+                <p className="text-sm text-muted-foreground">
+                  Solicitar código para novo material
+                </p>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Admin Actions */}
@@ -240,6 +259,16 @@ const Home = () => {
             >
               <Shield className="mr-2 h-4 w-4" />
               Painel Administrativo
+            </Button>
+
+            {/* Aprovação de Códigos */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/aprovacao-codigos')}
+            >
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Aprovação de Códigos
             </Button>
 
             {/* Controle de Inventário */}
