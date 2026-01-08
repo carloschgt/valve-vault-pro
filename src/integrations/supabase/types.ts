@@ -400,12 +400,14 @@ export type Database = {
           locked_by_id: string | null
           motivo_rejeicao: string | null
           numero_solicitacao: number
+          peso: number | null
           processado_em: string | null
           processado_por: string | null
           processado_por_id: string | null
           solicitado_por: string
           solicitado_por_id: string
           status: string
+          tipo_material: string | null
           updated_at: string
         }
         Insert: {
@@ -421,12 +423,14 @@ export type Database = {
           locked_by_id?: string | null
           motivo_rejeicao?: string | null
           numero_solicitacao?: number
+          peso?: number | null
           processado_em?: string | null
           processado_por?: string | null
           processado_por_id?: string | null
           solicitado_por: string
           solicitado_por_id: string
           status?: string
+          tipo_material?: string | null
           updated_at?: string
         }
         Update: {
@@ -442,12 +446,14 @@ export type Database = {
           locked_by_id?: string | null
           motivo_rejeicao?: string | null
           numero_solicitacao?: number
+          peso?: number | null
           processado_em?: string | null
           processado_por?: string | null
           processado_por_id?: string | null
           solicitado_por?: string
           solicitado_por_id?: string
           status?: string
+          tipo_material?: string | null
           updated_at?: string
         }
         Relationships: [

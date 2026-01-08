@@ -236,20 +236,44 @@ const Enderecamento = () => {
 
     setIsSearching(true);
     try {
-      const result = await getCatalogoDescricao(codigo.trim());
+      const result = await getCatalogoDescricao(codigo.trim()) as any;
 
       if (!result.success) throw new Error(result.error);
 
       if (result.data) {
         setDescricao(result.data.descricao);
-        // Preencher peso se disponível no catálogo
-        if (result.data.peso_kg) {
-          setPeso(String(result.data.peso_kg));
+        
+        // Se veio dados da solicitação (código gerado via módulo de solicitação)
+        if (result.solicitacao) {
+          const sol = result.solicitacao;
+          // Preencher fabricante
+          if (sol.fabricante_id) {
+            setFabricanteId(sol.fabricante_id);
+          }
+          // Preencher tipo de material
+          if (sol.tipo_material) {
+            setTipoMaterial(sol.tipo_material);
+          }
+          // Preencher peso (priorizar o da solicitação)
+          if (sol.peso) {
+            setPeso(String(sol.peso));
+          } else if (result.data.peso_kg) {
+            setPeso(String(result.data.peso_kg));
+          }
+          toast({
+            title: 'Sucesso',
+            description: 'Descrição e dados encontrados!',
+          });
+        } else {
+          // Preencher peso se disponível apenas no catálogo
+          if (result.data.peso_kg) {
+            setPeso(String(result.data.peso_kg));
+          }
+          toast({
+            title: 'Sucesso',
+            description: 'Descrição encontrada!',
+          });
         }
-        toast({
-          title: 'Sucesso',
-          description: 'Descrição encontrada!',
-        });
       } else {
         toast({
           title: 'Não encontrado',

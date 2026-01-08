@@ -162,14 +162,51 @@ serve(async (req) => {
 
     if (action === "catalogo_get") {
       const { codigo } = params;
+      const codigoTrimmed = codigo?.trim()?.toUpperCase();
+      
       const { data, error } = await supabase
         .from("catalogo_produtos")
         .select("id, codigo, descricao, peso_kg, ativo")
-        .eq("codigo", codigo?.trim())
+        .eq("codigo", codigoTrimmed)
         .maybeSingle();
       if (error) throw error;
+      
+      // Se encontrou no catálogo, verificar se existe uma solicitação aprovada com dados adicionais
+      let solicitacaoData = null;
+      if (data) {
+        const { data: solicitacao } = await supabase
+          .from("solicitacoes_codigo")
+          .select("fabricante_id, tipo_material, peso")
+          .eq("codigo_gerado", codigoTrimmed)
+          .eq("status", "aprovado")
+          .maybeSingle();
+        
+        if (solicitacao && solicitacao.fabricante_id) {
+          // Buscar nome do fabricante separadamente
+          const { data: fabricante } = await supabase
+            .from("fabricantes")
+            .select("nome")
+            .eq("id", solicitacao.fabricante_id)
+            .maybeSingle();
+          
+          solicitacaoData = {
+            fabricante_id: solicitacao.fabricante_id,
+            fabricante_nome: fabricante?.nome || null,
+            tipo_material: solicitacao.tipo_material,
+            peso: solicitacao.peso
+          };
+        } else if (solicitacao) {
+          solicitacaoData = {
+            fabricante_id: null,
+            fabricante_nome: null,
+            tipo_material: solicitacao.tipo_material,
+            peso: solicitacao.peso
+          };
+        }
+      }
+      
       return new Response(
-        JSON.stringify({ success: true, data }),
+        JSON.stringify({ success: true, data, solicitacao: solicitacaoData }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
