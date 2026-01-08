@@ -43,8 +43,8 @@ const SolicitacoesCodigo = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  // Verificar permissão
-  const canAccess = user?.tipo === 'admin' || user?.tipo === 'comercial';
+  // Verificar permissão - Apenas comercial pode processar códigos
+  const canAccess = user?.tipo === 'comercial';
 
   // Carregar solicitações
   const loadSolicitacoes = useCallback(async () => {
@@ -208,7 +208,7 @@ const SolicitacoesCodigo = () => {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-5" />
-        <h1 className="text-sm font-bold flex-1">Solicitações de Código</h1>
+        <h1 className="text-sm font-bold flex-1">Processar Solicitações</h1>
         <Button
           variant="ghost"
           size="sm"
