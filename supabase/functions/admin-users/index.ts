@@ -247,7 +247,7 @@ serve(async (req) => {
     if (action === "updateUser") {
       const updateData: any = {};
       
-      if (tipo && ['user', 'admin', 'estoque'].includes(tipo)) {
+      if (tipo && ['user', 'admin', 'estoque', 'comercial'].includes(tipo)) {
         updateData.tipo = tipo;
       }
       
@@ -295,7 +295,7 @@ serve(async (req) => {
     }
 
     if (action === "updateRole") {
-      if (!userId || !tipo || !['user', 'admin', 'estoque'].includes(tipo)) {
+      if (!userId || !tipo || !['user', 'admin', 'estoque', 'comercial'].includes(tipo)) {
         return new Response(
           JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
