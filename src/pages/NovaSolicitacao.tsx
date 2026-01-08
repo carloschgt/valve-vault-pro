@@ -130,9 +130,18 @@ const NovaSolicitacao = () => {
       return;
     }
 
+    if (!fabricanteId) {
+      toast({
+        title: 'Atenção',
+        description: 'Selecione o fabricante do material',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const result = await criarSolicitacao(descricao.trim(), fabricanteId || undefined);
+      const result = await criarSolicitacao(descricao.trim(), fabricanteId);
       if (result.success) {
         toast({
           title: 'Sucesso',
@@ -225,7 +234,7 @@ const NovaSolicitacao = () => {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Fabricante (opcional)</Label>
+            <Label className="text-xs">Fabricante *</Label>
             <Select value={fabricanteId} onValueChange={setFabricanteId} disabled={isSubmitting}>
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="Selecione o fabricante" />
@@ -242,7 +251,7 @@ const NovaSolicitacao = () => {
 
           <Button 
             onClick={handleSubmit} 
-            disabled={isSubmitting || !descricao.trim()}
+            disabled={isSubmitting || !descricao.trim() || !fabricanteId}
             className="w-full"
           >
             {isSubmitting ? (
