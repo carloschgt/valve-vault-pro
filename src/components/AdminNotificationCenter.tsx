@@ -63,7 +63,7 @@ export function AdminNotificationCenter() {
             type: 'novo_usuario',
             title: 'Novo usuário aguardando aprovação',
             description: `${u.nome} (${u.email})`,
-            route: `/admin/user/${u.id}`,
+            route: `/admin/usuarios/${u.id}`,
             data: u,
             created_at: u.created_at,
           });
@@ -89,7 +89,7 @@ export function AdminNotificationCenter() {
             type: 'reset_senha',
             title: r.titulo || 'Solicitação de reset de senha',
             description: `${dados.user_nome || 'Usuário'} (${dados.user_email || ''})`,
-            route: `/admin/user/${dados.user_id}`,
+            route: `/admin/usuarios/${dados.user_id}`,
             data: { ...dados, notificacao_id: r.id },
             created_at: r.created_at,
           });
