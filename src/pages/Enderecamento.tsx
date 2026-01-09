@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Search, Edit2, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search, Edit2, X, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos, deleteEndereco } from '@/hooks/useDataOperations';
+import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos, deleteEndereco, listCodigosSemEnderecamento } from '@/hooks/useDataOperations';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -74,6 +74,15 @@ interface EnderecoResult {
   fabricantes?: { nome: string } | null;
 }
 
+interface CodigoSemEndereco {
+  codigo: string;
+  descricao: string;
+  peso: number | null;
+  fabricante_id: string | null;
+  fabricante_nome: string | null;
+  tipo_material: string | null;
+}
+
 const Enderecamento = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -110,6 +119,11 @@ const Enderecamento = () => {
   // Estado para confirmação de exclusão (admin)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Estados para lista de códigos sem endereçamento
+  const [codigosSemEndereco, setCodigosSemEndereco] = useState<CodigoSemEndereco[]>([]);
+  const [isLoadingPendentes, setIsLoadingPendentes] = useState(false);
+  const [showPendentes, setShowPendentes] = useState(true);
 
   // Carregar fabricantes do banco
   useEffect(() => {
@@ -124,6 +138,25 @@ const Enderecamento = () => {
     };
     
     loadFabricantes();
+  }, []);
+
+  // Carregar códigos sem endereçamento
+  useEffect(() => {
+    const loadCodigosSemEndereco = async () => {
+      setIsLoadingPendentes(true);
+      try {
+        const result = await listCodigosSemEnderecamento();
+        if (result.success) {
+          setCodigosSemEndereco(result.data || []);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar códigos sem endereçamento:', error);
+      } finally {
+        setIsLoadingPendentes(false);
+      }
+    };
+    
+    loadCodigosSemEndereco();
   }, []);
 
   // Carregar endereço existente se vier via URL (para edição)
@@ -220,6 +253,43 @@ const Enderecamento = () => {
     setComentario('');
     if (searchParams.get('edit')) {
       navigate('/enderecamento', { replace: true });
+    }
+  };
+
+  // Selecionar código pendente da lista
+  const handleSelectPendente = (item: CodigoSemEndereco) => {
+    // Limpar edição se houver
+    setEditingId(null);
+    
+    // Preencher campos com dados do item selecionado
+    setCodigo(item.codigo);
+    setDescricao(item.descricao);
+    setTipoMaterial(item.tipo_material || '');
+    setFabricanteId(item.fabricante_id || '');
+    setPeso(item.peso ? String(item.peso) : '');
+    
+    // Limpar campos de endereço
+    setRua('');
+    setColuna('');
+    setNivel('');
+    setPosicao('');
+    setComentario('');
+    
+    toast({
+      title: 'Item selecionado',
+      description: 'Complete o endereçamento e salve',
+    });
+  };
+
+  // Recarregar lista de pendentes após salvar
+  const reloadPendentes = async () => {
+    try {
+      const result = await listCodigosSemEnderecamento();
+      if (result.success) {
+        setCodigosSemEndereco(result.data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao recarregar códigos sem endereçamento:', error);
     }
   };
 
@@ -377,6 +447,9 @@ const Enderecamento = () => {
       setPosicao('');
       setComentario('');
       setEditingId(null);
+      
+      // Recarregar lista de pendentes
+      await reloadPendentes();
       
       // Remover parâmetro de edição da URL
       if (searchParams.get('edit')) {
@@ -725,6 +798,71 @@ const Enderecamento = () => {
             </Button>
           )}
         </div>
+
+        {/* Lista de códigos pendentes (sem endereçamento) */}
+        {codigosSemEndereco.length > 0 && (
+          <div className="border border-amber-500/50 rounded-lg bg-amber-500/5 overflow-hidden">
+            <button
+              onClick={() => setShowPendentes(!showPendentes)}
+              className="w-full flex items-center justify-between p-2 hover:bg-amber-500/10 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                  Códigos Pendentes de Endereçamento
+                </span>
+                <span className="text-xs bg-amber-500 text-white px-1.5 py-0.5 rounded-full">
+                  {codigosSemEndereco.length}
+                </span>
+              </div>
+              {showPendentes ? (
+                <ChevronUp className="h-4 w-4 text-amber-500" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-amber-500" />
+              )}
+            </button>
+            
+            {showPendentes && (
+              <div className="max-h-60 overflow-y-auto border-t border-amber-500/30">
+                {isLoadingPendentes ? (
+                  <div className="p-4 text-center">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-amber-500" />
+                    <p className="text-xs text-muted-foreground mt-1">Carregando...</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-amber-500/20">
+                    {codigosSemEndereco.map((item) => (
+                      <button
+                        key={item.codigo}
+                        onClick={() => handleSelectPendente(item)}
+                        className="w-full p-2 text-left hover:bg-amber-500/10 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm text-foreground">{item.codigo}</div>
+                            <div className="text-xs text-muted-foreground truncate">{item.descricao}</div>
+                          </div>
+                          <div className="text-right shrink-0 space-y-0.5">
+                            {item.tipo_material && (
+                              <div className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
+                                {item.tipo_material}
+                              </div>
+                            )}
+                            {item.fabricante_nome && (
+                              <div className="text-[10px] text-muted-foreground">
+                                {item.fabricante_nome}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Dialog de duplicado */}
