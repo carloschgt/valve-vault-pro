@@ -69,18 +69,30 @@ export function AdminNotificationCenter() {
       // 2. Solicitações de reset de senha
       const { data: resetRequests } = await supabase
         .from('notificacoes_usuario')
-        .select('id, dados, created_at')
+        .select('id, dados, created_at, mensagem, titulo')
         .eq('tipo', 'reset_senha')
         .eq('lida', false)
         .order('created_at', { ascending: false });
 
+      console.log('Reset requests found:', resetRequests);
+
       if (resetRequests) {
         resetRequests.forEach((r: any) => {
-          const dados = r.dados || {};
+          // Parse dados if it's a string
+          let dados = r.dados;
+          if (typeof dados === 'string') {
+            try {
+              dados = JSON.parse(dados);
+            } catch (e) {
+              dados = {};
+            }
+          }
+          dados = dados || {};
+          
           actions.push({
             id: `reset_${r.id}`,
             type: 'reset_senha',
-            title: 'Solicitação de reset de senha',
+            title: r.titulo || 'Solicitação de reset de senha',
             description: `${dados.user_nome || 'Usuário'} (${dados.user_email || ''})`,
             route: '/admin',
             data: { ...dados, notificacao_id: r.id },

@@ -244,12 +244,12 @@ serve(async (req) => {
         tipo: "reset_senha",
         titulo: "Solicitação de Reset de Senha",
         mensagem: `O usuário ${user.nome} (${user.email}) solicitou que um administrador redefina sua senha.`,
-        dados: JSON.stringify({ 
+        dados: { 
           user_id: user.id, 
           user_email: user.email,
           user_nome: user.nome,
           requires_action: true 
-        }),
+        },
       }));
 
       const { error: notifError } = await supabase.from("notificacoes_usuario").insert(notifications);
