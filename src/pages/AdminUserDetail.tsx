@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Calendar, Shield, Clock, Loader2, Trash2, Check, Ban, XCircle, PlayCircle } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, User, Mail, Calendar, Shield, Clock, Loader2, Trash2, Check, Ban, XCircle, PlayCircle, KeyRound, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +43,7 @@ const AdminUserDetail = () => {
   const [selectedStatus, setSelectedStatus] = useState<UserStatus>('pendente');
   const [suspendedUntil, setSuspendedUntil] = useState('');
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [pendingPasswordReset, setPendingPasswordReset] = useState<any>(null);
 
   // Buscar dados do usuário
   const { data: userData, isLoading } = useQuery({
@@ -52,6 +53,12 @@ const AdminUserDetail = () => {
         body: { action: 'getUser', userId: id, adminEmail: currentUser?.email },
       });
       if (error) throw error;
+      // Store pending password reset info
+      if (data.pendingPasswordReset) {
+        setPendingPasswordReset(data.pendingPasswordReset);
+      } else {
+        setPendingPasswordReset(null);
+      }
       return data.user as Usuario | null;
     },
   });
@@ -151,6 +158,32 @@ const AdminUserDetail = () => {
     updateUserMutation.mutate({ tipo: role });
   };
 
+  // Aprovar redefinição de senha
+  const approvePasswordResetMutation = useMutation({
+    mutationFn: async () => {
+      if (!pendingPasswordReset) throw new Error('Nenhuma solicitação de senha pendente');
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { 
+          action: 'approvePasswordReset', 
+          userId: pendingPasswordReset.id,
+          adminEmail: currentUser?.email 
+        },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin_user_detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['admin_usuarios'] });
+      setPendingPasswordReset(null);
+      toast({ title: 'Sucesso', description: 'Redefinição de senha aprovada! Usuário liberado.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('pt-BR', {
       day: '2-digit',
@@ -223,6 +256,36 @@ const AdminUserDetail = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Alerta de Reset de Senha Pendente */}
+        {pendingPasswordReset && !isCurrentUser && (
+          <Card className="border-orange-300 bg-orange-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-orange-700">
+                <AlertTriangle className="h-5 w-5" />
+                Redefinição de Senha Pendente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-orange-800">
+                Este usuário solicitou redefinição de senha e está aguardando aprovação do administrador.
+              </p>
+              <p className="text-xs text-orange-600">
+                Solicitado em: {new Date(pendingPasswordReset.created_at).toLocaleString('pt-BR')}
+              </p>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => approvePasswordResetMutation.mutate()} 
+                  className="gap-2 bg-green-600 hover:bg-green-700"
+                  disabled={approvePasswordResetMutation.isPending}
+                >
+                  <Check className="h-4 w-4" />
+                  Aprovar Redefinição
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Ações */}
         {!isCurrentUser && (
