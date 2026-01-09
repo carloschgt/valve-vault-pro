@@ -435,6 +435,9 @@ const Enderecamento = () => {
         description: editingId ? 'Endereçamento atualizado com sucesso!' : 'Endereçamento salvo com sucesso!',
       });
 
+      // Guardar o código antes de limpar para remover da lista
+      const codigoSalvo = codigo.trim().toUpperCase();
+      
       // Limpar formulário
       setCodigo('');
       setDescricao('');
@@ -448,8 +451,8 @@ const Enderecamento = () => {
       setComentario('');
       setEditingId(null);
       
-      // Recarregar lista de pendentes
-      await reloadPendentes();
+      // Remover imediatamente o código da lista de pendentes (sem esperar reload)
+      setCodigosSemEndereco(prev => prev.filter(item => item.codigo.toUpperCase() !== codigoSalvo));
       
       // Remover parâmetro de edição da URL
       if (searchParams.get('edit')) {
