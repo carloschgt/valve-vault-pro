@@ -39,13 +39,51 @@ const Home = () => {
   const handleQRScan = (data: string) => {
     setShowScanner(false);
     
+    // Primeiro: verificar se é uma URL (QR da placa de identificação de rua)
+    if (data.startsWith('http://') || data.startsWith('https://')) {
+      try {
+        const url = new URL(data);
+        
+        // Verificar se é uma URL do nosso sistema com parâmetro de rua
+        if (url.pathname.includes('/estoque-rua') || url.pathname.includes('estoque-rua')) {
+          const ruaParam = url.searchParams.get('rua');
+          if (ruaParam) {
+            const ruaNum = parseInt(ruaParam);
+            if (!isNaN(ruaNum) && ruaNum > 0) {
+              navigate(`/estoque-rua?rua=${ruaNum}`);
+              toast({
+                title: 'Rua identificada',
+                description: `Carregando materiais da Rua ${String(ruaNum).padStart(2, '0')}`,
+              });
+              return;
+            }
+          }
+        }
+        
+        // Verificar se é uma URL do nosso sistema com parâmetro de busca/código
+        if (url.pathname.includes('/estoque-atual')) {
+          const searchParam = url.searchParams.get('search');
+          if (searchParam) {
+            navigate(`/estoque-atual?search=${encodeURIComponent(searchParam)}`);
+            toast({
+              title: 'Material identificado',
+              description: `Buscando código ${searchParam}`,
+            });
+            return;
+          }
+        }
+      } catch {
+        // URL inválida, continuar com outras verificações
+      }
+    }
+    
+    // Segundo: tentar como JSON (etiqueta de material)
     try {
       const qrData: QRData = JSON.parse(data);
       
       // Se o QR code contém um código de material
       if (qrData.cod || qrData.codigo) {
         const codigo = qrData.cod || qrData.codigo;
-        // Navegar para estoque atual com o código no campo de busca
         navigate(`/estoque-atual?search=${encodeURIComponent(codigo || '')}`);
         toast({
           title: 'Material identificado',
@@ -54,7 +92,7 @@ const Home = () => {
         return;
       }
       
-      // Se o QR code contém apenas número da rua (para identificação de rua)
+      // Se o QR code contém apenas número da rua
       if (qrData.rua !== undefined) {
         navigate(`/estoque-rua?rua=${qrData.rua}`);
         toast({
@@ -64,14 +102,13 @@ const Home = () => {
         return;
       }
       
-      // QR code não reconhecido
       toast({
         title: 'QR Code não reconhecido',
         description: 'Este QR code não contém informações de material ou rua',
         variant: 'destructive',
       });
     } catch {
-      // Se não for JSON, verificar se é apenas um número (rua)
+      // Terceiro: verificar se é apenas um número (rua)
       const ruaNum = parseInt(data);
       if (!isNaN(ruaNum) && ruaNum > 0 && ruaNum <= 99) {
         navigate(`/estoque-rua?rua=${ruaNum}`);
@@ -82,7 +119,7 @@ const Home = () => {
         return;
       }
       
-      // Tentar como código de material direto
+      // Quarto: tentar como código de material direto (6 dígitos)
       if (data.match(/^\d{6}$/)) {
         navigate(`/estoque-atual?search=${encodeURIComponent(data)}`);
         toast({
