@@ -210,6 +210,35 @@ serve(async (req) => {
         throw new Error("Erro ao verificar email");
       }
 
+      // If user exists and is approved, check if they have a pending password reset token
+      // If so, redirect them to the reset page immediately (before asking for password)
+      if (user && user.aprovado) {
+        const { data: pendingResetToken } = await supabase
+          .from("password_reset_tokens")
+          .select("id, token")
+          .eq("user_id", user.id)
+          .is("used_at", null)
+          .gt("expires_at", new Date().toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (pendingResetToken && pendingResetToken.length > 0) {
+          console.log(`User ${email} has pending password reset during checkEmail, redirecting`);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              exists: true,
+              approved: true,
+              userName: user.nome,
+              status: user.status,
+              mustResetPassword: true,
+              resetToken: pendingResetToken[0].token,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,

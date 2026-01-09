@@ -74,6 +74,14 @@ const Login = () => {
         toast.warning('Seu cadastro está aguardando aprovação do administrador');
         return;
       }
+      
+      // If user must reset password, redirect immediately to reset page (before asking for password)
+      if (result.mustResetPassword && result.resetToken) {
+        toast.info('Você precisa criar uma nova senha');
+        navigate(`/reset-password?token=${result.resetToken}`);
+        return;
+      }
+      
       setUserName(result.userName || '');
       
       // Check for biometric
@@ -345,7 +353,8 @@ const Login = () => {
                     onChange={(e) => setSenha(e.target.value)}
                     autoComplete="current-password"
                     disabled={isLoading}
-                    className="pr-10"
+                    className="pr-10 normal-case"
+                    style={{ textTransform: 'none' }}
                   />
                   <button
                     type="button"

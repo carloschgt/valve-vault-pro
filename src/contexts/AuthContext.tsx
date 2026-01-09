@@ -41,6 +41,8 @@ interface CheckEmailResult {
   approved?: boolean;
   userName?: string;
   status?: UserStatus;
+  mustResetPassword?: boolean;
+  resetToken?: string;
 }
 
 interface LoginResult {
@@ -112,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approved: data.approved,
         userName: data.userName,
         status: data.status,
+        mustResetPassword: data.mustResetPassword,
+        resetToken: data.resetToken,
       };
     } catch (err) {
       console.error('Check email error:', err);
