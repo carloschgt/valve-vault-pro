@@ -144,6 +144,20 @@ serve(async (req) => {
         if (!emailResponse.ok) {
           const errorData = await emailResponse.json();
           console.error("Resend API error:", errorData);
+          
+          // Check for domain verification error
+          if (errorData.message?.includes("verify a domain") || errorData.message?.includes("testing emails")) {
+            await supabase.from("password_reset_tokens").delete().eq("token", resetToken);
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: "O domínio de email ainda não foi verificado no Resend. Para enviar emails para outros usuários, configure um domínio em resend.com/domains",
+                details: "Atualmente só é possível enviar emails de teste para o email do proprietário da conta Resend."
+              }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          
           throw new Error("Failed to send email");
         }
 
@@ -154,7 +168,7 @@ serve(async (req) => {
         // Clean up token if email fails
         await supabase.from("password_reset_tokens").delete().eq("token", resetToken);
         return new Response(
-          JSON.stringify({ success: false, error: "Erro ao enviar email" }),
+          JSON.stringify({ success: false, error: "Erro ao enviar email. Verifique se o domínio está configurado no Resend." }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
