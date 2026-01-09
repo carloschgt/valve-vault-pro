@@ -1259,11 +1259,18 @@ serve(async (req) => {
       );
     }
 
-    // ========== ESTOQUE ATUAL (ADMIN ONLY) ==========
+    // ========== ESTOQUE ATUAL ==========
     if (action === "estoque_atual") {
-      if (!isAdmin) {
+      // Verificar se a visualização está bloqueada para não-admins
+      const { data: config } = await supabase
+        .from("inventario_config")
+        .select("bloquear_visualizacao_estoque")
+        .limit(1)
+        .single();
+      
+      if (!isAdmin && config?.bloquear_visualizacao_estoque) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Apenas administradores podem acessar esta funcionalidade' }),
+          JSON.stringify({ success: false, error: 'Visualização de estoque bloqueada durante inventário' }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

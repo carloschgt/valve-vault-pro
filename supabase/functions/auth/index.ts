@@ -274,15 +274,41 @@ serve(async (req) => {
         );
       }
 
+      // Check FIRST if user has an approved password reset token that hasn't been used yet
+      // This blocks login until the user creates a new password via the reset link
+      const { data: pendingResetToken } = await supabase
+        .from("password_reset_tokens")
+        .select("id, token")
+        .eq("user_id", user.id)
+        .is("used_at", null)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (pendingResetToken && pendingResetToken.length > 0) {
+        console.log(`User ${email} has pending password reset, blocking login`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Sua solicitação de redefinição de senha foi aprovada. Por favor, verifique seu email e crie uma nova senha.", 
+            pendingPasswordReset: true,
+            mustResetPassword: true,
+            resetToken: pendingResetToken[0].token,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Verify password
       const isValid = await verifyPassword(senha, user.senha_hash);
 
       if (!isValid) {
         // Record failed attempt
         recordFailedAttempt(email);
-        const remainingAttempts = MAX_LOGIN_ATTEMPTS - (loginAttempts.get(email.toLowerCase().trim())?.count || 0);
+        const currentAttempts = loginAttempts.get(email.toLowerCase().trim())?.count || 1;
+        const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - currentAttempts);
         
-        console.log(`Failed login attempt for: ${email}. Remaining attempts: ${remainingAttempts}`);
+        console.log(`Failed login attempt for: ${email}. Current: ${currentAttempts}, Remaining: ${remainingAttempts}`);
         
         return new Response(
           JSON.stringify({ 
@@ -362,28 +388,6 @@ serve(async (req) => {
             success: false, 
             error: "Você solicitou redefinição de senha. Aguarde a aprovação do administrador.", 
             pendingPasswordReset: true,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Check if user has an approved password reset token that hasn't been used yet
-      // This blocks login until the user creates a new password via the reset link
-      const { data: pendingResetToken } = await supabase
-        .from("password_reset_tokens")
-        .select("id, token")
-        .eq("user_id", user.id)
-        .is("used_at", null)
-        .gt("expires_at", new Date().toISOString())
-        .limit(1);
-
-      if (pendingResetToken && pendingResetToken.length > 0) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: "Sua solicitação de redefinição de senha foi aprovada. Por favor, verifique seu email e crie uma nova senha antes de fazer login.", 
-            pendingPasswordReset: true,
-            mustResetPassword: true,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

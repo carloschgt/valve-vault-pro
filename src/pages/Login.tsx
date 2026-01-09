@@ -121,6 +121,13 @@ const Login = () => {
       toast.success('Login realizado com sucesso!');
       navigate('/');
     } else {
+      // If user must reset password, redirect to reset page with token
+      if (result.mustResetPassword && result.resetToken) {
+        toast.info('Você precisa criar uma nova senha');
+        navigate(`/reset-password?token=${result.resetToken}`);
+        return;
+      }
+      
       if (result.pendingApproval) {
         toast.warning(result.error);
       } else {
