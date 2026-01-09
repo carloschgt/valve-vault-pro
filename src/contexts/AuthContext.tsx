@@ -49,6 +49,8 @@ interface LoginResult {
   pendingApproval?: boolean;
   status?: UserStatus;
   suspensoAte?: string | null;
+  mustResetPassword?: boolean;
+  resetToken?: string;
 }
 
 interface AuthContextType {
@@ -136,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           pendingApproval: data.pendingApproval,
           status: data.status,
           suspensoAte: data.suspensoAte,
+          mustResetPassword: data.mustResetPassword,
+          resetToken: data.resetToken,
         };
       }
 
