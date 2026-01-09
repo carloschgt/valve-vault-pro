@@ -213,7 +213,7 @@ serve(async (req) => {
       // Check if user exists
       const { data: user, error: userError } = await supabase
         .from("usuarios")
-        .select("id, nome, email, status")
+        .select("id, nome, email, status, senha_hash")
         .eq("email", email.toLowerCase().trim())
         .single();
 
@@ -225,7 +225,29 @@ serve(async (req) => {
         );
       }
 
-      // Notify admins about the password reset request
+      // Check if there's already a pending reset request for this user
+      const { data: existingNotifs } = await supabase
+        .from("notificacoes_usuario")
+        .select("id, dados")
+        .eq("tipo", "reset_senha")
+        .eq("lida", false);
+
+      const alreadyHasPending = existingNotifs?.some((n: any) => {
+        let dados = n.dados;
+        if (typeof dados === 'string') {
+          try { dados = JSON.parse(dados); } catch { dados = {}; }
+        }
+        return dados?.user_id === user.id || dados?.user_email === user.email;
+      });
+
+      if (alreadyHasPending) {
+        return new Response(
+          JSON.stringify({ success: true, message: "Já existe uma solicitação pendente de aprovação" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Notify admins about the password reset request - store the old password hash to verify new password is different
       const { data: admins } = await supabase
         .from("usuarios")
         .select("id")
@@ -248,6 +270,7 @@ serve(async (req) => {
           user_id: user.id, 
           user_email: user.email,
           user_nome: user.nome,
+          old_password_hash: user.senha_hash, // Store old hash to compare later
           requires_action: true 
         },
       }));
@@ -267,7 +290,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: true, message: "Solicitação enviada aos administradores" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        );
     }
 
     // Action: Validate reset token
