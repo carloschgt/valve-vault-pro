@@ -131,7 +131,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
 
   return (
     <div 
-      className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-3 print:rounded-none print:border-2"
+      className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-2 print:rounded-none print:border-2 overflow-hidden"
       style={{ 
         width: '128mm',
         height: '80mm',
@@ -141,75 +141,83 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       }}
     >
       {/* Header with Logo, Procedure and Address */}
-      <div className="mb-1 flex items-center justify-between border-b-2 border-gray-400 pb-1">
-        <img src={logoImex} alt="IMEX" className="h-7 print:h-6" />
+      <div className="flex items-center justify-between border-b-2 border-gray-400 pb-1 flex-shrink-0">
+        <img src={logoImex} alt="IMEX" className="h-6 print:h-5" />
         <div className="text-center">
-          <span className="text-[8px] font-medium text-gray-600">F03/02 - 8.5.2-01</span>
+          <span className="text-[7px] font-medium text-gray-600">F03/02 - 8.5.2-01</span>
         </div>
-        <div className="rounded-md bg-gray-900 px-4 py-2">
-          <div className="text-3xl font-black text-white print:text-2xl">{data.endereco}</div>
+        <div className="rounded-md bg-gray-900 px-3 py-1.5">
+          <div className="text-2xl font-black text-white print:text-xl">{data.endereco}</div>
         </div>
       </div>
 
       {/* Main Content - Código em destaque */}
-      <div className="flex flex-1 gap-3">
+      <div className="flex flex-1 gap-2 mt-1 min-h-0 overflow-hidden">
         {/* QR Code */}
-        <div className="flex flex-col items-center justify-center">
-          <div className="rounded-md border-2 border-gray-800 bg-white p-1.5">
+        <div className="flex flex-col items-center justify-center flex-shrink-0">
+          <div className="rounded-md border-2 border-gray-800 bg-white p-1">
             <QRCodeSVG
               value={qrData}
-              size={80}
+              size={72}
               level="M"
               bgColor="#ffffff"
               fgColor="#000000"
             />
           </div>
-          <span className="mt-1 text-[8px] font-medium text-gray-600">Escaneie para info</span>
+          <span className="mt-0.5 text-[7px] font-medium text-gray-600">Escaneie para info</span>
         </div>
 
         {/* Info - Código em destaque máximo */}
-        <div className="flex flex-1 flex-col justify-between">
+        <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
           {/* Código - Extra grande */}
-          <div className="rounded-lg bg-gray-100 px-3 py-0.5">
-            <label className="text-[8px] font-bold uppercase tracking-wide text-gray-600">
+          <div className="rounded-lg bg-gray-100 px-2 py-0.5 flex-shrink-0">
+            <label className="text-[7px] font-bold uppercase tracking-wide text-gray-600">
               Código
             </label>
-            <p className="text-6xl font-black tracking-wider text-gray-900 print:text-6xl leading-none">{data.codigo}</p>
+            <p className="text-5xl font-black tracking-wider text-gray-900 print:text-4xl leading-none">{data.codigo}</p>
           </div>
           
-          {/* Descrição - Maximizada */}
-          <div className="mt-0.5 flex-1">
-            <label className="text-[8px] font-semibold uppercase text-gray-500">
+          {/* Descrição - Limitada a 2 linhas */}
+          <div className="mt-1 flex-1 min-h-0 overflow-hidden">
+            <label className="text-[7px] font-semibold uppercase text-gray-500">
               Descrição
             </label>
-            <p className="text-lg font-bold leading-tight text-gray-800 print:text-base" style={{ wordBreak: 'break-word' }}>
+            <p 
+              className="text-sm font-bold leading-tight text-gray-800 print:text-xs overflow-hidden"
+              style={{ 
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                wordBreak: 'break-word'
+              }}
+            >
               {data.descricao}
             </p>
           </div>
 
           {/* Detalhes em linha - Compacto */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="text-[8px] font-semibold uppercase text-gray-500">
+          <div className="flex gap-2 mt-auto flex-shrink-0">
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <label className="text-[7px] font-semibold uppercase text-gray-500">
                 Fabricante
               </label>
-              <p className="text-xs font-bold text-gray-800 print:text-xs">
+              <p className="text-[10px] font-bold text-gray-800 truncate print:text-[9px]">
                 {data.fabricante}
               </p>
             </div>
-            <div className="flex-1">
-              <label className="text-[8px] font-semibold uppercase text-gray-500">
+            <div className="flex-shrink-0">
+              <label className="text-[7px] font-semibold uppercase text-gray-500">
                 Tipo
               </label>
-              <p className="text-xs font-bold text-gray-800 print:text-xs">
+              <p className="text-[10px] font-bold text-gray-800 print:text-[9px]">
                 {data.tipoMaterial}
               </p>
             </div>
-            <div className="flex-1">
-              <label className="text-[8px] font-semibold uppercase text-gray-500">
-                Peso Unit.
+            <div className="flex-shrink-0">
+              <label className="text-[7px] font-semibold uppercase text-gray-500">
+                Peso
               </label>
-              <p className="text-xs font-bold text-gray-800 print:text-xs">
+              <p className="text-[10px] font-bold text-gray-800 print:text-[9px]">
                 {data.peso} kg
               </p>
             </div>
@@ -217,9 +225,9 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="mt-auto border-t border-gray-300 pt-1 text-center">
-        <p className="text-[8px] font-medium text-gray-500">
+      {/* Footer - Sempre visível */}
+      <div className="border-t border-gray-300 pt-0.5 text-center flex-shrink-0 mt-1">
+        <p className="text-[7px] font-medium text-gray-500">
           IMEX SOLUTIONS - Sistema de Gerenciamento de Materiais
         </p>
       </div>
