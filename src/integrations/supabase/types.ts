@@ -574,6 +574,7 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_sessions: { Args: never; Returns: undefined }
+      get_user_id_by_email: { Args: { user_email: string }; Returns: string }
       is_admin_user: { Args: { user_email: string }; Returns: boolean }
     }
     Enums: {
