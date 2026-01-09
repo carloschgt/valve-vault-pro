@@ -131,73 +131,83 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
 
   return (
     <div 
-      className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-3 print:rounded-none print:border-2"
+      className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-2 print:rounded-none print:border-2"
       style={{ 
-        width: '128mm',
-        height: '90mm',
+        width: '180mm',
+        height: '85mm',
         pageBreakInside: 'avoid',
         breakInside: 'avoid',
         boxSizing: 'border-box',
       }}
     >
       {/* Header with Logo, Procedure and Address */}
-      <div className="flex items-center justify-between border-b-2 border-gray-400 pb-2">
-        <img src={logoImex} alt="IMEX" className="h-8 print:h-6" />
+      <div className="flex items-center justify-between border-b-2 border-gray-400 pb-1.5">
+        <img src={logoImex} alt="IMEX" className="h-7 print:h-6" />
         <div className="text-center">
           <span className="text-[8px] font-medium text-gray-600">F03/02 - 8.5.2-01</span>
         </div>
-        <div className="rounded-md bg-gray-900 px-4 py-2">
+        <div className="rounded-md bg-gray-900 px-4 py-1.5">
           <div className="text-2xl font-black text-white print:text-xl">{data.endereco}</div>
         </div>
       </div>
 
-      {/* Main Content - Código em destaque */}
-      <div className="flex flex-1 gap-3 mt-2">
+      {/* Main Content - Layout horizontal otimizado */}
+      <div className="flex flex-1 gap-3 mt-1.5">
         {/* QR Code */}
-        <div className="flex flex-col items-center justify-center">
-          <div className="rounded-md border-2 border-gray-800 bg-white p-1.5">
+        <div className="flex flex-col items-center justify-center flex-shrink-0">
+          <div className="rounded-md border-2 border-gray-800 bg-white p-1">
             <QRCodeSVG
               value={qrData}
-              size={80}
+              size={70}
               level="M"
               bgColor="#ffffff"
               fgColor="#000000"
             />
           </div>
-          <span className="mt-1 text-[8px] font-medium text-gray-600">Escaneie para info</span>
+          <span className="mt-0.5 text-[7px] font-medium text-gray-600">Escaneie para info</span>
         </div>
 
-        {/* Info - Código em destaque máximo */}
-        <div className="flex flex-1 flex-col">
-          {/* Código - Extra grande */}
+        {/* Código - Grande e destacado */}
+        <div className="flex flex-col justify-center flex-shrink-0">
           <div className="rounded-lg bg-gray-100 px-3 py-1">
             <label className="text-[8px] font-bold uppercase tracking-wide text-gray-600">
               Código
             </label>
-            <p className="text-5xl font-black tracking-wider text-gray-900 print:text-4xl">{data.codigo}</p>
+            <p className="text-5xl font-black tracking-wider text-gray-900 print:text-4xl leading-none">{data.codigo}</p>
           </div>
-          
+        </div>
+
+        {/* Info - Descrição e detalhes */}
+        <div className="flex flex-1 flex-col min-w-0">
           {/* Descrição */}
-          <div className="mt-2 flex-1">
+          <div className="flex-1">
             <label className="text-[8px] font-semibold uppercase text-gray-500">
               Descrição
             </label>
-            <p className="text-sm font-bold leading-tight text-gray-800 print:text-xs">
+            <p 
+              className="text-sm font-bold leading-tight text-gray-800 print:text-xs"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
               {data.descricao}
             </p>
           </div>
 
           {/* Detalhes em linha */}
-          <div className="flex gap-4 mt-2">
-            <div className="flex-1">
+          <div className="flex gap-4 mt-1">
+            <div className="flex-1 min-w-0">
               <label className="text-[8px] font-semibold uppercase text-gray-500">
                 Fabricante
               </label>
-              <p className="text-xs font-bold text-gray-800 print:text-[10px]">
+              <p className="text-xs font-bold text-gray-800 print:text-[10px] truncate">
                 {data.fabricante}
               </p>
             </div>
-            <div>
+            <div className="flex-shrink-0">
               <label className="text-[8px] font-semibold uppercase text-gray-500">
                 Tipo
               </label>
@@ -205,7 +215,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
                 {data.tipoMaterial}
               </p>
             </div>
-            <div>
+            <div className="flex-shrink-0">
               <label className="text-[8px] font-semibold uppercase text-gray-500">
                 Peso
               </label>
@@ -218,8 +228,8 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-300 pt-1 text-center mt-2">
-        <p className="text-[8px] font-medium text-gray-500">
+      <div className="border-t border-gray-300 pt-0.5 text-center mt-1">
+        <p className="text-[7px] font-medium text-gray-500">
           IMEX SOLUTIONS - Sistema de Gerenciamento de Materiais
         </p>
       </div>
