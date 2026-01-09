@@ -134,7 +134,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
       className="flex flex-col rounded-lg border-2 border-gray-900 bg-white p-3 print:rounded-none print:border-2"
       style={{ 
         width: '128mm',
-        height: '90mm',
+        height: '85mm',
         pageBreakInside: 'avoid',
         breakInside: 'avoid',
         boxSizing: 'border-box',
