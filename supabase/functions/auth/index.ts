@@ -340,6 +340,40 @@ serve(async (req) => {
         );
       }
 
+      // Check if user has pending password reset request (blocks login until approved)
+      const { data: pendingReset } = await supabase
+        .from("notificacoes_usuario")
+        .select("id")
+        .eq("tipo", "reset_senha")
+        .eq("lida", false)
+        .limit(1);
+
+      // Find the notification that matches this user
+      const { data: userResetNotification } = await supabase
+        .from("notificacoes_usuario")
+        .select("id, dados")
+        .eq("tipo", "reset_senha")
+        .eq("lida", false);
+
+      const hasPendingReset = userResetNotification?.some((n: any) => {
+        let dados = n.dados;
+        if (typeof dados === 'string') {
+          try { dados = JSON.parse(dados); } catch { dados = {}; }
+        }
+        return dados?.user_id === user.id || dados?.user_email === user.email;
+      });
+
+      if (hasPendingReset) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Você solicitou redefinição de senha. Aguarde a aprovação do administrador.", 
+            pendingPasswordReset: true,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Sanitize and validate deviceInfo before storing
       const sanitizedDeviceInfo = deviceInfo && typeof deviceInfo === 'string' 
         ? deviceInfo.slice(0, 500).replace(/[\x00-\x1F\x7F]/g, '') 

@@ -254,8 +254,8 @@ const Home = () => {
             </button>
           )}
 
-          {/* Processar Códigos - Apenas Comercial */}
-          {isComercial && (
+          {/* Processar Códigos - Comercial e Admin */}
+          {(isComercial || isAdmin) && (
             <button
               onClick={() => navigate('/processar-codigos')}
               className="flex items-center gap-4 rounded-2xl border-2 border-orange-500/50 bg-orange-500/5 p-4 transition-all hover:bg-orange-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
