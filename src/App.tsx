@@ -28,6 +28,7 @@ import IdentificacaoRuaPrint from "./pages/IdentificacaoRuaPrint";
 import NovaSolicitacao from "./pages/NovaSolicitacao";
 import SolicitacoesCodigo from "./pages/SolicitacoesCodigo";
 import AprovacaoCodigos from "./pages/AprovacaoCodigos";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/etiquetas/print" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><EtiquetaPrint /></ProtectedRoute>} />
             <Route path="/etiquetas/identificacao-rua" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><IdentificacaoRuaPrint /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
