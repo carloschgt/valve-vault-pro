@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { exportEnderecos, exportInventario } from '@/hooks/useDataOperations';
 import { exportEnderecamentosToCSV, exportInventarioToCSV } from '@/utils/exportEnderecamentos';
+import { AdminNotificationCenter } from '@/components/AdminNotificationCenter';
 import logoImex from '@/assets/logo-imex.png';
 
 const Home = () => {
@@ -98,14 +99,17 @@ const Home = () => {
         <img src={logoImex} alt="IMEX Solutions" className="h-10" />
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/fabricantes')}
-              title="Gerenciar Fabricantes"
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
+            <>
+              <AdminNotificationCenter />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/fabricantes')}
+                title="Gerenciar Fabricantes"
+              >
+                <Settings className="h-5 w-5" />
+              </Button>
+            </>
           )}
           <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
             <LogOut className="h-5 w-5" />
