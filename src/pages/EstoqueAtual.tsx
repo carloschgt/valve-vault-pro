@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Search, Package, Loader2, ScanLine, X, MapPin, Scale, Tag, Factory } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -70,11 +70,14 @@ interface QRData {
 
 const EstoqueAtual = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.tipo === 'admin';
 
-  const [search, setSearch] = useState('');
+  // Initialize search from URL parameter if present
+  const initialSearch = searchParams.get('search') || '';
+  const [search, setSearch] = useState(initialSearch);
   const [estoque, setEstoque] = useState<EstoqueItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showScanner, setShowScanner] = useState(false);
