@@ -92,7 +92,7 @@ export function AdminNotificationCenter() {
       // 3. Códigos pendentes de aprovação
       const { data: pendingCodes } = await supabase
         .from('solicitacoes_codigo')
-        .select('id, descricao, codigo_gerado, created_at, usuarios!inner(nome)')
+        .select('id, descricao, codigo_gerado, created_at, solicitado_por')
         .eq('status', 'codigo_gerado')
         .order('created_at', { ascending: false });
 
@@ -102,7 +102,7 @@ export function AdminNotificationCenter() {
             id: `code_${c.id}`,
             type: 'aprovacao_codigo',
             title: 'Código aguardando aprovação',
-            description: `${c.codigo_gerado} - ${c.descricao?.substring(0, 30)}...`,
+            description: `${c.codigo_gerado || 'Aguardando'} - ${c.descricao?.substring(0, 30)}...`,
             route: '/aprovacao-codigos',
             data: c,
             created_at: c.created_at,
