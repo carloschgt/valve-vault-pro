@@ -85,7 +85,7 @@ serve(async (req) => {
     const isComercial = user.tipo === 'comercial';
     const isUser = user.tipo === 'user';
     const canRequestCode = isAdmin || isUser; // Quem pode solicitar códigos
-    const canProcessCode = isComercial; // Quem pode processar/gerar códigos (apenas comercial)
+    const canProcessCode = isComercial || isAdmin; // Quem pode processar/gerar códigos (comercial e admin)
 
     console.log(`User: ${user.email}, Tipo: ${user.tipo}`);
 
