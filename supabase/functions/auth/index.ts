@@ -341,13 +341,6 @@ serve(async (req) => {
       }
 
       // Check if user has pending password reset request (blocks login until approved)
-      const { data: pendingReset } = await supabase
-        .from("notificacoes_usuario")
-        .select("id")
-        .eq("tipo", "reset_senha")
-        .eq("lida", false)
-        .limit(1);
-
       // Find the notification that matches this user
       const { data: userResetNotification } = await supabase
         .from("notificacoes_usuario")
@@ -369,6 +362,28 @@ serve(async (req) => {
             success: false, 
             error: "Você solicitou redefinição de senha. Aguarde a aprovação do administrador.", 
             pendingPasswordReset: true,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if user has an approved password reset token that hasn't been used yet
+      // This blocks login until the user creates a new password via the reset link
+      const { data: pendingResetToken } = await supabase
+        .from("password_reset_tokens")
+        .select("id, token")
+        .eq("user_id", user.id)
+        .is("used_at", null)
+        .gt("expires_at", new Date().toISOString())
+        .limit(1);
+
+      if (pendingResetToken && pendingResetToken.length > 0) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Sua solicitação de redefinição de senha foi aprovada. Por favor, verifique seu email e crie uma nova senha antes de fazer login.", 
+            pendingPasswordReset: true,
+            mustResetPassword: true,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

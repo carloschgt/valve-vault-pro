@@ -293,10 +293,13 @@ serve(async (req) => {
               .in("id", userNotifIds);
           }
 
-          // Set user to require new password - store old hash for comparison
-          // The user status remains the same, but we'll track that they need to change password
-          // by storing the old password hash in a notification that will block login until new password is set
-          
+          // Delete any existing unused tokens for this user
+          await supabase
+            .from("password_reset_tokens")
+            .delete()
+            .eq("user_id", dados.user_id)
+            .is("used_at", null);
+
           // Generate a reset token for the user to use
           const resetToken = crypto.randomUUID() + '-' + crypto.randomUUID();
           const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
@@ -310,6 +313,65 @@ serve(async (req) => {
           });
 
           console.log(`Password reset approved for user ${dados?.user_email} by admin ${adminEmail}. Token created.`);
+
+          // Send email to user with reset link
+          const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+          if (RESEND_API_KEY) {
+            const baseUrl = "https://bdetejjahokasedpghlp.lovableproject.com";
+            const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+
+            try {
+              const emailResponse = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${RESEND_API_KEY}`,
+                },
+                body: JSON.stringify({
+                  from: "IMEX Sistema <onboarding@resend.dev>",
+                  to: [dados.user_email],
+                  subject: "Redefinição de Senha Aprovada - IMEX Sistema",
+                  html: `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                      <meta charset="utf-8">
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    </head>
+                    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                      <div style="background: linear-gradient(135deg, #1a365d 0%, #2563eb 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                        <h1 style="color: white; margin: 0; font-size: 24px;">IMEX Sistema</h1>
+                      </div>
+                      <div style="background: #f8fafc; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e2e8f0; border-top: none;">
+                        <h2 style="color: #1a365d; margin-top: 0;">Olá, ${dados.user_nome || 'Usuário'}!</h2>
+                        <p>Sua solicitação de redefinição de senha foi <strong>aprovada pelo administrador</strong>.</p>
+                        <p>Clique no botão abaixo para criar uma <strong>nova senha</strong>:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                          <a href="${resetUrl}" style="background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Criar Nova Senha</a>
+                        </div>
+                        <p style="color: #dc2626; font-size: 14px;"><strong>Importante:</strong> Você não poderá fazer login até criar uma nova senha. A nova senha deve ser diferente da anterior.</p>
+                        <p style="color: #64748b; font-size: 14px;">Este link expira em <strong>24 horas</strong>.</p>
+                        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                        <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+                          Este é um email automático do IMEX Sistema. Por favor, não responda.
+                        </p>
+                      </div>
+                    </body>
+                    </html>
+                  `,
+                }),
+              });
+
+              if (emailResponse.ok) {
+                console.log(`Reset email sent to ${dados.user_email}`);
+              } else {
+                const errorData = await emailResponse.json();
+                console.error("Error sending reset email:", errorData);
+              }
+            } catch (emailError) {
+              console.error("Error sending reset email:", emailError);
+            }
+          }
         }
       }
 
