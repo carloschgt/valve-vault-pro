@@ -443,28 +443,28 @@ const EstoqueAtual = () => {
           <>
             {/* Header fixo */}
             <div className="overflow-x-auto shrink-0 bg-card border-b-2 border-border">
-              <table className="w-full text-xs table-fixed">
+              <table className="w-full text-xs sm:text-sm table-fixed min-w-[600px]">
                 <colgroup>
-                  <col className="w-[52px]" />
-                  <col />
-                  <col className="w-[50px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[32px]" />
-                  <col className="w-[40px]" />
+                  <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
+                  <col className="w-auto" />
+                  <col className="w-[55px] sm:w-[70px] lg:w-[80px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
+                  <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="px-1.5 py-2 text-left font-semibold bg-card">Código</th>
-                    <th className="px-1.5 py-2 text-left font-semibold bg-card">Descrição</th>
-                    <th className="px-1 py-2 text-left font-semibold bg-card">Tipo</th>
-                    <th className="px-0.5 py-2 text-center font-semibold bg-card">R</th>
-                    <th className="px-0.5 py-2 text-center font-semibold bg-card">C</th>
-                    <th className="px-0.5 py-2 text-center font-semibold bg-card">N</th>
-                    <th className="px-0.5 py-2 text-center font-semibold bg-card">P</th>
-                    <th className="px-0.5 py-2 text-center font-semibold bg-card">Qtd</th>
+                    <th className="px-2 py-2 text-left font-semibold bg-card">Código</th>
+                    <th className="px-2 py-2 text-left font-semibold bg-card">Descrição</th>
+                    <th className="px-2 py-2 text-left font-semibold bg-card">Tipo</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card">R</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card">C</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card">N</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card">P</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-card">Qtd</th>
                     <th className="px-1 py-2 text-center font-semibold bg-primary/10">Total</th>
                   </tr>
                 </thead>
@@ -472,29 +472,24 @@ const EstoqueAtual = () => {
             </div>
             {/* Body com scroll */}
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-xs table-fixed">
+              <table className="w-full text-xs sm:text-sm table-fixed min-w-[600px]">
                 <colgroup>
-                  <col className="w-[52px]" />
-                  <col />
-                  <col className="w-[50px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[26px]" />
-                  <col className="w-[32px]" />
-                  <col className="w-[40px]" />
+                  <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
+                  <col className="w-auto" />
+                  <col className="w-[55px] sm:w-[70px] lg:w-[80px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
+                  <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
                 </colgroup>
                 <tbody>
                   {estoque.map((item, idx) => {
-                    // Sort enderecos by rua, coluna, nivel, posicao ascending
-                    const sortedEnderecos = [...item.enderecos].sort((a, b) => {
-                      if (a.rua !== b.rua) return a.rua - b.rua;
-                      if (a.coluna !== b.coluna) return a.coluna - b.coluna;
-                      if (a.nivel !== b.nivel) return a.nivel - b.nivel;
-                      return a.posicao - b.posicao;
-                    });
+                    // Os endereços já vêm ordenados do backend por rua, coluna, nivel, posicao
+                    const enderecos = item.enderecos;
                     
-                    return sortedEnderecos.map((end, endIdx) => (
+                    return enderecos.map((end, endIdx) => (
                       <tr 
                         key={`${item.codigo}-${end.endereco_id}`}
                         className={`border-b border-border/50 ${endIdx === 0 && idx > 0 ? 'border-t-2 border-t-border' : ''}`}
@@ -502,34 +497,34 @@ const EstoqueAtual = () => {
                         {endIdx === 0 ? (
                           <>
                             <td 
-                              className="px-1.5 py-1.5 font-medium text-foreground align-top"
-                              rowSpan={sortedEnderecos.length}
+                              className="px-2 py-2 font-medium text-foreground align-top"
+                              rowSpan={enderecos.length}
                             >
                               {item.codigo}
                             </td>
                             <td 
-                              className="px-1.5 py-1.5 text-muted-foreground align-top break-words"
-                              rowSpan={sortedEnderecos.length}
+                              className="px-2 py-2 text-muted-foreground align-top break-words"
+                              rowSpan={enderecos.length}
                             >
                               {item.descricao}
                             </td>
                             <td 
-                              className="px-1 py-1.5 text-muted-foreground align-top"
-                              rowSpan={sortedEnderecos.length}
+                              className="px-2 py-2 text-muted-foreground align-top"
+                              rowSpan={enderecos.length}
                             >
                               {item.tipo_material}
                             </td>
                           </>
                         ) : null}
-                        <td className="px-0.5 py-1.5 text-center">{String(end.rua).padStart(2, '0')}</td>
-                        <td className="px-0.5 py-1.5 text-center">{String(end.coluna).padStart(2, '0')}</td>
-                        <td className="px-0.5 py-1.5 text-center">{String(end.nivel).padStart(2, '0')}</td>
-                        <td className="px-0.5 py-1.5 text-center">{String(end.posicao).padStart(2, '0')}</td>
-                        <td className="px-0.5 py-1.5 text-center font-medium">{end.quantidade}</td>
+                        <td className="px-1 py-2 text-center">{String(end.rua).padStart(2, '0')}</td>
+                        <td className="px-1 py-2 text-center">{String(end.coluna).padStart(2, '0')}</td>
+                        <td className="px-1 py-2 text-center">{String(end.nivel).padStart(2, '0')}</td>
+                        <td className="px-1 py-2 text-center">{String(end.posicao).padStart(2, '0')}</td>
+                        <td className="px-1 py-2 text-center font-medium">{end.quantidade}</td>
                         {endIdx === 0 ? (
                           <td 
-                            className="px-1 py-1.5 text-center font-bold text-primary bg-primary/5 align-top"
-                            rowSpan={sortedEnderecos.length}
+                            className="px-1 py-2 text-center font-bold text-primary bg-primary/5 align-top"
+                            rowSpan={enderecos.length}
                           >
                             {item.qtd_total}
                           </td>
