@@ -186,13 +186,28 @@ serve(async (req) => {
         .eq("status", "pendente")
         .order("created_at", { ascending: false });
 
-      // 2. Password reset requests
+      // 2. Password reset requests - deduplicate by user_id
       const { data: resetRequests } = await supabase
         .from("notificacoes_usuario")
         .select("id, dados, created_at, mensagem, titulo")
         .eq("tipo", "reset_senha")
         .eq("lida", false)
         .order("created_at", { ascending: false });
+
+      // Deduplicate reset requests by user_id - keep only the latest one per user
+      const seenUserIds = new Set<string>();
+      const uniqueResetRequests = (resetRequests || []).filter((r: any) => {
+        let dados = r.dados;
+        if (typeof dados === 'string') {
+          try { dados = JSON.parse(dados); } catch { dados = {}; }
+        }
+        const userId = dados?.user_id;
+        if (!userId || seenUserIds.has(userId)) {
+          return false;
+        }
+        seenUserIds.add(userId);
+        return true;
+      });
 
       // 3. Pending code approvals
       const { data: pendingCodes } = await supabase
@@ -205,7 +220,7 @@ serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           pendingUsers: pendingUsers || [], 
-          resetRequests: resetRequests || [], 
+          resetRequests: uniqueResetRequests, 
           pendingCodes: pendingCodes || [] 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -236,7 +251,7 @@ serve(async (req) => {
       );
     }
 
-    // Approve password reset - mark notification as read
+    // Approve password reset - mark notification as read and set flag requiring new password
     if (action === "approvePasswordReset") {
       // Get the notification to find user details
       const { data: notif, error: notifError } = await supabase
@@ -253,25 +268,49 @@ serve(async (req) => {
           try { dados = JSON.parse(dados); } catch (e) { dados = {}; }
         }
 
-        // Mark notification as read
-        await supabase
-          .from("notificacoes_usuario")
-          .update({ lida: true })
-          .eq("id", notif.id);
-
-        // Approve the user (set to ativo)
+        // Mark ALL notifications for this user as read (to clean up duplicates)
         if (dados?.user_id) {
-          await supabase
-            .from("usuarios")
-            .update({ 
-              status: 'ativo', 
-              aprovado: true,
-              notificado_aprovacao: false 
-            })
-            .eq("id", dados.user_id);
-        }
+          const { data: allNotifs } = await supabase
+            .from("notificacoes_usuario")
+            .select("id, dados")
+            .eq("tipo", "reset_senha")
+            .eq("lida", false);
 
-        console.log(`Password reset approved for user ${dados?.user_email} by admin ${adminEmail}`);
+          const userNotifIds = (allNotifs || [])
+            .filter((n: any) => {
+              let d = n.dados;
+              if (typeof d === 'string') {
+                try { d = JSON.parse(d); } catch { d = {}; }
+              }
+              return d?.user_id === dados.user_id;
+            })
+            .map((n: any) => n.id);
+
+          if (userNotifIds.length > 0) {
+            await supabase
+              .from("notificacoes_usuario")
+              .update({ lida: true })
+              .in("id", userNotifIds);
+          }
+
+          // Set user to require new password - store old hash for comparison
+          // The user status remains the same, but we'll track that they need to change password
+          // by storing the old password hash in a notification that will block login until new password is set
+          
+          // Generate a reset token for the user to use
+          const resetToken = crypto.randomUUID() + '-' + crypto.randomUUID();
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+          // Store the reset token
+          await supabase.from("password_reset_tokens").insert({
+            user_id: dados.user_id,
+            user_email: dados.user_email,
+            token: resetToken,
+            expires_at: expiresAt.toISOString(),
+          });
+
+          console.log(`Password reset approved for user ${dados?.user_email} by admin ${adminEmail}. Token created.`);
+        }
       }
 
       return new Response(
