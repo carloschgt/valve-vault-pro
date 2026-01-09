@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, QrCode, Package, Loader2, MapPin, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,7 @@ interface MaterialRua {
 
 const EstoqueRua = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.tipo === 'admin';
@@ -72,6 +73,19 @@ const EstoqueRua = () => {
     };
     checkConfig();
   }, [isAdmin]);
+
+  // Carregar rua da URL se presente
+  useEffect(() => {
+    const ruaParam = searchParams.get('rua');
+    if (ruaParam && !isCheckingConfig) {
+      const ruaNum = parseInt(ruaParam);
+      if (!isNaN(ruaNum) && ruaNum > 0) {
+        setRua(ruaParam);
+        setRuaSelecionada(ruaNum);
+        buscarMateriaisRua(ruaNum);
+      }
+    }
+  }, [searchParams, isCheckingConfig]);
 
   const buscarMateriaisRua = async (ruaNum: number) => {
     setIsLoading(true);

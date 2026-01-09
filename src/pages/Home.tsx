@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse, FilePlus, CheckSquare } from 'lucide-react';
+import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse, FilePlus, CheckSquare, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { exportEnderecos, exportInventario } from '@/hooks/useDataOperations';
 import { exportEnderecamentosToCSV, exportInventarioToCSV } from '@/utils/exportEnderecamentos';
 import { AdminNotificationCenter } from '@/components/AdminNotificationCenter';
+import { QRScanner } from '@/components/QRScanner';
 import logoImex from '@/assets/logo-imex.png';
+
+interface QRData {
+  cod?: string;
+  codigo?: string;
+  end?: string;
+  endereco?: string;
+  rua?: number;
+}
 
 const Home = () => {
   const navigate = useNavigate();
@@ -24,6 +33,72 @@ const Home = () => {
     }
   }, [isComercial, navigate]);
   const [isExporting, setIsExporting] = useState<'enderecamentos' | 'inventario' | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
+
+  // Handle QR code scan - navegação inteligente baseada no conteúdo
+  const handleQRScan = (data: string) => {
+    setShowScanner(false);
+    
+    try {
+      const qrData: QRData = JSON.parse(data);
+      
+      // Se o QR code contém um código de material
+      if (qrData.cod || qrData.codigo) {
+        const codigo = qrData.cod || qrData.codigo;
+        // Navegar para estoque atual com o código no campo de busca
+        navigate(`/estoque-atual?search=${encodeURIComponent(codigo || '')}`);
+        toast({
+          title: 'Material identificado',
+          description: `Buscando código ${codigo}`,
+        });
+        return;
+      }
+      
+      // Se o QR code contém apenas número da rua (para identificação de rua)
+      if (qrData.rua !== undefined) {
+        navigate(`/estoque-rua?rua=${qrData.rua}`);
+        toast({
+          title: 'Rua identificada',
+          description: `Carregando materiais da Rua ${String(qrData.rua).padStart(2, '0')}`,
+        });
+        return;
+      }
+      
+      // QR code não reconhecido
+      toast({
+        title: 'QR Code não reconhecido',
+        description: 'Este QR code não contém informações de material ou rua',
+        variant: 'destructive',
+      });
+    } catch {
+      // Se não for JSON, verificar se é apenas um número (rua)
+      const ruaNum = parseInt(data);
+      if (!isNaN(ruaNum) && ruaNum > 0 && ruaNum <= 99) {
+        navigate(`/estoque-rua?rua=${ruaNum}`);
+        toast({
+          title: 'Rua identificada',
+          description: `Carregando materiais da Rua ${String(ruaNum).padStart(2, '0')}`,
+        });
+        return;
+      }
+      
+      // Tentar como código de material direto
+      if (data.match(/^\d{6}$/)) {
+        navigate(`/estoque-atual?search=${encodeURIComponent(data)}`);
+        toast({
+          title: 'Material identificado',
+          description: `Buscando código ${data}`,
+        });
+        return;
+      }
+      
+      toast({
+        title: 'QR Code inválido',
+        description: 'Não foi possível interpretar o conteúdo do QR Code',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleExportEnderecamentos = async () => {
     setIsExporting('enderecamentos');
@@ -98,6 +173,15 @@ const Home = () => {
       <div className="flex items-center justify-between border-b border-border bg-card p-4">
         <img src={logoImex} alt="IMEX Solutions" className="h-10" />
         <div className="flex items-center gap-2">
+          {/* QR Scanner Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowScanner(true)}
+            title="Escanear QR Code"
+          >
+            <ScanLine className="h-5 w-5" />
+          </Button>
           {isAdmin && (
             <>
               <AdminNotificationCenter />
@@ -391,6 +475,14 @@ const Home = () => {
           </div>
         )}
       </div>
+
+      {/* QR Scanner Modal */}
+      {showScanner && (
+        <QRScanner
+          onScan={handleQRScan}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
     </div>
   );
 };

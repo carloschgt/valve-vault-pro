@@ -1421,8 +1421,21 @@ serve(async (req) => {
 
       // Se tiver endereço específico no QR, filtrar por ele
       if (endereco) {
-        // Parse do endereço formatado (ex: "01-02-03-04")
-        const parts = endereco.split('-');
+        // Parse do endereço formatado - suporta ambos formatos:
+        // "01-02-03-04" (hífen) ou "R02.C01.N01.P01" (formato visual)
+        let parts: string[] = [];
+        
+        if (endereco.includes('.') && endereco.includes('R')) {
+          // Formato visual: "R02.C01.N01.P01"
+          const match = endereco.match(/R(\d+)\.C(\d+)\.N(\d+)\.P(\d+)/i);
+          if (match) {
+            parts = [match[1], match[2], match[3], match[4]];
+          }
+        } else {
+          // Formato com hífen: "02-01-01-01"
+          parts = endereco.split('-');
+        }
+        
         if (parts.length === 4) {
           enderecoQuery = enderecoQuery
             .eq("rua", parseInt(parts[0]))
@@ -1432,7 +1445,9 @@ serve(async (req) => {
         }
       }
 
-      const { data: endData, error: endError } = await enderecoQuery.maybeSingle();
+      // Use limit(1) e depois pegar o primeiro resultado para evitar erro com múltiplos registros
+      const { data: endDataArray, error: endError } = await enderecoQuery.limit(1);
+      const endData = endDataArray?.[0] || null;
       
       if (endError) throw endError;
 
