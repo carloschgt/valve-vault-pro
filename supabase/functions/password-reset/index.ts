@@ -199,6 +199,77 @@ serve(async (req) => {
       );
     }
 
+    // Action: Request admin to reset password (no email needed)
+    if (action === "requestAdminReset") {
+      if (!email) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Email é obrigatório" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`Admin password reset requested for: ${email}`);
+
+      // Check if user exists
+      const { data: user, error: userError } = await supabase
+        .from("usuarios")
+        .select("id, nome, email, status")
+        .eq("email", email.toLowerCase().trim())
+        .single();
+
+      if (userError || !user) {
+        console.log(`User not found: ${email}`);
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário não encontrado" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Notify admins about the password reset request
+      const { data: admins } = await supabase
+        .from("usuarios")
+        .select("id")
+        .eq("tipo", "admin")
+        .eq("status", "ativo");
+
+      if (!admins || admins.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Nenhum administrador encontrado" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const notifications = admins.map((admin) => ({
+        user_id: admin.id,
+        tipo: "reset_senha",
+        titulo: "Solicitação de Reset de Senha",
+        mensagem: `O usuário ${user.nome} (${user.email}) solicitou que um administrador redefina sua senha.`,
+        dados: JSON.stringify({ 
+          user_id: user.id, 
+          user_email: user.email,
+          user_nome: user.nome,
+          requires_action: true 
+        }),
+      }));
+
+      const { error: notifError } = await supabase.from("notificacoes_usuario").insert(notifications);
+
+      if (notifError) {
+        console.error("Error sending notifications:", notifError);
+        return new Response(
+          JSON.stringify({ success: false, error: "Erro ao enviar solicitação" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`Admin reset notifications sent: ${admins.length}`);
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Solicitação enviada aos administradores" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Action: Validate reset token
     if (action === "validateToken") {
       if (!token) {
