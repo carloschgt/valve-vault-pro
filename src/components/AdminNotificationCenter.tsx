@@ -18,6 +18,7 @@ interface PendingAction {
   title: string;
   description: string;
   route: string;
+  routeParams?: Record<string, string>;
   data?: any;
   created_at: string;
 }
@@ -37,29 +38,32 @@ export function AdminNotificationCenter() {
 
   const isAdmin = user?.tipo === 'admin';
 
-  // Carregar ações pendentes
+  // Carregar ações pendentes via edge function (bypasses RLS)
   const loadPendingActions = async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !user?.email) return;
     
     setIsLoading(true);
     try {
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'getPendingActions', adminEmail: user.email },
+      });
+
+      if (error) {
+        console.error('Erro ao buscar ações pendentes:', error);
+        return;
+      }
+
       const actions: PendingAction[] = [];
 
       // 1. Usuários pendentes de aprovação
-      const { data: pendingUsers } = await supabase
-        .from('usuarios')
-        .select('id, nome, email, created_at')
-        .eq('status', 'pendente')
-        .order('created_at', { ascending: false });
-
-      if (pendingUsers) {
-        pendingUsers.forEach(u => {
+      if (data.pendingUsers) {
+        data.pendingUsers.forEach((u: any) => {
           actions.push({
             id: `user_${u.id}`,
             type: 'novo_usuario',
             title: 'Novo usuário aguardando aprovação',
             description: `${u.nome} (${u.email})`,
-            route: '/admin',
+            route: `/admin/user/${u.id}`,
             data: u,
             created_at: u.created_at,
           });
@@ -67,17 +71,8 @@ export function AdminNotificationCenter() {
       }
 
       // 2. Solicitações de reset de senha
-      const { data: resetRequests } = await supabase
-        .from('notificacoes_usuario')
-        .select('id, dados, created_at, mensagem, titulo')
-        .eq('tipo', 'reset_senha')
-        .eq('lida', false)
-        .order('created_at', { ascending: false });
-
-      console.log('Reset requests found:', resetRequests);
-
-      if (resetRequests) {
-        resetRequests.forEach((r: any) => {
+      if (data.resetRequests) {
+        data.resetRequests.forEach((r: any) => {
           // Parse dados if it's a string
           let dados = r.dados;
           if (typeof dados === 'string') {
@@ -94,7 +89,7 @@ export function AdminNotificationCenter() {
             type: 'reset_senha',
             title: r.titulo || 'Solicitação de reset de senha',
             description: `${dados.user_nome || 'Usuário'} (${dados.user_email || ''})`,
-            route: '/admin',
+            route: `/admin/user/${dados.user_id}`,
             data: { ...dados, notificacao_id: r.id },
             created_at: r.created_at,
           });
@@ -102,14 +97,8 @@ export function AdminNotificationCenter() {
       }
 
       // 3. Códigos pendentes de aprovação
-      const { data: pendingCodes } = await supabase
-        .from('solicitacoes_codigo')
-        .select('id, descricao, codigo_gerado, created_at, solicitado_por')
-        .eq('status', 'codigo_gerado')
-        .order('created_at', { ascending: false });
-
-      if (pendingCodes) {
-        pendingCodes.forEach((c: any) => {
+      if (data.pendingCodes) {
+        data.pendingCodes.forEach((c: any) => {
           actions.push({
             id: `code_${c.id}`,
             type: 'aprovacao_codigo',
@@ -178,7 +167,7 @@ export function AdminNotificationCenter() {
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(solChannel);
     };
-  }, [isAdmin]);
+  }, [isAdmin, user?.email]);
 
   const handleActionClick = (action: PendingAction) => {
     setIsOpen(false);

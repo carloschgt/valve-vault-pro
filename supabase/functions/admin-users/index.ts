@@ -73,7 +73,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, userId, aprovado, search, adminEmail, tipo, status, suspendedUntil, statusFilter } = await req.json();
+    const { action, userId, aprovado, search, adminEmail, tipo, status, suspendedUntil, statusFilter, notificationId } = await req.json();
 
     console.log(`Admin users action: ${action}, adminEmail: ${adminEmail}`);
 
@@ -177,7 +177,131 @@ serve(async (req) => {
       );
     }
 
+    // Get all pending admin actions (for notification center)
+    if (action === "getPendingActions") {
+      // 1. Pending users
+      const { data: pendingUsers } = await supabase
+        .from("usuarios")
+        .select("id, nome, email, created_at")
+        .eq("status", "pendente")
+        .order("created_at", { ascending: false });
+
+      // 2. Password reset requests
+      const { data: resetRequests } = await supabase
+        .from("notificacoes_usuario")
+        .select("id, dados, created_at, mensagem, titulo")
+        .eq("tipo", "reset_senha")
+        .eq("lida", false)
+        .order("created_at", { ascending: false });
+
+      // 3. Pending code approvals
+      const { data: pendingCodes } = await supabase
+        .from("solicitacoes_codigo")
+        .select("id, descricao, codigo_gerado, created_at, solicitado_por")
+        .eq("status", "codigo_gerado")
+        .order("created_at", { ascending: false });
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          pendingUsers: pendingUsers || [], 
+          resetRequests: resetRequests || [], 
+          pendingCodes: pendingCodes || [] 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check if user has pending password reset
+    if (action === "checkPasswordReset") {
+      const { data: resetNotif } = await supabase
+        .from("notificacoes_usuario")
+        .select("id, dados, created_at")
+        .eq("tipo", "reset_senha")
+        .eq("lida", false)
+        .order("created_at", { ascending: false });
+
+      // Find if any reset request matches the userId
+      const pendingReset = resetNotif?.find((r: any) => {
+        let dados = r.dados;
+        if (typeof dados === 'string') {
+          try { dados = JSON.parse(dados); } catch (e) { dados = {}; }
+        }
+        return dados?.user_id === userId;
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, hasPendingReset: !!pendingReset, resetData: pendingReset }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Approve password reset - mark notification as read
+    if (action === "approvePasswordReset") {
+      // Get the notification to find user details
+      const { data: notif, error: notifError } = await supabase
+        .from("notificacoes_usuario")
+        .select("id, dados")
+        .eq("id", notificationId || userId)
+        .maybeSingle();
+
+      if (notifError) throw notifError;
+
+      if (notif) {
+        let dados = notif.dados;
+        if (typeof dados === 'string') {
+          try { dados = JSON.parse(dados); } catch (e) { dados = {}; }
+        }
+
+        // Mark notification as read
+        await supabase
+          .from("notificacoes_usuario")
+          .update({ lida: true })
+          .eq("id", notif.id);
+
+        // Approve the user (set to ativo)
+        if (dados?.user_id) {
+          await supabase
+            .from("usuarios")
+            .update({ 
+              status: 'ativo', 
+              aprovado: true,
+              notificado_aprovacao: false 
+            })
+            .eq("id", dados.user_id);
+        }
+
+        console.log(`Password reset approved for user ${dados?.user_email} by admin ${adminEmail}`);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "getUser") {
+      // First check if there's a pending password reset for this user
+      const { data: resetNotif } = await supabase
+        .from("notificacoes_usuario")
+        .select("id, dados, created_at")
+        .eq("tipo", "reset_senha")
+        .eq("lida", false);
+
+      let pendingPasswordReset = null;
+      if (resetNotif) {
+        for (const r of resetNotif) {
+          let dados = r.dados;
+          if (typeof dados === 'string') {
+            try { dados = JSON.parse(dados); } catch (e) { dados = {}; }
+          }
+          if (dados?.user_id === userId) {
+            pendingPasswordReset = { ...r, dados };
+            break;
+          }
+        }
+      }
+
       const { data: user, error } = await supabase
         .from("usuarios")
         .select("id, nome, email, tipo, aprovado, status, suspenso_ate, notificado_aprovacao, created_at, updated_at")
@@ -187,7 +311,7 @@ serve(async (req) => {
       if (error) throw error;
 
       return new Response(
-        JSON.stringify({ success: true, user }),
+        JSON.stringify({ success: true, user, pendingPasswordReset }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
