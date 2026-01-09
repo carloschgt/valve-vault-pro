@@ -147,7 +147,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
           <span className="text-[8px] font-medium text-gray-600">F03/02 - 8.5.2-01</span>
         </div>
         <div className="rounded-md bg-gray-900 px-4 py-2">
-          <div className="text-2xl font-black text-white print:text-xl">{data.endereco}</div>
+          <div className="text-3xl font-black text-white print:text-2xl">{data.endereco}</div>
         </div>
       </div>
 
@@ -174,7 +174,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             <label className="text-[8px] font-bold uppercase tracking-wide text-gray-600">
               Código
             </label>
-            <p className="text-5xl font-black tracking-wider text-gray-900 print:text-4xl">{data.codigo}</p>
+            <p className="text-6xl font-black tracking-wider text-gray-900 print:text-5xl">{data.codigo}</p>
           </div>
           
           {/* Descrição */}
@@ -182,7 +182,7 @@ const EtiquetaCard = ({ data }: EtiquetaCardProps) => {
             <label className="text-[8px] font-semibold uppercase text-gray-500">
               Descrição
             </label>
-            <p className="text-sm font-bold leading-tight text-gray-800 print:text-xs">
+            <p className="text-base font-bold leading-tight text-gray-800 print:text-sm">
               {data.descricao}
             </p>
           </div>
