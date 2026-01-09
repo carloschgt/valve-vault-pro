@@ -146,8 +146,8 @@ const Enderecamento = () => {
       setIsLoadingPendentes(true);
       try {
         const result = await listCodigosSemEnderecamento();
-        if (result.success) {
-          setCodigosSemEndereco(result.data || []);
+        if (result.success && result.data) {
+          setCodigosSemEndereco(result.data);
         }
       } catch (error) {
         console.error('Erro ao carregar códigos sem endereçamento:', error);

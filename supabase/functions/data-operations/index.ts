@@ -246,15 +246,8 @@ serve(async (req) => {
     }
 
     // Listar códigos aprovados sem endereçamento (do catálogo + solicitações aprovadas)
+    // Prioriza códigos de solicitações aprovadas recentemente
     if (action === "codigos_sem_enderecamento") {
-      // Buscar todos os códigos do catálogo que estão ativos
-      const { data: catalogo, error: catError } = await supabase
-        .from("catalogo_produtos")
-        .select("codigo, descricao, peso_kg")
-        .eq("ativo", true);
-      
-      if (catError) throw catError;
-      
       // Buscar todos os códigos que já têm endereçamento ativo
       const { data: enderecos, error: endError } = await supabase
         .from("enderecos_materiais")
@@ -265,31 +258,44 @@ serve(async (req) => {
       
       const codigosComEndereco = new Set((enderecos || []).map((e: any) => e.codigo.toUpperCase()));
       
-      // Filtrar códigos do catálogo que não têm endereçamento
-      const codigosSemEndereco = (catalogo || []).filter((c: any) => 
-        !codigosComEndereco.has(c.codigo.toUpperCase())
-      );
+      // Buscar solicitações aprovadas com seus dados
+      const { data: solicitacoesAprovadas, error: solError } = await supabase
+        .from("solicitacoes_codigo")
+        .select("codigo_gerado, descricao, fabricante_id, tipo_material, peso, aprovado_em, fabricantes(nome)")
+        .eq("status", "aprovado")
+        .not("codigo_gerado", "is", null)
+        .order("aprovado_em", { ascending: false });
       
-      // Para cada código sem endereço, verificar se veio de solicitação aprovada para pegar dados adicionais
-      const result = [];
-      for (const cat of codigosSemEndereco) {
-        // Buscar dados da solicitação aprovada (se existir)
-        const { data: solicitacao } = await supabase
-          .from("solicitacoes_codigo")
-          .select("fabricante_id, tipo_material, peso, fabricantes(nome)")
-          .eq("codigo_gerado", cat.codigo.toUpperCase())
-          .eq("status", "aprovado")
-          .maybeSingle();
-        
-        result.push({
-          codigo: cat.codigo,
-          descricao: cat.descricao,
-          peso: solicitacao?.peso || cat.peso_kg || null,
-          fabricante_id: solicitacao?.fabricante_id || null,
-          fabricante_nome: (solicitacao?.fabricantes as any)?.nome || null,
-          tipo_material: solicitacao?.tipo_material || null,
-        });
+      if (solError) throw solError;
+      
+      // Criar um map de solicitações aprovadas por código
+      const solicitacoesMap = new Map();
+      for (const sol of (solicitacoesAprovadas || [])) {
+        if (sol.codigo_gerado) {
+          solicitacoesMap.set(sol.codigo_gerado.toUpperCase(), sol);
+        }
       }
+      
+      // Buscar códigos do catálogo que não têm endereçamento, priorizando os de solicitações
+      const result = [];
+      
+      // Primeiro: adicionar códigos de solicitações aprovadas que não têm endereço
+      for (const sol of (solicitacoesAprovadas || [])) {
+        if (sol.codigo_gerado && !codigosComEndereco.has(sol.codigo_gerado.toUpperCase())) {
+          result.push({
+            codigo: sol.codigo_gerado,
+            descricao: sol.descricao,
+            peso: sol.peso || null,
+            fabricante_id: sol.fabricante_id || null,
+            fabricante_nome: (sol.fabricantes as any)?.nome || null,
+            tipo_material: sol.tipo_material || null,
+            from_solicitacao: true,
+          });
+        }
+      }
+      
+      // Limitar a 100 resultados para não sobrecarregar a UI
+      // Os códigos de solicitações aprovadas já estão incluídos acima
       
       // Ordenar por código
       result.sort((a, b) => a.codigo.localeCompare(b.codigo));
@@ -297,7 +303,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: true, data: result }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      )
     }
 
     if (action === "enderecos_get") {
