@@ -191,6 +191,39 @@ const Login = () => {
     setIsLoading(false);
   };
 
+  const handleRequestAdminReset = async () => {
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('password-reset', {
+        body: { 
+          action: 'requestAdminReset', 
+          email: email.trim(),
+        },
+      });
+
+      if (error) {
+        console.error('Request admin reset error:', error);
+        toast.error('Erro ao solicitar redefinição');
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.success) {
+        toast.success('Solicitação enviada! Um administrador irá redefinir sua senha.');
+        setStep('email');
+        setEmail('');
+      } else {
+        toast.error(data.error || 'Erro ao solicitar redefinição');
+      }
+    } catch (err) {
+      console.error('Request admin reset error:', err);
+      toast.error('Erro ao conectar com o servidor');
+    }
+    
+    setIsLoading(false);
+  };
+
   const goBack = () => {
     setStep('email');
     setSenha('');
@@ -374,22 +407,19 @@ const Login = () => {
             <div className="space-y-4">
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  Enviaremos um link para:
+                  Redefinir senha para:
                 </p>
                 <p className="text-sm font-medium">{email}</p>
               </div>
 
               <p className="text-sm text-muted-foreground">
-                Clique no botão abaixo para receber um email com o link para criar uma nova senha.
+                Escolha como deseja redefinir sua senha:
               </p>
 
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={goBack} disabled={isLoading}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
+              <div className="space-y-2">
                 <Button 
                   onClick={handleRequestPasswordReset}
-                  className="flex-1" 
+                  className="w-full" 
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -400,14 +430,51 @@ const Login = () => {
                   ) : (
                     <>
                       <Mail className="mr-2 h-4 w-4" />
-                      Enviar Link
+                      Receber Link por Email
+                    </>
+                  )}
+                </Button>
+
+                <div className="relative flex items-center justify-center py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <span className="relative bg-card px-2 text-xs text-muted-foreground">ou</span>
+                </div>
+
+                <Button 
+                  variant="outline"
+                  onClick={handleRequestAdminReset}
+                  className="w-full" 
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Solicitar a um Administrador
                     </>
                   )}
                 </Button>
               </div>
 
-              <p className="text-xs text-muted-foreground text-center pt-2">
-                Verifique também sua caixa de spam.
+              <Button 
+                type="button" 
+                variant="ghost" 
+                onClick={goBack} 
+                disabled={isLoading}
+                className="w-full"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar
+              </Button>
+
+              <p className="text-xs text-muted-foreground text-center">
+                A opção de email pode não funcionar se o domínio ainda não foi verificado.
               </p>
             </div>
           )}
