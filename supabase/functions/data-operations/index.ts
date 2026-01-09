@@ -245,6 +245,61 @@ serve(async (req) => {
       );
     }
 
+    // Listar códigos aprovados sem endereçamento (do catálogo + solicitações aprovadas)
+    if (action === "codigos_sem_enderecamento") {
+      // Buscar todos os códigos do catálogo que estão ativos
+      const { data: catalogo, error: catError } = await supabase
+        .from("catalogo_produtos")
+        .select("codigo, descricao, peso_kg")
+        .eq("ativo", true);
+      
+      if (catError) throw catError;
+      
+      // Buscar todos os códigos que já têm endereçamento ativo
+      const { data: enderecos, error: endError } = await supabase
+        .from("enderecos_materiais")
+        .select("codigo")
+        .eq("ativo", true);
+      
+      if (endError) throw endError;
+      
+      const codigosComEndereco = new Set((enderecos || []).map((e: any) => e.codigo.toUpperCase()));
+      
+      // Filtrar códigos do catálogo que não têm endereçamento
+      const codigosSemEndereco = (catalogo || []).filter((c: any) => 
+        !codigosComEndereco.has(c.codigo.toUpperCase())
+      );
+      
+      // Para cada código sem endereço, verificar se veio de solicitação aprovada para pegar dados adicionais
+      const result = [];
+      for (const cat of codigosSemEndereco) {
+        // Buscar dados da solicitação aprovada (se existir)
+        const { data: solicitacao } = await supabase
+          .from("solicitacoes_codigo")
+          .select("fabricante_id, tipo_material, peso, fabricantes(nome)")
+          .eq("codigo_gerado", cat.codigo.toUpperCase())
+          .eq("status", "aprovado")
+          .maybeSingle();
+        
+        result.push({
+          codigo: cat.codigo,
+          descricao: cat.descricao,
+          peso: solicitacao?.peso || cat.peso_kg || null,
+          fabricante_id: solicitacao?.fabricante_id || null,
+          fabricante_nome: (solicitacao?.fabricantes as any)?.nome || null,
+          tipo_material: solicitacao?.tipo_material || null,
+        });
+      }
+      
+      // Ordenar por código
+      result.sort((a, b) => a.codigo.localeCompare(b.codigo));
+      
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "enderecos_get") {
       const { id } = params;
       const { data, error } = await supabase
