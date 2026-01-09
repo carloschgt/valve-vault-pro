@@ -27,6 +27,28 @@ async function hashPassword(password: string): Promise<string> {
   return `${saltHex}:${hashHex}`;
 }
 
+// Verify password against stored hash
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  // Handle new salted format
+  if (storedHash.includes(':')) {
+    const [salt, hash] = storedHash.split(':');
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + salt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex === hash;
+  }
+  
+  // Handle legacy unsalted format (SHA-256 only)
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex === storedHash;
+}
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -369,6 +391,24 @@ serve(async (req) => {
         );
       }
 
+      // Get the user's current password hash to verify new password is different
+      const { data: currentUser } = await supabase
+        .from("usuarios")
+        .select("senha_hash")
+        .eq("id", tokenData.user_id)
+        .single();
+
+      if (currentUser?.senha_hash) {
+        // Check if new password matches the old password
+        const isSamePassword = await verifyPassword(newPassword, currentUser.senha_hash);
+        if (isSamePassword) {
+          return new Response(
+            JSON.stringify({ success: false, error: "A nova senha deve ser diferente da senha anterior. Por favor, escolha uma nova senha." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       // Hash new password
       const hashedPassword = await hashPassword(newPassword);
 
@@ -391,6 +431,32 @@ serve(async (req) => {
         .from("password_reset_tokens")
         .update({ used_at: new Date().toISOString() })
         .eq("token", token);
+
+      // Also mark any pending reset notifications for this user as read
+      const { data: pendingNotifs } = await supabase
+        .from("notificacoes_usuario")
+        .select("id, dados")
+        .eq("tipo", "reset_senha")
+        .eq("lida", false);
+
+      if (pendingNotifs) {
+        const userNotifIds = pendingNotifs
+          .filter((n: any) => {
+            let dados = n.dados;
+            if (typeof dados === 'string') {
+              try { dados = JSON.parse(dados); } catch { dados = {}; }
+            }
+            return dados?.user_id === tokenData.user_id || dados?.user_email === tokenData.user_email;
+          })
+          .map((n: any) => n.id);
+
+        if (userNotifIds.length > 0) {
+          await supabase
+            .from("notificacoes_usuario")
+            .update({ lida: true })
+            .in("id", userNotifIds);
+        }
+      }
 
       // Invalidate all user sessions
       await supabase

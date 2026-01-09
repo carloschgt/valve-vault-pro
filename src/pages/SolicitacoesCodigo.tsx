@@ -37,6 +37,7 @@ const SolicitacoesCodigo = () => {
   const { user, logout } = useAuth();
   
   const isComercial = user?.tipo === 'comercial';
+  const isAdmin = user?.tipo === 'admin';
   
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,8 +46,8 @@ const SolicitacoesCodigo = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  // Verificar permissão - Apenas comercial pode processar códigos
-  const canAccess = user?.tipo === 'comercial';
+  // Verificar permissão - Comercial e Admin podem processar códigos
+  const canAccess = isComercial || isAdmin;
 
   // Carregar solicitações
   const loadSolicitacoes = useCallback(async () => {
@@ -208,14 +209,12 @@ const SolicitacoesCodigo = () => {
     <div className="flex h-screen flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border bg-card px-2 py-1.5 shrink-0">
-        {!isComercial && (
-          <button
-            onClick={() => navigate('/')}
-            className="rounded-lg p-1 hover:bg-accent"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        )}
+        <button
+          onClick={() => navigate('/')}
+          className="rounded-lg p-1 hover:bg-accent"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-5" />
         <h1 className="text-sm font-bold flex-1">Processar Solicitações</h1>
         <Button
@@ -227,7 +226,7 @@ const SolicitacoesCodigo = () => {
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
-        {isComercial && (
+        {isComercial && !isAdmin && (
           <Button
             variant="ghost"
             size="sm"
