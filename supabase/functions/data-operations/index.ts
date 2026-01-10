@@ -247,6 +247,7 @@ serve(async (req) => {
 
     // Listar códigos aprovados sem endereçamento (do catálogo + solicitações aprovadas)
     // Prioriza códigos de solicitações aprovadas recentemente
+    // IMPORTANTE: Só mostra códigos que existem no catálogo (para garantir consistência)
     if (action === "codigos_sem_enderecamento") {
       // Buscar todos os códigos que já têm endereçamento ativo
       const { data: enderecos, error: endError } = await supabase
@@ -258,7 +259,21 @@ serve(async (req) => {
       
       const codigosComEndereco = new Set((enderecos || []).map((e: any) => e.codigo.toUpperCase()));
       
-      // Buscar solicitações aprovadas com seus dados
+      // Buscar todos os códigos que existem no catálogo (fonte da verdade)
+      const { data: catalogoProdutos, error: catError } = await supabase
+        .from("catalogo_produtos")
+        .select("codigo, descricao, peso_kg, ativo")
+        .eq("ativo", true);
+      
+      if (catError) throw catError;
+      
+      // Criar um map de códigos do catálogo
+      const catalogoMap = new Map();
+      for (const prod of (catalogoProdutos || [])) {
+        catalogoMap.set(prod.codigo.toUpperCase(), prod);
+      }
+      
+      // Buscar solicitações aprovadas com seus dados (apenas para enriquecer com fabricante e tipo)
       const { data: solicitacoesAprovadas, error: solError } = await supabase
         .from("solicitacoes_codigo")
         .select("codigo_gerado, descricao, fabricante_id, tipo_material, peso, aprovado_em, fabricantes(nome)")
@@ -276,26 +291,41 @@ serve(async (req) => {
         }
       }
       
-      // Buscar códigos do catálogo que não têm endereçamento, priorizando os de solicitações
+      // Buscar códigos do catálogo que não têm endereçamento
       const result = [];
       
-      // Primeiro: adicionar códigos de solicitações aprovadas que não têm endereço
-      for (const sol of (solicitacoesAprovadas || [])) {
-        if (sol.codigo_gerado && !codigosComEndereco.has(sol.codigo_gerado.toUpperCase())) {
-          result.push({
-            codigo: sol.codigo_gerado,
-            descricao: sol.descricao,
-            peso: sol.peso || null,
-            fabricante_id: sol.fabricante_id || null,
-            fabricante_nome: (sol.fabricantes as any)?.nome || null,
-            tipo_material: sol.tipo_material || null,
-            from_solicitacao: true,
-          });
+      for (const prod of (catalogoProdutos || [])) {
+        const codigoUpper = prod.codigo.toUpperCase();
+        
+        // Só incluir se não tem endereço ativo
+        if (!codigosComEndereco.has(codigoUpper)) {
+          // Verificar se tem solicitação aprovada para enriquecer com dados
+          const solicitacao = solicitacoesMap.get(codigoUpper);
+          
+          if (solicitacao) {
+            result.push({
+              codigo: prod.codigo,
+              descricao: prod.descricao,
+              peso: solicitacao.peso || prod.peso_kg || null,
+              fabricante_id: solicitacao.fabricante_id || null,
+              fabricante_nome: (solicitacao.fabricantes as any)?.nome || null,
+              tipo_material: solicitacao.tipo_material || null,
+              from_solicitacao: true,
+            });
+          } else {
+            // Código do catálogo sem dados de solicitação
+            result.push({
+              codigo: prod.codigo,
+              descricao: prod.descricao,
+              peso: prod.peso_kg || null,
+              fabricante_id: null,
+              fabricante_nome: null,
+              tipo_material: null,
+              from_solicitacao: false,
+            });
+          }
         }
       }
-      
-      // Limitar a 100 resultados para não sobrecarregar a UI
-      // Os códigos de solicitações aprovadas já estão incluídos acima
       
       // Ordenar por código
       result.sort((a, b) => a.codigo.localeCompare(b.codigo));

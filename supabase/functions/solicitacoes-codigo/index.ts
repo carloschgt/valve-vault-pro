@@ -392,6 +392,28 @@ serve(async (req) => {
         );
       }
 
+      // Verificar se já existe outra solicitação com este mesmo código (pendente, em processamento, código gerado ou aprovado)
+      const { data: solicitacaoComMesmoCodigo } = await supabase
+        .from("solicitacoes_codigo")
+        .select("id, numero_solicitacao, status, codigo_gerado")
+        .eq("codigo_gerado", codigoUpper)
+        .in("status", ["codigo_gerado", "aprovado"])
+        .neq("id", solicitacao_id)
+        .limit(1);
+
+      if (solicitacaoComMesmoCodigo && solicitacaoComMesmoCodigo.length > 0) {
+        const statusMsg = solicitacaoComMesmoCodigo[0].status === 'aprovado' 
+          ? 'já foi aprovado em outra solicitação' 
+          : 'está em outra solicitação aguardando aprovação';
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Este código ${statusMsg} (#${solicitacaoComMesmoCodigo[0].numero_solicitacao})` 
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Verificar se solicitação está bloqueada pelo usuário
       const { data: solicitacao } = await supabase
         .from("solicitacoes_codigo")
