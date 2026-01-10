@@ -192,7 +192,7 @@ const Login = () => {
       }
 
       if (data.success) {
-        toast.success('Verifique seu email para redefinir a senha');
+        toast.success(data.message || 'Solicitação enviada! Aguarde aprovação de um administrador.');
         setStep('email');
         setEmail('');
       } else {
@@ -200,39 +200,6 @@ const Login = () => {
       }
     } catch (err) {
       console.error('Request reset error:', err);
-      toast.error('Erro ao conectar com o servidor');
-    }
-    
-    setIsLoading(false);
-  };
-
-  const handleRequestAdminReset = async () => {
-    setIsLoading(true);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('password-reset', {
-        body: { 
-          action: 'requestAdminReset', 
-          email: email.trim(),
-        },
-      });
-
-      if (error) {
-        console.error('Request admin reset error:', error);
-        toast.error('Erro ao solicitar redefinição');
-        setIsLoading(false);
-        return;
-      }
-
-      if (data.success) {
-        toast.success('Solicitação enviada! Um administrador irá redefinir sua senha.');
-        setStep('email');
-        setEmail('');
-      } else {
-        toast.error(data.error || 'Erro ao solicitar redefinição');
-      }
-    } catch (err) {
-      console.error('Request admin reset error:', err);
       toast.error('Erro ao conectar com o servidor');
     }
     
@@ -418,7 +385,7 @@ const Login = () => {
             </form>
           )}
 
-          {/* Step: Reset Password - Request email */}
+          {/* Step: Reset Password - Single flow with admin approval */}
           {step === 'resetPassword' && (
             <div className="space-y-4">
               <div className="p-3 bg-muted rounded-lg">
@@ -428,55 +395,33 @@ const Login = () => {
                 <p className="text-sm font-medium">{email}</p>
               </div>
 
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Segurança:</strong> Por questões de segurança, todas as solicitações de redefinição de senha passam por aprovação de um administrador.
+                </p>
+              </div>
+
               <p className="text-sm text-muted-foreground">
-                Escolha como deseja redefinir sua senha:
+                Após a aprovação, você receberá um email com o link para criar uma nova senha.
               </p>
 
-              <div className="space-y-2">
-                <Button 
-                  onClick={handleRequestPasswordReset}
-                  className="w-full" 
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Receber Link por Email
-                    </>
-                  )}
-                </Button>
-
-                <div className="relative flex items-center justify-center py-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <span className="relative bg-card px-2 text-xs text-muted-foreground">ou</span>
-                </div>
-
-                <Button 
-                  variant="outline"
-                  onClick={handleRequestAdminReset}
-                  className="w-full" 
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Solicitar a um Administrador
-                    </>
-                  )}
-                </Button>
-              </div>
+              <Button 
+                onClick={handleRequestPasswordReset}
+                className="w-full" 
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando solicitação...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Solicitar Redefinição de Senha
+                  </>
+                )}
+              </Button>
 
               <Button 
                 type="button" 
@@ -488,10 +433,6 @@ const Login = () => {
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Voltar
               </Button>
-
-              <p className="text-xs text-muted-foreground text-center">
-                A opção de email pode não funcionar se o domínio ainda não foi verificado.
-              </p>
             </div>
           )}
 
