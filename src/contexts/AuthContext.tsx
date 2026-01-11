@@ -1,20 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { UserStatus, UserRole } from '@/types/user';
+import type { UserStatus, UserRole, SecurityRole } from '@/types/user';
 
 /**
  * SECURITY MODEL DOCUMENTATION:
  * 
- * The user data stored in localStorage (including 'tipo') is used for UI/UX purposes ONLY.
+ * The user data stored in localStorage (including 'tipo' and 'role') is used for UI/UX purposes ONLY.
  * Client-side authorization checks should NEVER be relied upon for security.
  * 
  * ACTUAL SECURITY is enforced server-side through:
- * 1. Edge Functions (admin-users/index.ts) - verifyAdminUser() validates admin status
+ * 1. Edge Functions (auth/index.ts, admin-users/index.ts) - validates admin/super_admin status
  *    against the database before any privileged operation
  * 2. RLS Policies - All write operations use is_admin_user() function that queries
  *    the database directly, ignoring any client-supplied role information
  * 
- * If an attacker modifies localStorage to set tipo='admin':
+ * If an attacker modifies localStorage to set tipo='admin' or role='SUPER_ADMIN':
  * - They can see admin UI elements (cosmetic only)
  * - All actual operations will fail with 403 errors
  * - No data can be modified/accessed beyond their real permissions
@@ -26,6 +26,8 @@ interface User {
   email: string;
   /** NOTE: This is for UI display only. Actual authorization uses server-side validation. */
   tipo: UserRole;
+  /** Security role - SUPER_ADMIN, ADMIN, USER (for UI display only) */
+  role?: SecurityRole;
   /** User access status */
   status: UserStatus;
   /** Date until user is suspended (if applicable) */
@@ -157,10 +159,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nome: data.user.nome,
         email: data.user.email,
         tipo: data.user.tipo as UserRole,
+        role: data.user.role as SecurityRole || 'USER',
         status: data.user.status as UserStatus || 'ativo',
         suspensoAte: data.user.suspenso_ate,
         sessionToken: data.sessionToken,
-        forcePasswordChange: data.user.force_password_change || false,
+        forcePasswordChange: data.user.forcePasswordChange || data.user.force_password_change || false,
       };
 
       setUser(userData);

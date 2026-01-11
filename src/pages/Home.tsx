@@ -23,6 +23,7 @@ const Home = () => {
   const { toast } = useToast();
   const { user, logout } = useAuth();
   const isAdmin = user?.tipo === 'admin';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isComercial = user?.tipo === 'comercial';
   const canRequestCode = user?.tipo === 'user' || user?.tipo === 'admin';
 
@@ -245,6 +246,12 @@ const Home = () => {
             Olá, {user?.nome?.split(' ')[0] || 'Usuário'}!
           </h1>
           <p className="text-muted-foreground">Selecione a operação</p>
+          {isSuperAdmin && (
+            <span className="inline-flex items-center gap-1 mt-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+              <Shield className="h-3 w-3" />
+              Super Admin
+            </span>
+          )}
         </div>
 
         <div className="flex w-full max-w-md flex-col gap-4">

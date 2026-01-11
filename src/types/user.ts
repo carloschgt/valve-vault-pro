@@ -15,14 +15,23 @@ export const USER_STATUS_COLORS: Record<UserStatus, string> = {
   negado: 'bg-red-100 text-red-800 border-red-300',
 };
 
-// Tipos de perfil/role
+// Tipos de perfil/role (tipo = perfil de acesso, role = nível de segurança)
 export type UserRole = 'admin' | 'user' | 'estoque' | 'comercial';
+
+// Role de segurança (armazenado separadamente)
+export type SecurityRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   user: 'Usuário',
   estoque: 'Estoque',
   comercial: 'Comercial',
+};
+
+export const SECURITY_ROLE_LABELS: Record<SecurityRole, string> = {
+  SUPER_ADMIN: 'Super Admin',
+  ADMIN: 'Administrador',
+  USER: 'Usuário',
 };
 
 export interface Usuario {
