@@ -297,3 +297,8 @@ export async function getItensParaContar(rua: number): Promise<DataOperationResu
 export async function getInventarioDivergencias(rua?: number): Promise<DataOperationResult> {
   return invokeDataOperation('inventario_divergencias', { rua });
 }
+
+// ========== INVENTARIO AUDIT ==========
+export async function listInventarioAudit(inventario_id?: string, limit?: number): Promise<DataOperationResult> {
+  return invokeDataOperation('inventario_audit_list', { inventario_id, limit });
+}

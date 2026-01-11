@@ -452,6 +452,28 @@ serve(async (req) => {
       );
     }
 
+    // List audit logs for inventario adjustments
+    if (action === "inventario_audit_list") {
+      const { inventario_id, limit = 100 } = params;
+      
+      let query = supabase
+        .from("inventario_audit")
+        .select("*")
+        .order("editado_em", { ascending: false })
+        .limit(limit);
+      
+      if (inventario_id) {
+        query = query.eq("inventario_id", inventario_id);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return new Response(
+        JSON.stringify({ success: true, data: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // List distinct ruas for dropdown
     if (action === "enderecos_list_ruas") {
       const { data, error } = await supabase
