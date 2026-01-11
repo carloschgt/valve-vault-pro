@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, UserPlus, KeyRound, FileCode, ChevronRight } from 'lucide-react';
+import { Bell, Check, UserPlus, KeyRound, FileCode, ChevronRight, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface PendingAction {
   id: string;
-  type: 'novo_usuario' | 'reset_senha' | 'aprovacao_codigo';
+  type: 'novo_usuario' | 'reset_senha' | 'aprovacao_codigo' | 'conta_bloqueada';
   title: string;
   description: string;
   route: string;
@@ -27,6 +27,7 @@ const ACTION_CONFIG: Record<string, { icon: React.ComponentType<any>; color: str
   novo_usuario: { icon: UserPlus, color: 'text-blue-600', bgColor: 'bg-blue-100' },
   reset_senha: { icon: KeyRound, color: 'text-orange-600', bgColor: 'bg-orange-100' },
   aprovacao_codigo: { icon: FileCode, color: 'text-purple-600', bgColor: 'bg-purple-100' },
+  conta_bloqueada: { icon: Lock, color: 'text-red-600', bgColor: 'bg-red-100' },
 };
 
 export function AdminNotificationCenter() {
@@ -107,6 +108,21 @@ export function AdminNotificationCenter() {
             route: '/aprovacao-codigos',
             data: c,
             created_at: c.created_at,
+          });
+        });
+      }
+
+      // 4. Contas bloqueadas por excesso de tentativas
+      if (data.lockedUsers) {
+        data.lockedUsers.forEach((u: any) => {
+          actions.push({
+            id: `locked_${u.id}`,
+            type: 'conta_bloqueada',
+            title: 'Conta bloqueada',
+            description: `${u.nome} (${u.email}) - ${u.failed_attempts} tentativas`,
+            route: `/admin/usuarios/${u.id}`,
+            data: u,
+            created_at: u.locked_until,
           });
         });
       }

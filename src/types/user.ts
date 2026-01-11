@@ -45,4 +45,7 @@ export interface Usuario {
   notificado_aprovacao: boolean;
   created_at: string;
   updated_at: string;
+  // Security fields
+  locked_until?: string | null;
+  failed_attempts?: number;
 }

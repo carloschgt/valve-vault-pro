@@ -216,12 +216,21 @@ serve(async (req) => {
         .eq("status", "codigo_gerado")
         .order("created_at", { ascending: false });
 
+      // 4. Locked users (due to failed login attempts)
+      const { data: lockedUsers } = await supabase
+        .from("usuarios")
+        .select("id, nome, email, locked_until, failed_attempts")
+        .not("locked_until", "is", null)
+        .gt("locked_until", new Date().toISOString())
+        .order("locked_until", { ascending: false });
+
       return new Response(
         JSON.stringify({ 
           success: true, 
           pendingUsers: pendingUsers || [], 
           resetRequests: uniqueResetRequests, 
-          pendingCodes: pendingCodes || [] 
+          pendingCodes: pendingCodes || [],
+          lockedUsers: lockedUsers || []
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -405,7 +414,7 @@ serve(async (req) => {
 
       const { data: user, error } = await supabase
         .from("usuarios")
-        .select("id, nome, email, tipo, aprovado, status, suspenso_ate, notificado_aprovacao, created_at, updated_at")
+        .select("id, nome, email, tipo, aprovado, status, suspenso_ate, notificado_aprovacao, created_at, updated_at, locked_until, failed_attempts")
         .eq("id", userId)
         .maybeSingle();
 
@@ -535,6 +544,33 @@ serve(async (req) => {
       if (error) throw error;
 
       console.log(`User ${userId} role updated to ${tipo} by admin ${adminEmail}`);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Unlock user account (reset failed attempts and locked_until)
+    if (action === "unlockUser") {
+      const { error } = await supabase
+        .from("usuarios")
+        .update({ 
+          failed_attempts: 0, 
+          locked_until: null 
+        })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      // Log the unlock event
+      await supabase.from("auth_events").insert({
+        user_id: userId,
+        event_type: 'UNLOCKED',
+        detail: { unlocked_by: adminEmail }
+      });
+
+      console.log(`User ${userId} unlocked by admin ${adminEmail}`);
 
       return new Response(
         JSON.stringify({ success: true }),
