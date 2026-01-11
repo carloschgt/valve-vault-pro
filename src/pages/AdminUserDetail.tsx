@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Calendar, Shield, Clock, Loader2, Trash2, Check, Ban, XCircle, PlayCircle, KeyRound, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, User, Mail, Calendar, Shield, Clock, Loader2, Trash2, Check, Ban, XCircle, PlayCircle, KeyRound, AlertTriangle, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -184,6 +184,30 @@ const AdminUserDetail = () => {
     },
   });
 
+  // Desbloquear conta (excesso de tentativas de login)
+  const unlockUserMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { 
+          action: 'unlockUser', 
+          userId: id,
+          adminEmail: currentUser?.email 
+        },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin_user_detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['admin_usuarios'] });
+      toast({ title: 'Sucesso', description: 'Conta desbloqueada com sucesso!' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('pt-BR', {
       day: '2-digit',
@@ -254,6 +278,12 @@ const AdminUserDetail = () => {
                 <span>Suspenso até: {new Date(userData.suspenso_ate).toLocaleDateString('pt-BR')}</span>
               </div>
             )}
+            {userData.locked_until && new Date(userData.locked_until) > new Date() && (
+              <div className="flex items-center gap-2 text-red-600">
+                <Lock className="h-4 w-4" />
+                <span>Bloqueado até: {new Date(userData.locked_until).toLocaleString('pt-BR')} ({userData.failed_attempts} tentativas)</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -287,7 +317,35 @@ const AdminUserDetail = () => {
           </Card>
         )}
 
-        {/* Ações */}
+        {/* Alerta de Conta Bloqueada */}
+        {userData.locked_until && new Date(userData.locked_until) > new Date() && !isCurrentUser && (
+          <Card className="border-red-300 bg-red-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-700">
+                <Lock className="h-5 w-5" />
+                Conta Bloqueada
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-red-800">
+                Esta conta foi bloqueada devido a {userData.failed_attempts} tentativas de login incorretas.
+              </p>
+              <p className="text-xs text-red-600">
+                Bloqueado até: {new Date(userData.locked_until).toLocaleString('pt-BR')}
+              </p>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => unlockUserMutation.mutate()} 
+                  className="gap-2 bg-green-600 hover:bg-green-700"
+                  disabled={unlockUserMutation.isPending}
+                >
+                  <Unlock className="h-4 w-4" />
+                  {unlockUserMutation.isPending ? 'Desbloqueando...' : 'Desbloquear Conta'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {!isCurrentUser && (
           <Card>
             <CardHeader>
