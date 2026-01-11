@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// =====================================================
+// HARDENED AUTH - PBKDF2, Rate Limit DB, Token Hash
+// =====================================================
+
 // CORS configuration with origin validation
 const ALLOWED_ORIGINS = [
   'https://bdetejjahokasedpghlp.lovableproject.com',
@@ -31,77 +35,88 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
 }
 
 const ALLOWED_DOMAIN = "@imexsolutions.com.br";
+const PROTECTED_SUPER_ADMIN_EMAIL = "carlos.teixeira@imexsolutions.com.br";
 
 // Rate limiting configuration
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const SESSION_DURATION_DAYS = 7;
 
-// In-memory rate limiting store (resets on function restart, but sufficient for basic protection)
-// For production, consider using KV store or database
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+// PBKDF2 Configuration (NIST recommendations)
+const PBKDF2_ITERATIONS = 210000;
+const PBKDF2_SALT_LENGTH = 32;
+const PBKDF2_KEY_LENGTH = 32;
 
-function checkRateLimit(email: string): { allowed: boolean; error?: string; remainingAttempts?: number } {
-  const key = email.toLowerCase().trim();
-  const now = Date.now();
-  const attempts = loginAttempts.get(key);
-  
-  if (!attempts) {
-    return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS };
-  }
-  
-  // Reset if lockout period has passed
-  if (now > attempts.resetAt) {
-    loginAttempts.delete(key);
-    return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS };
-  }
-  
-  // Check if locked out
-  if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
-    const minutesLeft = Math.ceil((attempts.resetAt - now) / 60000);
-    return { 
-      allowed: false, 
-      error: `Muitas tentativas incorretas. Tente novamente em ${minutesLeft} minuto(s).`,
-      remainingAttempts: 0
-    };
-  }
-  
-  return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS - attempts.count };
-}
+// =====================================================
+// CRYPTO UTILITIES - PBKDF2 via WebCrypto
+// =====================================================
 
-function recordFailedAttempt(email: string): void {
-  const key = email.toLowerCase().trim();
-  const now = Date.now();
-  const attempts = loginAttempts.get(key);
-  
-  if (!attempts || now > attempts.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + LOCKOUT_DURATION_MS });
-  } else {
-    attempts.count++;
-    loginAttempts.set(key, attempts);
-  }
-}
-
-function clearFailedAttempts(email: string): void {
-  const key = email.toLowerCase().trim();
-  loginAttempts.delete(key);
-}
-
-// Simple but secure password hashing using Web Crypto API with salt
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+async function generatePBKDF2Hash(password: string): Promise<{ hash: string; salt: string; iterations: number }> {
+  const salt = crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_LENGTH));
+  const saltBase64 = btoa(String.fromCharCode(...salt));
   
   const encoder = new TextEncoder();
-  const data = encoder.encode(saltHex + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
   
-  return `${saltHex}:${hashHex}`;
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: PBKDF2_ITERATIONS,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    PBKDF2_KEY_LENGTH * 8
+  );
+  
+  const hashArray = Array.from(new Uint8Array(derivedBits));
+  const hashBase64 = btoa(String.fromCharCode(...hashArray));
+  
+  return { hash: hashBase64, salt: saltBase64, iterations: PBKDF2_ITERATIONS };
 }
 
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  // Handle new salted format
+async function verifyPBKDF2(password: string, storedHash: string, storedSalt: string, iterations: number): Promise<boolean> {
+  try {
+    const salt = Uint8Array.from(atob(storedSalt), c => c.charCodeAt(0));
+    
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(password),
+      "PBKDF2",
+      false,
+      ["deriveBits"]
+    );
+    
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        salt: salt,
+        iterations: iterations,
+        hash: "SHA-256",
+      },
+      keyMaterial,
+      PBKDF2_KEY_LENGTH * 8
+    );
+    
+    const hashArray = Array.from(new Uint8Array(derivedBits));
+    const computedHash = btoa(String.fromCharCode(...hashArray));
+    
+    return computedHash === storedHash;
+  } catch {
+    return false;
+  }
+}
+
+// Legacy SHA-256 verification for migration
+async function verifyLegacySHA256(password: string, storedHash: string): Promise<boolean> {
+  // Handle salted format (salt:hash)
   if (storedHash.includes(':')) {
     const [salt, hash] = storedHash.split(':');
     const encoder = new TextEncoder();
@@ -112,7 +127,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
     return hashHex === hash;
   }
   
-  // Handle legacy unsalted format (SHA-256 only)
+  // Handle unsalted format
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -121,6 +136,118 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
   return hashHex === storedHash;
 }
 
+// Generate token hash for storage
+async function hashToken(token: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(token);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Generate secure random token
+function generateSecureToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(48));
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// =====================================================
+// RATE LIMITING (PERSISTENT)
+// =====================================================
+
+async function checkRateLimitDB(supabase: any, key: string): Promise<{ allowed: boolean; error?: string; remainingAttempts?: number }> {
+  const now = new Date();
+  
+  const { data: rateLimit } = await supabase
+    .from("auth_rate_limits")
+    .select("*")
+    .eq("key", key)
+    .maybeSingle();
+  
+  if (!rateLimit) {
+    return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS };
+  }
+  
+  // Check if blocked
+  if (rateLimit.blocked_until && new Date(rateLimit.blocked_until) > now) {
+    const minutesLeft = Math.ceil((new Date(rateLimit.blocked_until).getTime() - now.getTime()) / 60000);
+    return { 
+      allowed: false, 
+      error: `Muitas tentativas incorretas. Tente novamente em ${minutesLeft} minuto(s).`,
+      remainingAttempts: 0
+    };
+  }
+  
+  // Check if window has expired (reset)
+  const windowStart = new Date(rateLimit.window_start);
+  if (now.getTime() - windowStart.getTime() > LOCKOUT_DURATION_MS) {
+    await supabase.from("auth_rate_limits").delete().eq("key", key);
+    return { allowed: true, remainingAttempts: MAX_LOGIN_ATTEMPTS };
+  }
+  
+  return { allowed: true, remainingAttempts: Math.max(0, MAX_LOGIN_ATTEMPTS - rateLimit.attempts) };
+}
+
+async function recordFailedAttemptDB(supabase: any, key: string, userId?: string): Promise<void> {
+  const now = new Date();
+  
+  const { data: existing } = await supabase
+    .from("auth_rate_limits")
+    .select("*")
+    .eq("key", key)
+    .maybeSingle();
+  
+  if (!existing) {
+    await supabase.from("auth_rate_limits").insert({
+      key,
+      window_start: now.toISOString(),
+      attempts: 1,
+      blocked_until: null,
+    });
+  } else {
+    const newAttempts = existing.attempts + 1;
+    const blocked = newAttempts >= MAX_LOGIN_ATTEMPTS;
+    
+    await supabase.from("auth_rate_limits").update({
+      attempts: newAttempts,
+      blocked_until: blocked ? new Date(now.getTime() + LOCKOUT_DURATION_MS).toISOString() : null,
+    }).eq("key", key);
+  }
+}
+
+async function clearRateLimitDB(supabase: any, key: string): Promise<void> {
+  await supabase.from("auth_rate_limits").delete().eq("key", key);
+}
+
+// =====================================================
+// AUDIT LOGGING
+// =====================================================
+
+async function logAuthEvent(
+  supabase: any, 
+  eventType: string, 
+  userId?: string, 
+  ip?: string, 
+  userAgent?: string, 
+  detail?: Record<string, any>
+): Promise<void> {
+  try {
+    await supabase.from("auth_events").insert({
+      event_type: eventType,
+      user_id: userId || null,
+      ip: ip || null,
+      user_agent: userAgent || null,
+      detail: detail || null,
+    });
+  } catch (e) {
+    console.error("Failed to log auth event:", e);
+  }
+}
+
+// =====================================================
+// VALIDATION UTILITIES
+// =====================================================
+
 function validateEmail(email: string): { valid: boolean; error?: string } {
   const trimmedEmail = email.toLowerCase().trim();
   
@@ -128,7 +255,6 @@ function validateEmail(email: string): { valid: boolean; error?: string } {
     return { valid: false, error: `Somente emails ${ALLOWED_DOMAIN} são permitidos` };
   }
   
-  // Basic email format validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(trimmedEmail)) {
     return { valid: false, error: "Formato de email inválido" };
@@ -150,7 +276,6 @@ function validatePassword(senha: string): { valid: boolean; error?: string } {
     return { valid: false, error: "A senha deve ter no máximo 128 caracteres" };
   }
   
-  // Require at least one letter and one number
   if (!/[a-zA-Z]/.test(senha)) {
     return { valid: false, error: "A senha deve conter pelo menos uma letra" };
   }
@@ -162,9 +287,51 @@ function validatePassword(senha: string): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
+function getClientIP(req: Request): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+         req.headers.get('x-real-ip') || 
+         'unknown';
+}
+
+// =====================================================
+// SUPER ADMIN PROTECTION
+// =====================================================
+
+function isProtectedSuperAdmin(email: string): boolean {
+  return email.toLowerCase().trim() === PROTECTED_SUPER_ADMIN_EMAIL;
+}
+
+async function ensureSuperAdmin(supabase: any): Promise<void> {
+  const { data: user } = await supabase
+    .from("usuarios")
+    .select("id, role, is_active")
+    .eq("email", PROTECTED_SUPER_ADMIN_EMAIL)
+    .maybeSingle();
+  
+  if (user && (user.role !== 'SUPER_ADMIN' || !user.is_active)) {
+    await supabase.from("usuarios").update({
+      role: 'SUPER_ADMIN',
+      is_active: true,
+      aprovado: true,
+      status: 'ativo',
+    }).eq("id", user.id);
+    
+    await logAuthEvent(supabase, 'SUPER_ADMIN_ENSURED', user.id, undefined, undefined, {
+      action: 'auto_correction',
+      email: PROTECTED_SUPER_ADMIN_EMAIL,
+    });
+  }
+}
+
+// =====================================================
+// MAIN HANDLER
+// =====================================================
+
 serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
+  const clientIP = getClientIP(req);
+  const userAgent = req.headers.get('user-agent') || 'unknown';
 
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -184,12 +351,18 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, email, senha, nome, deviceInfo } = await req.json();
+    // Ensure super admin is protected on every request
+    await ensureSuperAdmin(supabase);
 
-    console.log(`Auth action: ${action}, email: ${email}`);
+    const body = await req.json();
+    const { action, email, senha, nome, deviceInfo, sessionToken } = body;
 
+    console.log(`Auth action: ${action}, email: ${email || 'N/A'}`);
+
+    // =====================================================
+    // ACTION: checkEmail
+    // =====================================================
     if (action === "checkEmail") {
-      // Validate email domain
       const emailValidation = validateEmail(email);
       if (!emailValidation.valid) {
         return new Response(
@@ -198,21 +371,14 @@ serve(async (req) => {
         );
       }
 
-      // Check if user exists
-      const { data: user, error: findError } = await supabase
+      const { data: user } = await supabase
         .from("usuarios")
-        .select("id, nome, aprovado, status")
+        .select("id, nome, aprovado, status, is_active, force_password_change")
         .eq("email", email.toLowerCase().trim())
         .maybeSingle();
 
-      if (findError) {
-        console.error("Find error:", findError);
-        throw new Error("Erro ao verificar email");
-      }
-
-      // If user exists and is approved, check if they have a pending password reset token
-      // If so, redirect them to the reset page immediately (before asking for password)
-      if (user && user.aprovado) {
+      // Check for pending password reset token
+      if (user && user.aprovado && user.is_active) {
         const { data: pendingResetToken } = await supabase
           .from("password_reset_tokens")
           .select("id, token")
@@ -223,7 +389,6 @@ serve(async (req) => {
           .limit(1);
 
         if (pendingResetToken && pendingResetToken.length > 0) {
-          console.log(`User ${email} has pending password reset during checkEmail, redirecting`);
           return new Response(
             JSON.stringify({
               success: true,
@@ -246,26 +411,30 @@ serve(async (req) => {
           approved: user?.aprovado ?? false,
           userName: user?.nome ?? null,
           status: user?.status ?? null,
+          forcePasswordChange: user?.force_password_change ?? false,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // =====================================================
+    // ACTION: login
+    // =====================================================
     if (action === "login") {
-      // Check rate limit FIRST
-      const rateCheck = checkRateLimit(email);
+      const emailLower = email.toLowerCase().trim();
+      const rateLimitKey = `user:${emailLower}`;
+      
+      // Check rate limit FIRST (persistent)
+      const rateCheck = await checkRateLimitDB(supabase, rateLimitKey);
       if (!rateCheck.allowed) {
-        console.log(`Rate limit exceeded for: ${email}`);
+        await logAuthEvent(supabase, 'LOGIN_BLOCKED_RATE_LIMIT', undefined, clientIP, userAgent, { email: emailLower });
         return new Response(
           JSON.stringify({ success: false, error: rateCheck.error, rateLimited: true }),
-          { 
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" } 
-          }
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Validate email domain
+      // Validate inputs
       const emailValidation = validateEmail(email);
       if (!emailValidation.valid) {
         return new Response(
@@ -274,7 +443,6 @@ serve(async (req) => {
         );
       }
 
-      // Validate password format
       const passwordValidation = validatePassword(senha);
       if (!passwordValidation.valid) {
         return new Response(
@@ -283,11 +451,11 @@ serve(async (req) => {
         );
       }
 
-      // Find user by email
+      // Find user
       const { data: user, error: findError } = await supabase
         .from("usuarios")
         .select("*")
-        .eq("email", email.toLowerCase().trim())
+        .eq("email", emailLower)
         .maybeSingle();
 
       if (findError) {
@@ -296,15 +464,27 @@ serve(async (req) => {
       }
 
       if (!user) {
-        // Don't record failed attempt for non-existent users to prevent enumeration
         return new Response(
           JSON.stringify({ success: false, error: "Email não encontrado", notRegistered: true }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Check FIRST if user has an approved password reset token that hasn't been used yet
-      // This blocks login until the user creates a new password via the reset link
+      // Check if user account is locked
+      if (user.locked_until && new Date(user.locked_until) > new Date()) {
+        const minutesLeft = Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000);
+        await logAuthEvent(supabase, 'LOGIN_BLOCKED_LOCKED', user.id, clientIP, userAgent, { minutesLeft });
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Conta bloqueada. Tente novamente em ${minutesLeft} minuto(s).`,
+            locked: true
+          }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check for pending password reset token (blocks login)
       const { data: pendingResetToken } = await supabase
         .from("password_reset_tokens")
         .select("id, token")
@@ -315,7 +495,6 @@ serve(async (req) => {
         .limit(1);
 
       if (pendingResetToken && pendingResetToken.length > 0) {
-        console.log(`User ${email} has pending password reset, blocking login`);
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -328,16 +507,40 @@ serve(async (req) => {
         );
       }
 
-      // Verify password
-      const isValid = await verifyPassword(senha, user.senha_hash);
+      // Verify password (try PBKDF2 first, then legacy)
+      let isValid = false;
+      let needsMigration = false;
+
+      if (user.password_algo === 'pbkdf2' && user.password_salt && user.password_iterations) {
+        // PBKDF2 verification
+        isValid = await verifyPBKDF2(senha, user.senha_hash, user.password_salt, user.password_iterations);
+      } else {
+        // Legacy SHA-256 verification
+        isValid = await verifyLegacySHA256(senha, user.senha_hash);
+        if (isValid) {
+          needsMigration = true;
+        }
+      }
 
       if (!isValid) {
         // Record failed attempt
-        recordFailedAttempt(email);
-        const currentAttempts = loginAttempts.get(email.toLowerCase().trim())?.count || 1;
-        const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - currentAttempts);
+        await recordFailedAttemptDB(supabase, rateLimitKey, user.id);
         
-        console.log(`Failed login attempt for: ${email}. Current: ${currentAttempts}, Remaining: ${remainingAttempts}`);
+        const newFailedAttempts = (user.failed_attempts || 0) + 1;
+        const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - newFailedAttempts);
+        const isLocked = newFailedAttempts >= MAX_LOGIN_ATTEMPTS;
+        
+        // Update user failed attempts
+        const updateData: any = { failed_attempts: newFailedAttempts };
+        if (isLocked) {
+          updateData.locked_until = new Date(Date.now() + LOCKOUT_DURATION_MS).toISOString();
+        }
+        await supabase.from("usuarios").update(updateData).eq("id", user.id);
+        
+        await logAuthEvent(supabase, isLocked ? 'LOCKED' : 'LOGIN_FAIL', user.id, clientIP, userAgent, {
+          failedAttempts: newFailedAttempts,
+          remainingAttempts,
+        });
         
         return new Response(
           JSON.stringify({ 
@@ -350,13 +553,37 @@ serve(async (req) => {
         );
       }
 
-      // Clear failed attempts on successful login
-      clearFailedAttempts(email);
+      // Clear rate limit and failed attempts on success
+      await clearRateLimitDB(supabase, rateLimitKey);
+      
+      // Migrate password hash to PBKDF2 if needed
+      if (needsMigration) {
+        const { hash, salt, iterations } = await generatePBKDF2Hash(senha);
+        await supabase.from("usuarios").update({
+          senha_hash: hash,
+          password_salt: salt,
+          password_algo: 'pbkdf2',
+          password_iterations: iterations,
+          password_updated_at: new Date().toISOString(),
+          failed_attempts: 0,
+          locked_until: null,
+        }).eq("id", user.id);
+        
+        await logAuthEvent(supabase, 'PASSWORD_MIGRATED_TO_PBKDF2', user.id, clientIP, userAgent);
+      } else {
+        // Just clear failed attempts
+        await supabase.from("usuarios").update({
+          failed_attempts: 0,
+          locked_until: null,
+          last_login_at: new Date().toISOString(),
+          last_login_ip: clientIP,
+        }).eq("id", user.id);
+      }
 
       // Check user status
       const userStatus = user.status || (user.aprovado ? 'ativo' : 'pendente');
       
-      if (userStatus === 'pendente') {
+      if (!user.is_active || userStatus === 'pendente') {
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -369,34 +596,23 @@ serve(async (req) => {
       }
 
       if (userStatus === 'suspenso') {
-        const suspendedUntil = user.suspenso_ate;
-        const suspendedMsg = suspendedUntil 
-          ? `Seu acesso está suspenso até ${new Date(suspendedUntil).toLocaleDateString('pt-BR')}.`
+        const suspendedMsg = user.suspenso_ate 
+          ? `Seu acesso está suspenso até ${new Date(user.suspenso_ate).toLocaleDateString('pt-BR')}.`
           : "Seu acesso está temporariamente suspenso.";
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: suspendedMsg, 
-            status: 'suspenso',
-            suspensoAte: suspendedUntil,
-          }),
+          JSON.stringify({ success: false, error: suspendedMsg, status: 'suspenso', suspensoAte: user.suspenso_ate }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       if (userStatus === 'negado') {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: "Seu cadastro foi negado pelo administrador.", 
-            status: 'negado',
-          }),
+          JSON.stringify({ success: false, error: "Seu cadastro foi negado pelo administrador.", status: 'negado' }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Check if user has pending password reset request (blocks login until approved)
-      // Find the notification that matches this user
+      // Check for pending password reset notifications
       const { data: userResetNotification } = await supabase
         .from("notificacoes_usuario")
         .select("id, dados")
@@ -422,7 +638,12 @@ serve(async (req) => {
         );
       }
 
-      // Sanitize and validate deviceInfo before storing
+      // Generate secure session token
+      const rawToken = generateSecureToken();
+      const tokenHash = await hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
+      // Sanitize device info
       const sanitizedDeviceInfo = deviceInfo && typeof deviceInfo === 'string' 
         ? deviceInfo.slice(0, 500).replace(/[\x00-\x1F\x7F]/g, '') 
         : null;
@@ -435,10 +656,6 @@ serve(async (req) => {
         device_info: sanitizedDeviceInfo,
       });
 
-      // Generate a secure session token
-      const sessionToken = crypto.randomUUID() + '-' + crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
       // Clean up old sessions for this user (keep only last 5)
       const { data: existingSessions } = await supabase
         .from("session_tokens")
@@ -448,22 +665,26 @@ serve(async (req) => {
 
       if (existingSessions && existingSessions.length >= 5) {
         const idsToDelete = existingSessions.slice(4).map(s => s.id);
-        await supabase
-          .from("session_tokens")
-          .delete()
-          .in("id", idsToDelete);
+        await supabase.from("session_tokens").delete().in("id", idsToDelete);
       }
 
-      // Store the session token
+      // Store the session with hashed token
       await supabase.from("session_tokens").insert({
         user_id: user.id,
         user_email: user.email,
-        token: sessionToken,
+        token: rawToken, // Keep for backward compatibility during transition
+        token_hash: tokenHash,
         expires_at: expiresAt.toISOString(),
         device_info: sanitizedDeviceInfo,
+        ip: clientIP,
+        user_agent: userAgent,
       });
 
-      // Return user data with session token
+      await logAuthEvent(supabase, 'LOGIN_OK', user.id, clientIP, userAgent, {
+        migratedPassword: needsMigration,
+      });
+
+      // Return user data
       return new Response(
         JSON.stringify({
           success: true,
@@ -472,17 +693,21 @@ serve(async (req) => {
             nome: user.nome,
             email: user.email,
             tipo: user.tipo,
+            role: user.role,
             status: userStatus,
             suspenso_ate: user.suspenso_ate,
+            forcePasswordChange: user.force_password_change,
           },
-          sessionToken,
+          sessionToken: rawToken,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // =====================================================
+    // ACTION: register
+    // =====================================================
     if (action === "register") {
-      // Validate email domain
       const emailValidation = validateEmail(email);
       if (!emailValidation.valid) {
         return new Response(
@@ -491,7 +716,6 @@ serve(async (req) => {
         );
       }
 
-      // Validate password format
       const passwordValidation = validatePassword(senha);
       if (!passwordValidation.valid) {
         return new Response(
@@ -500,7 +724,6 @@ serve(async (req) => {
         );
       }
 
-      // Validate nome length
       if (nome && nome.trim().length > 100) {
         return new Response(
           JSON.stringify({ success: false, error: "Nome deve ter no máximo 100 caracteres" }),
@@ -508,15 +731,6 @@ serve(async (req) => {
         );
       }
 
-      // Validate deviceInfo length
-      if (deviceInfo && deviceInfo.length > 500) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Informações do dispositivo inválidas" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Check if email already exists
       const { data: existing } = await supabase
         .from("usuarios")
         .select("id")
@@ -530,17 +744,24 @@ serve(async (req) => {
         );
       }
 
-      // Hash password
-      const senhaHash = await hashPassword(senha);
+      // Hash password with PBKDF2
+      const { hash, salt, iterations } = await generatePBKDF2Hash(senha);
       
       const { data: newUser, error: insertError } = await supabase
         .from("usuarios")
         .insert({
           nome: nome || email.split("@")[0],
           email: email.toLowerCase().trim(),
-          senha_hash: senhaHash,
+          senha_hash: hash,
+          password_salt: salt,
+          password_algo: 'pbkdf2',
+          password_iterations: iterations,
+          password_updated_at: new Date().toISOString(),
           tipo: "user",
+          role: "USER",
           aprovado: false,
+          is_active: false,
+          status: 'pendente',
         })
         .select()
         .single();
@@ -550,119 +771,47 @@ serve(async (req) => {
         throw new Error("Erro ao cadastrar usuário");
       }
 
+      await logAuthEvent(supabase, 'USER_CREATED', newUser.id, clientIP, userAgent, {
+        email: newUser.email,
+      });
+
       return new Response(
         JSON.stringify({
           success: true,
           message: "Cadastro realizado! Aguarde aprovação do administrador.",
-          user: {
-            id: newUser.id,
-            nome: newUser.nome,
-            email: newUser.email,
-            tipo: newUser.tipo,
-          },
+          user: { id: newUser.id, nome: newUser.nome, email: newUser.email, tipo: newUser.tipo },
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (action === "resetPassword") {
-      // Validate email domain
-      const emailValidation = validateEmail(email);
-      if (!emailValidation.valid) {
+    // =====================================================
+    // ACTION: logout
+    // =====================================================
+    if (action === "logout") {
+      if (!sessionToken) {
         return new Response(
-          JSON.stringify({ success: false, error: emailValidation.error }),
+          JSON.stringify({ success: true }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Validate password format
-      const passwordValidation = validatePassword(senha);
-      if (!passwordValidation.valid) {
-        return new Response(
-          JSON.stringify({ success: false, error: passwordValidation.error }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      const tokenHash = await hashToken(sessionToken);
 
-      // Check if user exists
-      const { data: user, error: findError } = await supabase
-        .from("usuarios")
-        .select("id, nome, email, tipo, aprovado")
-        .eq("email", email.toLowerCase().trim())
+      // Try to find session by hash first, then by raw token for backwards compatibility
+      const { data: session } = await supabase
+        .from("session_tokens")
+        .select("id, user_id")
+        .or(`token_hash.eq.${tokenHash},token.eq.${sessionToken}`)
         .maybeSingle();
 
-      if (findError) {
-        console.error("Find error:", findError);
-        throw new Error("Erro ao verificar usuário");
-      }
+      if (session) {
+        await supabase.from("session_tokens").update({
+          revoked_at: new Date().toISOString(),
+        }).eq("id", session.id);
 
-      if (!user) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Email não encontrado" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Hash password
-      const senhaHash = await hashPassword(senha);
-      
-      // For admin users: reset password directly, keep approved
-      // For regular users: reset password and set aprovado=false (needs admin re-approval)
-      const isAdmin = user.tipo === 'admin';
-      
-      const updateData: { senha_hash: string; aprovado?: boolean } = {
-        senha_hash: senhaHash,
-      };
-      
-      if (!isAdmin) {
-        updateData.aprovado = false;
-      }
-      
-      const { error: updateError } = await supabase
-        .from("usuarios")
-        .update(updateData)
-        .eq("email", email.toLowerCase().trim());
-
-      if (updateError) {
-        console.error("Update error:", updateError);
-        throw new Error("Erro ao atualizar senha");
-      }
-
-      console.log(`Password reset for ${email}. Admin: ${isAdmin}. Requires approval: ${!isAdmin}`);
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          requiresApproval: !isAdmin,
-          message: isAdmin 
-            ? "Senha redefinida com sucesso! Você já pode fazer login."
-            : "Senha redefinida! Aguarde aprovação do administrador para acessar."
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (action === "changePassword") {
-      // Validate password format
-      const passwordValidation = validatePassword(senha);
-      if (!passwordValidation.valid) {
-        return new Response(
-          JSON.stringify({ success: false, error: passwordValidation.error }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Hash password
-      const senhaHash = await hashPassword(senha);
-      
-      const { error: updateError } = await supabase
-        .from("usuarios")
-        .update({ senha_hash: senhaHash })
-        .eq("email", email.toLowerCase().trim());
-
-      if (updateError) {
-        console.error("Update error:", updateError);
-        throw new Error("Erro ao atualizar senha");
+        await logAuthEvent(supabase, 'LOGOUT', session.user_id, clientIP, userAgent);
+        await logAuthEvent(supabase, 'TOKEN_REVOKED', session.user_id, clientIP, userAgent);
       }
 
       return new Response(
@@ -671,7 +820,623 @@ serve(async (req) => {
       );
     }
 
-    // WebAuthn: Check if user has biometric credentials
+    // =====================================================
+    // ACTION: get_me (validate session and get user)
+    // =====================================================
+    if (action === "get_me") {
+      if (!sessionToken) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Token não fornecido" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const tokenHash = await hashToken(sessionToken);
+
+      // Find session by hash or raw token
+      const { data: session } = await supabase
+        .from("session_tokens")
+        .select("id, user_id, user_email, expires_at, revoked_at")
+        .or(`token_hash.eq.${tokenHash},token.eq.${sessionToken}`)
+        .maybeSingle();
+
+      if (!session) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão inválida" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if revoked or expired
+      if (session.revoked_at || new Date(session.expires_at) < new Date()) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão expirada" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Update last_seen
+      await supabase.from("session_tokens").update({
+        last_seen_at: new Date().toISOString(),
+      }).eq("id", session.id);
+
+      // Get user
+      const { data: user } = await supabase
+        .from("usuarios")
+        .select("id, nome, email, tipo, role, status, is_active, force_password_change, suspenso_ate")
+        .eq("id", session.user_id)
+        .maybeSingle();
+
+      if (!user || !user.is_active) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário não encontrado ou inativo" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          user: {
+            id: user.id,
+            nome: user.nome,
+            email: user.email,
+            tipo: user.tipo,
+            role: user.role,
+            status: user.status,
+            isActive: user.is_active,
+            forcePasswordChange: user.force_password_change,
+            suspensoAte: user.suspenso_ate,
+          },
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =====================================================
+    // ACTION: change_password (user changes own password)
+    // =====================================================
+    if (action === "changePassword" || action === "change_password") {
+      if (!sessionToken) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão necessária" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { currentPassword, newPassword } = body;
+
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.valid) {
+        return new Response(
+          JSON.stringify({ success: false, error: passwordValidation.error }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate session
+      const tokenHash = await hashToken(sessionToken);
+      const { data: session } = await supabase
+        .from("session_tokens")
+        .select("user_id, expires_at, revoked_at")
+        .or(`token_hash.eq.${tokenHash},token.eq.${sessionToken}`)
+        .maybeSingle();
+
+      if (!session || session.revoked_at || new Date(session.expires_at) < new Date()) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão inválida" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get user
+      const { data: user } = await supabase
+        .from("usuarios")
+        .select("*")
+        .eq("id", session.user_id)
+        .maybeSingle();
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário não encontrado" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verify current password if not force_password_change
+      if (!user.force_password_change && currentPassword) {
+        let isCurrentValid = false;
+        if (user.password_algo === 'pbkdf2' && user.password_salt && user.password_iterations) {
+          isCurrentValid = await verifyPBKDF2(currentPassword, user.senha_hash, user.password_salt, user.password_iterations);
+        } else {
+          isCurrentValid = await verifyLegacySHA256(currentPassword, user.senha_hash);
+        }
+
+        if (!isCurrentValid) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Senha atual incorreta" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      // Hash new password with PBKDF2
+      const { hash, salt, iterations } = await generatePBKDF2Hash(newPassword);
+
+      await supabase.from("usuarios").update({
+        senha_hash: hash,
+        password_salt: salt,
+        password_algo: 'pbkdf2',
+        password_iterations: iterations,
+        password_updated_at: new Date().toISOString(),
+        force_password_change: false,
+      }).eq("id", user.id);
+
+      await logAuthEvent(supabase, 'PASSWORD_CHANGED', user.id, clientIP, userAgent);
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Senha alterada com sucesso!" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =====================================================
+    // ADMIN ACTIONS (require SUPER_ADMIN or ADMIN role)
+    // =====================================================
+    
+    // Verify admin session for admin actions
+    const adminActions = [
+      'admin_list_users', 'admin_create_user', 'admin_set_role', 
+      'admin_set_active', 'admin_unlock_user', 'admin_list_password_requests',
+      'admin_decide_password_reset', 'admin_list_auth_events'
+    ];
+
+    if (adminActions.includes(action)) {
+      if (!sessionToken) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão necessária" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const tokenHash = await hashToken(sessionToken);
+      const { data: session } = await supabase
+        .from("session_tokens")
+        .select("user_id, expires_at, revoked_at")
+        .or(`token_hash.eq.${tokenHash},token.eq.${sessionToken}`)
+        .maybeSingle();
+
+      if (!session || session.revoked_at || new Date(session.expires_at) < new Date()) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sessão inválida" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: adminUser } = await supabase
+        .from("usuarios")
+        .select("id, email, role, is_active")
+        .eq("id", session.user_id)
+        .maybeSingle();
+
+      if (!adminUser || !adminUser.is_active) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Usuário não autorizado" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const isSuperAdmin = adminUser.role === 'SUPER_ADMIN';
+      const isAdmin = adminUser.role === 'ADMIN' || isSuperAdmin;
+
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Acesso restrito a administradores" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_list_users
+      // =====================================================
+      if (action === "admin_list_users") {
+        const { search, statusFilter, limit = 100 } = body;
+
+        let query = supabase
+          .from("usuarios")
+          .select("id, nome, email, tipo, role, status, is_active, aprovado, force_password_change, failed_attempts, locked_until, last_login_at, created_at")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+
+        if (statusFilter && statusFilter !== 'all') {
+          query = query.eq("status", statusFilter);
+        }
+
+        if (search) {
+          query = query.or(`nome.ilike.%${search}%,email.ilike.%${search}%`);
+        }
+
+        const { data: users, error } = await query;
+
+        if (error) throw error;
+
+        return new Response(
+          JSON.stringify({ success: true, users: users || [] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_create_user
+      // =====================================================
+      if (action === "admin_create_user") {
+        const { userEmail, userName, userRole = 'USER' } = body;
+
+        const emailValidation = validateEmail(userEmail);
+        if (!emailValidation.valid) {
+          return new Response(
+            JSON.stringify({ success: false, error: emailValidation.error }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const { data: existing } = await supabase
+          .from("usuarios")
+          .select("id")
+          .eq("email", userEmail.toLowerCase().trim())
+          .maybeSingle();
+
+        if (existing) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Email já cadastrado" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Generate temporary password
+        const tempPassword = crypto.randomUUID().slice(0, 12);
+        const { hash, salt, iterations } = await generatePBKDF2Hash(tempPassword);
+
+        const tipoMap: Record<string, string> = {
+          'SUPER_ADMIN': 'admin',
+          'ADMIN': 'admin',
+          'USER': 'user',
+          'ESTOQUE': 'estoque',
+          'COMERCIAL': 'comercial',
+        };
+
+        const { data: newUser, error: insertError } = await supabase
+          .from("usuarios")
+          .insert({
+            nome: userName || userEmail.split("@")[0],
+            email: userEmail.toLowerCase().trim(),
+            senha_hash: hash,
+            password_salt: salt,
+            password_algo: 'pbkdf2',
+            password_iterations: iterations,
+            password_updated_at: new Date().toISOString(),
+            tipo: tipoMap[userRole] || 'user',
+            role: userRole,
+            aprovado: true,
+            is_active: true,
+            status: 'ativo',
+            force_password_change: true,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error("Insert error:", insertError);
+          throw new Error("Erro ao criar usuário");
+        }
+
+        await logAuthEvent(supabase, 'USER_CREATED', newUser.id, clientIP, userAgent, {
+          createdBy: adminUser.email,
+          email: newUser.email,
+          role: userRole,
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            user: newUser,
+            temporaryPassword: tempPassword,
+            message: "Usuário criado! Informe a senha temporária ao usuário.",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_set_role
+      // =====================================================
+      if (action === "admin_set_role") {
+        const { userId, newRole } = body;
+
+        const { data: targetUser } = await supabase
+          .from("usuarios")
+          .select("id, email, role")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!targetUser) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Usuário não encontrado" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Protect super admin
+        if (isProtectedSuperAdmin(targetUser.email)) {
+          await logAuthEvent(supabase, 'SUPER_ADMIN_PROTECTED_ACTION_BLOCKED', adminUser.id, clientIP, userAgent, {
+            action: 'set_role',
+            targetEmail: targetUser.email,
+            attemptedRole: newRole,
+          });
+          return new Response(
+            JSON.stringify({ success: false, error: "Este usuário é protegido e não pode ter sua permissão alterada." }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Only SUPER_ADMIN can create other SUPER_ADMINs or ADMINs
+        if ((newRole === 'SUPER_ADMIN' || newRole === 'ADMIN') && !isSuperAdmin) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Apenas SUPER_ADMIN pode promover a administrador" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const tipoMap: Record<string, string> = {
+          'SUPER_ADMIN': 'admin',
+          'ADMIN': 'admin',
+          'USER': 'user',
+          'ESTOQUE': 'estoque',
+          'COMERCIAL': 'comercial',
+        };
+
+        await supabase.from("usuarios").update({
+          role: newRole,
+          tipo: tipoMap[newRole] || 'user',
+        }).eq("id", userId);
+
+        await logAuthEvent(supabase, 'ROLE_CHANGED', userId, clientIP, userAgent, {
+          changedBy: adminUser.email,
+          oldRole: targetUser.role,
+          newRole,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: "Permissão alterada com sucesso!" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_set_active
+      // =====================================================
+      if (action === "admin_set_active") {
+        const { userId, isActive } = body;
+
+        const { data: targetUser } = await supabase
+          .from("usuarios")
+          .select("id, email, is_active")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!targetUser) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Usuário não encontrado" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Protect super admin
+        if (isProtectedSuperAdmin(targetUser.email) && !isActive) {
+          await logAuthEvent(supabase, 'SUPER_ADMIN_PROTECTED_ACTION_BLOCKED', adminUser.id, clientIP, userAgent, {
+            action: 'deactivate',
+            targetEmail: targetUser.email,
+          });
+          return new Response(
+            JSON.stringify({ success: false, error: "Este usuário é protegido e não pode ser desativado." }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        await supabase.from("usuarios").update({
+          is_active: isActive,
+          aprovado: isActive,
+          status: isActive ? 'ativo' : 'negado',
+        }).eq("id", userId);
+
+        await logAuthEvent(supabase, isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', userId, clientIP, userAgent, {
+          changedBy: adminUser.email,
+        });
+
+        // If deactivating, revoke all sessions
+        if (!isActive) {
+          await supabase.from("session_tokens").update({
+            revoked_at: new Date().toISOString(),
+          }).eq("user_id", userId);
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: isActive ? "Usuário ativado!" : "Usuário desativado!" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_unlock_user
+      // =====================================================
+      if (action === "admin_unlock_user") {
+        const { userId } = body;
+
+        await supabase.from("usuarios").update({
+          failed_attempts: 0,
+          locked_until: null,
+        }).eq("id", userId);
+
+        // Clear rate limits
+        const { data: targetUser } = await supabase
+          .from("usuarios")
+          .select("email")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (targetUser) {
+          await clearRateLimitDB(supabase, `user:${targetUser.email.toLowerCase()}`);
+        }
+
+        await logAuthEvent(supabase, 'UNLOCKED', userId, clientIP, userAgent, {
+          unlockedBy: adminUser.email,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: "Usuário desbloqueado!" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_list_auth_events
+      // =====================================================
+      if (action === "admin_list_auth_events") {
+        const { eventType, userId: filterUserId, limit = 100 } = body;
+
+        let query = supabase
+          .from("auth_events")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+
+        if (eventType) {
+          query = query.eq("event_type", eventType);
+        }
+
+        if (filterUserId) {
+          query = query.eq("user_id", filterUserId);
+        }
+
+        const { data: events, error } = await query;
+
+        if (error) throw error;
+
+        return new Response(
+          JSON.stringify({ success: true, events: events || [] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_list_password_requests
+      // =====================================================
+      if (action === "admin_list_password_requests") {
+        const { data: requests, error } = await supabase
+          .from("password_change_requests")
+          .select("*")
+          .eq("status", "PENDING")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        // Enrich with user info
+        const enrichedRequests = [];
+        for (const req of (requests || [])) {
+          const { data: targetUser } = await supabase
+            .from("usuarios")
+            .select("nome, email")
+            .eq("id", req.target_user_id)
+            .maybeSingle();
+
+          enrichedRequests.push({
+            ...req,
+            targetUserName: targetUser?.nome,
+            targetUserEmail: targetUser?.email,
+          });
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, requests: enrichedRequests }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // =====================================================
+      // ACTION: admin_decide_password_reset
+      // =====================================================
+      if (action === "admin_decide_password_reset") {
+        const { requestId, approved, reason } = body;
+
+        const { data: request } = await supabase
+          .from("password_change_requests")
+          .select("*")
+          .eq("id", requestId)
+          .maybeSingle();
+
+        if (!request || request.status !== 'PENDING') {
+          return new Response(
+            JSON.stringify({ success: false, error: "Solicitação não encontrada ou já processada" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Update request status
+        await supabase.from("password_change_requests").update({
+          status: approved ? 'APPROVED' : 'REJECTED',
+          decided_by_user_id: adminUser.id,
+          decided_at: new Date().toISOString(),
+          reason,
+        }).eq("id", requestId);
+
+        if (approved) {
+          // Generate new temporary password
+          const tempPassword = crypto.randomUUID().slice(0, 12);
+          const { hash, salt, iterations } = await generatePBKDF2Hash(tempPassword);
+
+          await supabase.from("usuarios").update({
+            senha_hash: hash,
+            password_salt: salt,
+            password_algo: 'pbkdf2',
+            password_iterations: iterations,
+            password_updated_at: new Date().toISOString(),
+            force_password_change: true,
+          }).eq("id", request.target_user_id);
+
+          // Revoke all sessions
+          await supabase.from("session_tokens").update({
+            revoked_at: new Date().toISOString(),
+          }).eq("user_id", request.target_user_id);
+
+          await logAuthEvent(supabase, 'PASSWORD_RESET_APPROVED', request.target_user_id, clientIP, userAgent, {
+            approvedBy: adminUser.email,
+          });
+
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              message: "Senha resetada com sucesso!", 
+              temporaryPassword: tempPassword,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else {
+          await logAuthEvent(supabase, 'PASSWORD_RESET_REJECTED', request.target_user_id, clientIP, userAgent, {
+            rejectedBy: adminUser.email,
+            reason,
+          });
+
+          return new Response(
+            JSON.stringify({ success: true, message: "Solicitação rejeitada." }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+    }
+
+    // =====================================================
+    // WebAuthn actions (keep existing functionality)
+    // =====================================================
     if (action === "checkBiometric") {
       const emailValidation = validateEmail(email);
       if (!emailValidation.valid) {
@@ -681,7 +1446,6 @@ serve(async (req) => {
         );
       }
 
-      // Find user
       const { data: user } = await supabase
         .from("usuarios")
         .select("id, aprovado")
@@ -695,7 +1459,6 @@ serve(async (req) => {
         );
       }
 
-      // Check for WebAuthn credentials
       const { data: credentials } = await supabase
         .from("webauthn_credentials")
         .select("id, device_name")
@@ -711,10 +1474,7 @@ serve(async (req) => {
       );
     }
 
-    // WebAuthn: Generate registration challenge
     if (action === "biometricRegisterStart") {
-      const { sessionToken } = await req.json().catch(() => ({}));
-      
       if (!sessionToken) {
         return new Response(
           JSON.stringify({ success: false, error: "Sessão inválida" }),
@@ -722,12 +1482,13 @@ serve(async (req) => {
         );
       }
 
-      // Verify session
+      const tokenHash = await hashToken(sessionToken);
       const { data: session } = await supabase
         .from("session_tokens")
         .select("user_id, user_email")
-        .eq("token", sessionToken)
+        .or(`token_hash.eq.${tokenHash},token.eq.${sessionToken}`)
         .gt("expires_at", new Date().toISOString())
+        .is("revoked_at", null)
         .maybeSingle();
 
       if (!session) {
@@ -737,11 +1498,9 @@ serve(async (req) => {
         );
       }
 
-      // Generate challenge
       const challenge = crypto.getRandomValues(new Uint8Array(32));
       const challengeBase64 = btoa(String.fromCharCode(...challenge));
 
-      // Get user info
       const { data: user } = await supabase
         .from("usuarios")
         .select("id, nome, email")
@@ -767,9 +1526,8 @@ serve(async (req) => {
       );
     }
 
-    // WebAuthn: Complete registration
     if (action === "biometricRegisterComplete") {
-      const { sessionToken, credentialId, publicKey, deviceName } = await req.json().catch(() => ({}));
+      const { credentialId, publicKey, deviceName } = body;
       
       if (!sessionToken || !credentialId || !publicKey) {
         return new Response(
@@ -778,12 +1536,13 @@ serve(async (req) => {
         );
       }
 
-      // Verify session
+      const tokenHash = await hashToken(sessionToken);
       const { data: session } = await supabase
         .from("session_tokens")
         .select("user_id")
-        .eq("token", sessionToken)
+        .or(`token_hash.eq.${tokenHash},token.eq.${sessionToken}`)
         .gt("expires_at", new Date().toISOString())
+        .is("revoked_at", null)
         .maybeSingle();
 
       if (!session) {
@@ -793,7 +1552,6 @@ serve(async (req) => {
         );
       }
 
-      // Store credential
       const { error: insertError } = await supabase
         .from("webauthn_credentials")
         .insert({
@@ -811,15 +1569,12 @@ serve(async (req) => {
         );
       }
 
-      console.log(`WebAuthn credential registered for user ${session.user_id}`);
-
       return new Response(
         JSON.stringify({ success: true, message: "Biometria cadastrada com sucesso!" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // WebAuthn: Start authentication
     if (action === "biometricLoginStart") {
       const emailValidation = validateEmail(email);
       if (!emailValidation.valid) {
@@ -829,10 +1584,9 @@ serve(async (req) => {
         );
       }
 
-      // Find user
       const { data: user } = await supabase
         .from("usuarios")
-        .select("id, aprovado")
+        .select("id, aprovado, is_active")
         .eq("email", email.toLowerCase().trim())
         .maybeSingle();
 
@@ -843,14 +1597,13 @@ serve(async (req) => {
         );
       }
 
-      if (!user.aprovado) {
+      if (!user.aprovado || !user.is_active) {
         return new Response(
           JSON.stringify({ success: false, error: "Usuário aguardando aprovação" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Get credentials
       const { data: credentials } = await supabase
         .from("webauthn_credentials")
         .select("credential_id")
@@ -863,7 +1616,6 @@ serve(async (req) => {
         );
       }
 
-      // Generate challenge
       const challenge = crypto.getRandomValues(new Uint8Array(32));
       const challengeBase64 = btoa(String.fromCharCode(...challenge));
 
@@ -878,9 +1630,8 @@ serve(async (req) => {
       );
     }
 
-    // WebAuthn: Complete authentication
     if (action === "biometricLoginComplete") {
-      const { credentialId, deviceInfo: biometricDeviceInfo } = await req.json().catch(() => ({}));
+      const { credentialId, deviceInfo: biometricDeviceInfo } = body;
       
       if (!email || !credentialId) {
         return new Response(
@@ -889,21 +1640,19 @@ serve(async (req) => {
         );
       }
 
-      // Find user
       const { data: user } = await supabase
         .from("usuarios")
         .select("*")
         .eq("email", email.toLowerCase().trim())
         .maybeSingle();
 
-      if (!user || !user.aprovado) {
+      if (!user || !user.aprovado || !user.is_active) {
         return new Response(
           JSON.stringify({ success: false, error: "Usuário não encontrado ou não aprovado" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Verify credential exists for this user
       const { data: credential } = await supabase
         .from("webauthn_credentials")
         .select("*")
@@ -918,13 +1667,8 @@ serve(async (req) => {
         );
       }
 
-      // Update counter
-      await supabase
-        .from("webauthn_credentials")
-        .update({ counter: credential.counter + 1 })
-        .eq("id", credential.id);
+      await supabase.from("webauthn_credentials").update({ counter: credential.counter + 1 }).eq("id", credential.id);
 
-      // Log the login
       await supabase.from("login_logs").insert({
         user_id: user.id,
         user_email: user.email,
@@ -932,19 +1676,27 @@ serve(async (req) => {
         device_info: biometricDeviceInfo ? `${biometricDeviceInfo} (Biometria)` : "Biometria",
       });
 
-      // Generate session token
-      const sessionToken = crypto.randomUUID() + '-' + crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const rawToken = generateSecureToken();
+      const tokenHash = await hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
 
       await supabase.from("session_tokens").insert({
         user_id: user.id,
         user_email: user.email,
-        token: sessionToken,
+        token: rawToken,
+        token_hash: tokenHash,
         expires_at: expiresAt.toISOString(),
         device_info: biometricDeviceInfo || null,
+        ip: clientIP,
+        user_agent: userAgent,
       });
 
-      console.log(`WebAuthn login successful for ${user.email}`);
+      await supabase.from("usuarios").update({
+        last_login_at: new Date().toISOString(),
+        last_login_ip: clientIP,
+      }).eq("id", user.id);
+
+      await logAuthEvent(supabase, 'LOGIN_OK', user.id, clientIP, userAgent, { method: 'biometric' });
 
       return new Response(
         JSON.stringify({
@@ -954,8 +1706,21 @@ serve(async (req) => {
             nome: user.nome,
             email: user.email,
             tipo: user.tipo,
+            role: user.role,
+            forcePasswordChange: user.force_password_change,
           },
-          sessionToken,
+          sessionToken: rawToken,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Legacy reset password action (redirect to new flow)
+    if (action === "resetPassword") {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Use a solicitação de reset de senha no login. Um administrador precisa aprovar." 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -967,10 +1732,7 @@ serve(async (req) => {
     console.error("Auth error:", message);
     return new Response(
       JSON.stringify({ success: false, error: message }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

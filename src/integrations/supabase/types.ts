@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      auth_events: {
+        Row: {
+          created_at: string
+          detail: Json | null
+          event_type: string
+          id: string
+          ip: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json | null
+          event_type: string
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: Json | null
+          event_type?: string
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      auth_rate_limits: {
+        Row: {
+          attempts: number
+          blocked_until: string | null
+          key: string
+          window_start: string
+        }
+        Insert: {
+          attempts?: number
+          blocked_until?: string | null
+          key: string
+          window_start?: string
+        }
+        Update: {
+          attempts?: number
+          blocked_until?: string | null
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       catalogo_produtos: {
         Row: {
           ativo: boolean
@@ -356,6 +407,45 @@ export type Database = {
         }
         Relationships: []
       }
+      password_change_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by_user_id: string | null
+          expires_at: string | null
+          id: string
+          reason: string | null
+          requested_by_user_id: string | null
+          status: string
+          target_user_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by_user_id?: string | null
+          expires_at?: string | null
+          id?: string
+          reason?: string | null
+          requested_by_user_id?: string | null
+          status?: string
+          target_user_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by_user_id?: string | null
+          expires_at?: string | null
+          id?: string
+          reason?: string | null
+          requested_by_user_id?: string | null
+          status?: string
+          target_user_id?: string
+          type?: string
+        }
+        Relationships: []
+      }
       password_reset_tokens: {
         Row: {
           created_at: string
@@ -392,7 +482,12 @@ export type Database = {
           device_info: string | null
           expires_at: string
           id: string
+          ip: string | null
+          last_seen_at: string | null
+          revoked_at: string | null
           token: string
+          token_hash: string | null
+          user_agent: string | null
           user_email: string
           user_id: string
         }
@@ -401,7 +496,12 @@ export type Database = {
           device_info?: string | null
           expires_at: string
           id?: string
+          ip?: string | null
+          last_seen_at?: string | null
+          revoked_at?: string | null
           token: string
+          token_hash?: string | null
+          user_agent?: string | null
           user_email: string
           user_id: string
         }
@@ -410,7 +510,12 @@ export type Database = {
           device_info?: string | null
           expires_at?: string
           id?: string
+          ip?: string | null
+          last_seen_at?: string | null
+          revoked_at?: string | null
           token?: string
+          token_hash?: string | null
+          user_agent?: string | null
           user_email?: string
           user_id?: string
         }
@@ -501,9 +606,20 @@ export type Database = {
           aprovado: boolean
           created_at: string
           email: string
+          failed_attempts: number
+          force_password_change: boolean
           id: string
+          is_active: boolean
+          last_login_at: string | null
+          last_login_ip: string | null
+          locked_until: string | null
           nome: string
           notificado_aprovacao: boolean
+          password_algo: string | null
+          password_iterations: number | null
+          password_salt: string | null
+          password_updated_at: string | null
+          role: string
           senha_hash: string
           status: Database["public"]["Enums"]["user_status"]
           suspenso_ate: string | null
@@ -514,9 +630,20 @@ export type Database = {
           aprovado?: boolean
           created_at?: string
           email: string
+          failed_attempts?: number
+          force_password_change?: boolean
           id?: string
+          is_active?: boolean
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          locked_until?: string | null
           nome: string
           notificado_aprovacao?: boolean
+          password_algo?: string | null
+          password_iterations?: number | null
+          password_salt?: string | null
+          password_updated_at?: string | null
+          role?: string
           senha_hash: string
           status?: Database["public"]["Enums"]["user_status"]
           suspenso_ate?: string | null
@@ -527,9 +654,20 @@ export type Database = {
           aprovado?: boolean
           created_at?: string
           email?: string
+          failed_attempts?: number
+          force_password_change?: boolean
           id?: string
+          is_active?: boolean
+          last_login_at?: string | null
+          last_login_ip?: string | null
+          locked_until?: string | null
           nome?: string
           notificado_aprovacao?: boolean
+          password_algo?: string | null
+          password_iterations?: number | null
+          password_salt?: string | null
+          password_updated_at?: string | null
+          role?: string
           senha_hash?: string
           status?: Database["public"]["Enums"]["user_status"]
           suspenso_ate?: string | null
@@ -573,7 +711,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_rate_limits: { Args: never; Returns: undefined }
       cleanup_expired_sessions: { Args: never; Returns: undefined }
+      cleanup_expired_sessions_v2: { Args: never; Returns: undefined }
       get_user_id_by_email: { Args: { user_email: string }; Returns: string }
       is_admin_user: { Args: { user_email: string }; Returns: boolean }
     }
