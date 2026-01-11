@@ -481,7 +481,7 @@ serve(async (req) => {
             locked: true,
             requiresAdminUnlock: true
           }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
