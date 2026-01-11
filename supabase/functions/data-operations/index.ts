@@ -42,39 +42,92 @@ function sanitizeSearchTerm(input: string, maxLength: number = 100): string {
   return cleaned.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
-// Verify session token and get user info
+// Compute SHA-256 hash of token for secure lookup
+async function hashToken(token: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(token);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Verify session token and get user info using token_hash
 async function verifySession(supabase: any, sessionToken: string): Promise<{ 
   success: boolean; 
   error?: string; 
-  user?: { id: string; email: string; nome: string; tipo: string } 
+  user?: { id: string; email: string; nome: string; tipo: string; role: string; is_active: boolean; force_password_change: boolean };
+  isSessionExpired?: boolean;
 }> {
   if (!sessionToken) {
-    return { success: false, error: 'Token de sessão não fornecido' };
+    return { success: false, error: 'Token de sessão não fornecido', isSessionExpired: true };
   }
 
-  // Validate session token against database
-  const { data: session, error: sessionError } = await supabase
+  // Compute token hash for secure lookup
+  const tokenHash = await hashToken(sessionToken);
+
+  // Validate session token against database using token_hash
+  // First try token_hash (new secure method), fallback to legacy token column
+  let session = null;
+  let sessionError = null;
+
+  // Try token_hash first
+  const { data: hashSession, error: hashError } = await supabase
     .from("session_tokens")
-    .select("user_id, user_email, expires_at")
-    .eq("token", sessionToken)
+    .select("user_id, user_email, expires_at, revoked_at")
+    .eq("token_hash", tokenHash)
     .maybeSingle();
+
+  if (hashSession) {
+    session = hashSession;
+  } else {
+    // Fallback to legacy token column for backwards compatibility
+    const { data: legacySession, error: legacyError } = await supabase
+      .from("session_tokens")
+      .select("user_id, user_email, expires_at, revoked_at, id")
+      .eq("token", sessionToken)
+      .maybeSingle();
+
+    if (legacySession) {
+      session = legacySession;
+      
+      // Migrate legacy token to token_hash
+      console.log("Migrating legacy token to token_hash");
+      await supabase
+        .from("session_tokens")
+        .update({ token_hash: tokenHash })
+        .eq("id", legacySession.id);
+    } else {
+      sessionError = legacyError || hashError;
+    }
+  }
 
   if (sessionError || !session) {
     console.log("Session token not found");
-    return { success: false, error: 'Token inválido ou expirado' };
+    return { success: false, error: 'Token inválido ou expirado', isSessionExpired: true };
+  }
+
+  // Check if token was revoked
+  if (session.revoked_at) {
+    console.log("Session token was revoked");
+    return { success: false, error: 'Sessão revogada. Faça login novamente.', isSessionExpired: true };
   }
 
   // Check if token is expired
   if (new Date(session.expires_at) < new Date()) {
     console.log("Session token expired");
-    await supabase.from("session_tokens").delete().eq("token", sessionToken);
-    return { success: false, error: 'Sessão expirada. Faça login novamente.' };
+    return { success: false, error: 'Sessão expirada. Faça login novamente.', isSessionExpired: true };
   }
 
-  // Get user details
+  // Update last_seen_at for session activity tracking
+  await supabase
+    .from("session_tokens")
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq("token_hash", tokenHash);
+
+  // Get user details with new security fields
   const { data: usuario, error: findError } = await supabase
     .from("usuarios")
-    .select("id, email, nome, tipo, aprovado")
+    .select("id, email, nome, tipo, aprovado, role, is_active, force_password_change, status")
     .eq("email", session.user_email.toLowerCase())
     .maybeSingle();
 
@@ -82,7 +135,13 @@ async function verifySession(supabase: any, sessionToken: string): Promise<{
     return { success: false, error: 'Usuário não encontrado' };
   }
 
-  if (!usuario.aprovado) {
+  // Check if user is active
+  if (usuario.is_active === false) {
+    return { success: false, error: 'Usuário desativado' };
+  }
+
+  // Check legacy approval status for backwards compatibility
+  if (!usuario.aprovado && usuario.status !== 'ativo') {
     return { success: false, error: 'Usuário não aprovado' };
   }
 
@@ -92,7 +151,10 @@ async function verifySession(supabase: any, sessionToken: string): Promise<{
       id: usuario.id, 
       email: usuario.email, 
       nome: usuario.nome, 
-      tipo: usuario.tipo 
+      tipo: usuario.tipo,
+      role: usuario.role || usuario.tipo,
+      is_active: usuario.is_active !== false,
+      force_password_change: usuario.force_password_change || false
     } 
   };
 }
@@ -115,8 +177,13 @@ serve(async (req) => {
     const authResult = await verifySession(supabase, sessionToken);
     if (!authResult.success) {
       // Return 200 with success: false so the client can handle the error properly
+      // Include isSessionExpired flag for auto-logout handling
       return new Response(
-        JSON.stringify({ success: false, error: authResult.error }),
+        JSON.stringify({ 
+          success: false, 
+          error: authResult.error,
+          isSessionExpired: authResult.isSessionExpired || false
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
