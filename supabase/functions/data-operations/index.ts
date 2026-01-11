@@ -312,9 +312,10 @@ serve(async (req) => {
       );
     }
 
-    // Listar códigos aprovados sem endereçamento (do catálogo + solicitações aprovadas)
-    // Prioriza códigos de solicitações aprovadas recentemente
-    // IMPORTANTE: Só mostra códigos que existem no catálogo (para garantir consistência)
+    // ========== CÓDIGOS SEM ENDEREÇAMENTO ==========
+    // IMPORTANTE: Só mostra códigos que passaram pelo fluxo completo de solicitação:
+    // Solicitação criada → Código gerado pelo comercial → Aprovado por admin/superadmin
+    // NÃO mostra códigos do catálogo geral - apenas os que passaram pelo fluxo de solicitação aprovada
     if (action === "codigos_sem_enderecamento") {
       // Buscar todos os códigos que já têm endereçamento ativo
       const { data: enderecos, error: endError } = await supabase
@@ -326,21 +327,8 @@ serve(async (req) => {
       
       const codigosComEndereco = new Set((enderecos || []).map((e: any) => e.codigo.toUpperCase()));
       
-      // Buscar todos os códigos que existem no catálogo (fonte da verdade)
-      const { data: catalogoProdutos, error: catError } = await supabase
-        .from("catalogo_produtos")
-        .select("codigo, descricao, peso_kg, ativo")
-        .eq("ativo", true);
-      
-      if (catError) throw catError;
-      
-      // Criar um map de códigos do catálogo
-      const catalogoMap = new Map();
-      for (const prod of (catalogoProdutos || [])) {
-        catalogoMap.set(prod.codigo.toUpperCase(), prod);
-      }
-      
-      // Buscar solicitações aprovadas com seus dados (apenas para enriquecer com fabricante e tipo)
+      // CORREÇÃO: Buscar APENAS solicitações aprovadas (que passaram pelo fluxo completo)
+      // Fluxo: Solicitação criada → Comercial gera código → Admin/SuperAdmin aprova
       const { data: solicitacoesAprovadas, error: solError } = await supabase
         .from("solicitacoes_codigo")
         .select("codigo_gerado, descricao, fabricante_id, tipo_material, peso, aprovado_em, fabricantes(nome)")
@@ -350,52 +338,36 @@ serve(async (req) => {
       
       if (solError) throw solError;
       
-      // Criar um map de solicitações aprovadas por código
-      const solicitacoesMap = new Map();
-      for (const sol of (solicitacoesAprovadas || [])) {
-        if (sol.codigo_gerado) {
-          solicitacoesMap.set(sol.codigo_gerado.toUpperCase(), sol);
-        }
-      }
-      
-      // Buscar códigos do catálogo que não têm endereçamento
+      // Filtrar apenas códigos aprovados que ainda não têm endereçamento
       const result = [];
       
-      for (const prod of (catalogoProdutos || [])) {
-        const codigoUpper = prod.codigo.toUpperCase();
-        
-        // Só incluir se não tem endereço ativo
-        if (!codigosComEndereco.has(codigoUpper)) {
-          // Verificar se tem solicitação aprovada para enriquecer com dados
-          const solicitacao = solicitacoesMap.get(codigoUpper);
+      for (const sol of (solicitacoesAprovadas || [])) {
+        if (sol.codigo_gerado) {
+          const codigoUpper = sol.codigo_gerado.toUpperCase();
           
-          if (solicitacao) {
+          // Só incluir se não tem endereço ativo
+          if (!codigosComEndereco.has(codigoUpper)) {
             result.push({
-              codigo: prod.codigo,
-              descricao: prod.descricao,
-              peso: solicitacao.peso || prod.peso_kg || null,
-              fabricante_id: solicitacao.fabricante_id || null,
-              fabricante_nome: (solicitacao.fabricantes as any)?.nome || null,
-              tipo_material: solicitacao.tipo_material || null,
+              codigo: sol.codigo_gerado,
+              descricao: sol.descricao,
+              peso: sol.peso || null,
+              fabricante_id: sol.fabricante_id || null,
+              fabricante_nome: (sol.fabricantes as any)?.nome || null,
+              tipo_material: sol.tipo_material || null,
               from_solicitacao: true,
-            });
-          } else {
-            // Código do catálogo sem dados de solicitação
-            result.push({
-              codigo: prod.codigo,
-              descricao: prod.descricao,
-              peso: prod.peso_kg || null,
-              fabricante_id: null,
-              fabricante_nome: null,
-              tipo_material: null,
-              from_solicitacao: false,
+              aprovado_em: sol.aprovado_em,
             });
           }
         }
       }
       
-      // Ordenar por código
-      result.sort((a, b) => a.codigo.localeCompare(b.codigo));
+      // Ordenar por data de aprovação (mais recentes primeiro)
+      result.sort((a, b) => {
+        if (a.aprovado_em && b.aprovado_em) {
+          return new Date(b.aprovado_em).getTime() - new Date(a.aprovado_em).getTime();
+        }
+        return a.codigo.localeCompare(b.codigo);
+      });
       
       return new Response(
         JSON.stringify({ success: true, data: result }),
