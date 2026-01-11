@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { updateInventario } from '@/hooks/useDataOperations';
+import { listInventario, listInventarioAudit, updateInventario } from '@/hooks/useDataOperations';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatEndereco } from '@/utils/formatEndereco';
 import {
@@ -90,38 +89,36 @@ const AjusteInventario = () => {
 
     setIsSearching(true);
     try {
-      const { data, error } = await supabase
-        .from('inventario')
-        .select(`
-          id,
-          endereco_material_id,
-          quantidade,
-          contagem_num,
-          contado_por,
-          created_at,
-          comentario,
-          enderecos_materiais (
-            codigo,
-            descricao,
-            rua,
-            coluna,
-            nivel,
-            posicao
-          )
-        `)
-        .order('created_at', { ascending: false });
+      const result = await listInventario(searchTerm.trim());
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      if (error) throw error;
+      const data = result.data || [];
+      
+      // Data already filtered by edge function, but ensure we cast properly
+      const items = data.map((item: any) => ({
+        id: item.id,
+        endereco_material_id: item.endereco_material_id,
+        quantidade: item.quantidade,
+        contagem_num: item.contagem_num,
+        contado_por: item.contado_por,
+        created_at: item.created_at,
+        comentario: item.comentario,
+        enderecos_materiais: item.enderecos_materiais || {
+          codigo: '',
+          descricao: '',
+          rua: 0,
+          coluna: 0,
+          nivel: 0,
+          posicao: 0,
+        },
+      })) as InventarioItem[];
 
-      // Filter by search term
-      const filtered = (data || []).filter((item: any) =>
-        item.enderecos_materiais?.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.enderecos_materiais?.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      setInventarioItems(items);
 
-      setInventarioItems(filtered as InventarioItem[]);
-
-      if (filtered.length === 0) {
+      if (items.length === 0) {
         toast({
           title: 'Nenhum resultado',
           description: 'Nenhuma contagem encontrada para esta busca',
@@ -211,14 +208,13 @@ const AjusteInventario = () => {
     setLoadingHistory(true);
 
     try {
-      const { data, error } = await supabase
-        .from('inventario_audit')
-        .select('*')
-        .eq('inventario_id', item.id)
-        .order('editado_em', { ascending: false });
-
-      if (error) throw error;
-      setAuditLogs(data || []);
+      const result = await listInventarioAudit(item.id);
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      setAuditLogs(result.data || []);
     } catch (error: any) {
       toast({
         title: 'Erro',

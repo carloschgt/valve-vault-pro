@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { exportInventario } from '@/hooks/useDataOperations';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
@@ -58,28 +58,14 @@ const RelatorioInventario = () => {
   const loadReport = async () => {
     setIsLoading(true);
     try {
-      // Fetch all inventory grouped by material/address
-      const { data: inventarioData, error } = await supabase
-        .from('inventario')
-        .select(`
-          id,
-          endereco_material_id,
-          quantidade,
-          contagem_num,
-          contado_por,
-          enderecos_materiais (
-            id,
-            codigo,
-            descricao,
-            rua,
-            coluna,
-            nivel,
-            posicao
-          )
-        `)
-        .order('created_at', { ascending: false });
+      // Fetch all inventory grouped by material/address via edge function
+      const result = await exportInventario();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      if (error) throw error;
+      const inventarioData = result.data || [];
 
       // Group by endereco_material_id
       const grouped: Record<string, {

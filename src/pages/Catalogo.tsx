@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { insertCatalogo, deleteCatalogo, upsertCatalogo, updateCatalogo } from '@/hooks/useDataOperations';
+import { listCatalogo, insertCatalogo, deleteCatalogo, upsertCatalogo, updateCatalogo, checkCatalogoDuplicates } from '@/hooks/useDataOperations';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 import { sanitizeSearchTerm } from '@/lib/security';
@@ -58,39 +57,16 @@ const Catalogo = () => {
   const [editDescricao, setEditDescricao] = useState('');
   const [editPeso, setEditPeso] = useState('');
 
-  // Buscar produtos - lista todos automaticamente
+  // Buscar produtos - lista todos automaticamente via edge function
   const { data: produtos = [], isLoading } = useQuery({
     queryKey: ['catalogo_produtos', searchTerm],
     queryFn: async () => {
-      const trimmedSearch = searchTerm.trim();
-      
-      if (trimmedSearch) {
-        // Convert wildcard pattern to ILIKE pattern
-        const iLikePattern = wildcardToILike(trimmedSearch);
-        
-        // Busca com filtro usando pattern do wildcard
-        const { data, error } = await supabase
-          .from('catalogo_produtos')
-          .select('*')
-          .eq('ativo', true)
-          .or(`codigo.ilike.${iLikePattern},descricao.ilike.${iLikePattern}`)
-          .order('codigo')
-          .limit(500);
-        
-        if (error) throw error;
-        return data as Produto[];
-      } else {
-        // Lista todos sem filtro
-        const { data, error } = await supabase
-          .from('catalogo_produtos')
-          .select('*')
-          .eq('ativo', true)
-          .order('codigo')
-          .limit(500);
-        
-        if (error) throw error;
-        return data as Produto[];
+      const result = await listCatalogo(searchTerm.trim() || undefined, 500);
+      if (!result.success) {
+        throw new Error(result.error);
       }
+      // Filter for ativo only (edge function returns all, we filter here)
+      return (result.data || []).filter((p: Produto) => p.ativo !== false) as Produto[];
     },
   });
 
@@ -113,14 +89,14 @@ const Catalogo = () => {
     });
   };
 
-  // Verificar duplicados antes de adicionar individualmente
+  // Verificar duplicados antes de adicionar individualmente via edge function
   const checkDuplicateBeforeAdd = async (codigo: string): Promise<Produto | null> => {
-    const { data } = await supabase
-      .from('catalogo_produtos')
-      .select('*')
-      .eq('codigo', codigo.trim())
-      .maybeSingle();
-    return data as Produto | null;
+    const result = await checkCatalogoDuplicates([codigo.trim()]);
+    if (!result.success || !result.data || result.data.length === 0) {
+      return null;
+    }
+    const existing = result.data[0];
+    return existing ? { id: '', codigo: existing.codigo, descricao: existing.descricao } as Produto : null;
   };
 
   // Adicionar produto com verificação de duplicado
@@ -240,14 +216,12 @@ const Catalogo = () => {
         throw new Error('Nenhum produto válido encontrado no arquivo');
       }
 
-      // Verificar duplicados
+      // Verificar duplicados via edge function
       const codigos = produtosToImport.map(p => p.codigo);
-      const { data: existingProducts } = await supabase
-        .from('catalogo_produtos')
-        .select('codigo, descricao')
-        .in('codigo', codigos);
+      const duplicateResult = await checkCatalogoDuplicates(codigos);
+      const existingProducts = duplicateResult.success ? (duplicateResult.data || []) : [];
 
-      const existingMap = new Map((existingProducts || []).map(p => [p.codigo, p.descricao]));
+      const existingMap = new Map<string, string>(existingProducts.map((p: any) => [p.codigo, p.descricao]));
       
       const duplicateItems: DuplicateItem[] = [];
       const newItems: { codigo: string; descricao: string }[] = [];
