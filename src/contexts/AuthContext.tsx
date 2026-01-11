@@ -32,6 +32,8 @@ interface User {
   suspensoAte?: string | null;
   /** Secure session token for API authentication */
   sessionToken?: string;
+  /** Flag indicating user must change password before accessing app */
+  forcePasswordChange?: boolean;
 }
 
 interface CheckEmailResult {
@@ -62,6 +64,9 @@ interface AuthContextType {
   login: (email: string, senha: string) => Promise<LoginResult>;
   register: (email: string, senha: string, nome: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  clearForcePasswordChange: () => void;
+  handleSessionExpired: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -155,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: data.user.status as UserStatus || 'ativo',
         suspensoAte: data.user.suspenso_ate,
         sessionToken: data.sessionToken,
+        forcePasswordChange: data.user.force_password_change || false,
       };
 
       setUser(userData);
@@ -189,13 +195,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const sessionToken = user?.sessionToken;
+      if (!sessionToken) {
+        return { success: false, error: 'Sessão expirada. Faça login novamente.' };
+      }
+
+      const { data, error } = await supabase.functions.invoke('auth', {
+        body: { action: 'change_password', sessionToken, currentPassword, newPassword },
+      });
+
+      if (error) {
+        console.error('Change password invoke error:', error);
+        return { success: false, error: 'Erro ao conectar com o servidor' };
+      }
+
+      if (!data.success) {
+        return { success: false, error: data.error || 'Erro ao alterar senha' };
+      }
+
+      // Clear force password change flag
+      if (user) {
+        const updatedUser = { ...user, forcePasswordChange: false };
+        setUser(updatedUser);
+        localStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('Change password error:', err);
+      return { success: false, error: 'Erro ao alterar senha' };
+    }
+  };
+
+  const clearForcePasswordChange = () => {
+    if (user) {
+      const updatedUser = { ...user, forcePasswordChange: false };
+      setUser(updatedUser);
+      localStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
+    }
+  };
+
+  const handleSessionExpired = () => {
+    setUser(null);
+    localStorage.removeItem(AUTH_KEY);
+    // Will be redirected by ProtectedRoute
+  };
+
+  const logout = async () => {
+    // Call server to revoke session token
+    if (user?.sessionToken) {
+      try {
+        await supabase.functions.invoke('auth', {
+          body: { action: 'logout', sessionToken: user.sessionToken },
+        });
+      } catch (err) {
+        console.error('Logout error:', err);
+      }
+    }
     setUser(null);
     localStorage.removeItem(AUTH_KEY);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, checkEmail, login, register, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isLoading, 
+      checkEmail, 
+      login, 
+      register, 
+      logout, 
+      changePassword, 
+      clearForcePasswordChange, 
+      handleSessionExpired 
+    }}>
       {children}
     </AuthContext.Provider>
   );

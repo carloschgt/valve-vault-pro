@@ -30,6 +30,8 @@ async function invokeDataOperation<T = any>(
   const sessionToken = getSessionToken();
   
   if (!sessionToken) {
+    // Trigger auto-logout via custom event
+    window.dispatchEvent(new CustomEvent('session-expired'));
     return { success: false, error: 'Sessão expirada. Faça login novamente.' };
   }
 
@@ -43,6 +45,13 @@ async function invokeDataOperation<T = any>(
       // Handle FunctionsHttpError and other error types
       const errorMessage = error.message || 'Erro ao executar operação';
       return { success: false, error: errorMessage };
+    }
+
+    // Check if the response indicates a session expiration
+    if (data && !data.success && data.isSessionExpired) {
+      // Trigger auto-logout via custom event
+      window.dispatchEvent(new CustomEvent('session-expired'));
+      return { success: false, error: data.error || 'Sessão expirada' };
     }
 
     // Check if the response indicates an error
