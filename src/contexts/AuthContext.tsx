@@ -57,6 +57,8 @@ interface LoginResult {
   suspensoAte?: string | null;
   mustResetPassword?: boolean;
   resetToken?: string;
+  locked?: boolean;
+  requiresAdminUnlock?: boolean;
 }
 
 interface AuthContextType {
@@ -151,6 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           suspensoAte: data.suspensoAte,
           mustResetPassword: data.mustResetPassword,
           resetToken: data.resetToken,
+          locked: data.locked,
+          requiresAdminUnlock: data.requiresAdminUnlock,
         };
       }
 

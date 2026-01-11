@@ -116,8 +116,10 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!passwordValidation.valid) {
-      toast.error('Senha inválida');
+    // Não validar senha no frontend durante login - deixar o backend validar
+    // para mostrar mensagens corretas de tentativas restantes e bloqueio
+    if (!senha.trim()) {
+      toast.error('Digite sua senha');
       return;
     }
 
@@ -136,9 +138,16 @@ const Login = () => {
         return;
       }
       
+      // Handle locked account
+      if (result.locked || result.requiresAdminUnlock) {
+        toast.error(result.error || 'Conta bloqueada. Entre em contato com um administrador.');
+        return;
+      }
+      
       if (result.pendingApproval) {
         toast.warning(result.error);
       } else {
+        // Mostrar mensagem do backend (inclui contador de tentativas restantes)
         toast.error(result.error || 'Erro ao fazer login');
       }
     }
