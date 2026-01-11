@@ -470,15 +470,16 @@ serve(async (req) => {
         );
       }
 
-      // Check if user account is locked
-      if (user.locked_until && new Date(user.locked_until) > new Date()) {
-        const minutesLeft = Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000);
-        await logAuthEvent(supabase, 'LOGIN_BLOCKED_LOCKED', user.id, clientIP, userAgent, { minutesLeft });
+      // Check if user account is locked (PERMANENT until admin unlocks)
+      // O bloqueio é PERMANENTE - só admin/superadmin pode desbloquear
+      if (user.locked_until) {
+        await logAuthEvent(supabase, 'LOGIN_BLOCKED_LOCKED', user.id, clientIP, userAgent, { lockedUntil: user.locked_until });
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `Conta bloqueada. Tente novamente em ${minutesLeft} minuto(s).`,
-            locked: true
+            error: 'Conta bloqueada por excesso de tentativas. Entre em contato com um administrador para desbloquear.',
+            locked: true,
+            requiresAdminUnlock: true
           }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -533,13 +534,16 @@ serve(async (req) => {
         // Update user failed attempts
         const updateData: any = { failed_attempts: newFailedAttempts };
         if (isLocked) {
-          updateData.locked_until = new Date(Date.now() + LOCKOUT_DURATION_MS).toISOString();
+          // Bloqueio PERMANENTE - só admin pode desbloquear
+          // Usamos uma data muito distante no futuro para indicar bloqueio permanente
+          updateData.locked_until = new Date('2099-12-31T23:59:59Z').toISOString();
         }
         await supabase.from("usuarios").update(updateData).eq("id", user.id);
         
         await logAuthEvent(supabase, isLocked ? 'LOCKED' : 'LOGIN_FAIL', user.id, clientIP, userAgent, {
           failedAttempts: newFailedAttempts,
           remainingAttempts,
+          permanentLock: isLocked,
         });
         
         return new Response(
@@ -547,7 +551,7 @@ serve(async (req) => {
             success: false, 
             error: remainingAttempts > 0 
               ? `Senha incorreta. ${remainingAttempts} tentativa(s) restante(s).`
-              : "Senha incorreta. Conta temporariamente bloqueada."
+              : "Conta bloqueada por excesso de tentativas. Entre em contato com um administrador."
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
