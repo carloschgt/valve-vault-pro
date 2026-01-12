@@ -221,6 +221,40 @@ serve(async (req) => {
       
       const { data, error } = await query.limit(limit);
       if (error) throw error;
+      
+      // Para cada produto sem peso no catálogo, buscar peso de enderecos_materiais
+      if (data && data.length > 0) {
+        const codigosSemPeso = data
+          .filter((p: any) => p.peso_kg === null || p.peso_kg === undefined)
+          .map((p: any) => p.codigo);
+        
+        if (codigosSemPeso.length > 0) {
+          // Buscar peso de enderecos_materiais para esses códigos
+          const { data: enderecos } = await supabase
+            .from("enderecos_materiais")
+            .select("codigo, peso")
+            .in("codigo", codigosSemPeso)
+            .eq("ativo", true);
+          
+          if (enderecos && enderecos.length > 0) {
+            // Criar mapa de código -> peso (usar o primeiro encontrado)
+            const pesoMap = new Map<string, number>();
+            for (const e of enderecos) {
+              if (!pesoMap.has(e.codigo) && e.peso !== null && e.peso !== undefined) {
+                pesoMap.set(e.codigo, e.peso);
+              }
+            }
+            
+            // Atualizar os produtos com o peso encontrado
+            for (const produto of data) {
+              if ((produto.peso_kg === null || produto.peso_kg === undefined) && pesoMap.has(produto.codigo)) {
+                produto.peso_kg = pesoMap.get(produto.codigo);
+              }
+            }
+          }
+        }
+      }
+      
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
