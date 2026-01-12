@@ -328,7 +328,11 @@ const Catalogo = () => {
   const startEditing = (produto: Produto) => {
     setEditingProduct(produto);
     setEditDescricao(produto.descricao);
-    setEditPeso(produto.peso_kg?.toString() || '');
+    // Carregar o peso do produto se existir no banco de dados
+    const pesoValue = produto.peso_kg !== null && produto.peso_kg !== undefined 
+      ? produto.peso_kg.toString() 
+      : '';
+    setEditPeso(pesoValue);
   };
 
   const cancelEditing = () => {
