@@ -29,6 +29,7 @@ function getSessionToken(): string | null {
 interface EstoqueItem {
   codigo: string;
   descricao: string;
+  descricao_imex: string | null;
   tipo_material: string;
   enderecos: {
     rua: number;
@@ -499,9 +500,10 @@ const EstoqueAtual = () => {
           <>
             {/* Header fixo */}
             <div className="overflow-x-auto shrink-0 bg-card border-b-2 border-border">
-              <table className="w-full text-xs sm:text-sm table-fixed min-w-[600px]">
+              <table className="w-full text-xs sm:text-sm table-fixed min-w-[700px]">
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
+                  <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
                   <col className="w-auto" />
                   <col className="w-[55px] sm:w-[70px] lg:w-[80px]" />
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
@@ -514,6 +516,7 @@ const EstoqueAtual = () => {
                 <thead>
                   <tr>
                     <th className="px-2 py-2 text-left font-semibold bg-card">Código</th>
+                    <th className="px-2 py-2 text-left font-semibold bg-card">Desc. Imex</th>
                     <th className="px-2 py-2 text-left font-semibold bg-card">Descrição</th>
                     <th className="px-2 py-2 text-left font-semibold bg-card">Tipo</th>
                     <th className="px-1 py-2 text-center font-semibold bg-card">R</th>
@@ -528,9 +531,10 @@ const EstoqueAtual = () => {
             </div>
             {/* Body com scroll */}
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-xs sm:text-sm table-fixed min-w-[600px]">
+              <table className="w-full text-xs sm:text-sm table-fixed min-w-[700px]">
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
+                  <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
                   <col className="w-auto" />
                   <col className="w-[55px] sm:w-[70px] lg:w-[80px]" />
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
@@ -557,6 +561,12 @@ const EstoqueAtual = () => {
                               rowSpan={enderecos.length}
                             >
                               {item.codigo}
+                            </td>
+                            <td 
+                              className="px-2 py-2 text-muted-foreground align-top break-words text-xs"
+                              rowSpan={enderecos.length}
+                            >
+                              {item.descricao_imex || '-'}
                             </td>
                             <td 
                               className="px-2 py-2 text-muted-foreground align-top break-words"

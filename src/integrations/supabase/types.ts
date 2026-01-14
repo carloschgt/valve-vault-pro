@@ -111,6 +111,7 @@ export type Database = {
           created_by: string
           data_inativacao: string | null
           descricao: string
+          descricao_imex: string | null
           fabricante_id: string | null
           id: string
           inativado_por: string | null
@@ -130,6 +131,7 @@ export type Database = {
           created_by: string
           data_inativacao?: string | null
           descricao: string
+          descricao_imex?: string | null
           fabricante_id?: string | null
           id?: string
           inativado_por?: string | null
@@ -149,6 +151,7 @@ export type Database = {
           created_by?: string
           data_inativacao?: string | null
           descricao?: string
+          descricao_imex?: string | null
           fabricante_id?: string | null
           id?: string
           inativado_por?: string | null

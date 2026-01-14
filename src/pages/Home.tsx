@@ -24,14 +24,6 @@ const Home = () => {
   const { toast } = useToast();
   const { user, logout } = useAuth();
   const { hasPermission, isAdmin, isSuperAdmin, isLoading: permissionsLoading } = useUserPermissions();
-  const isComercial = user?.tipo === 'comercial';
-
-  // Redirecionar usuário comercial diretamente para processar códigos
-  React.useEffect(() => {
-    if (isComercial) {
-      navigate('/processar-codigos', { replace: true });
-    }
-  }, [isComercial, navigate]);
   const [isExporting, setIsExporting] = useState<'enderecamentos' | 'inventario' | null>(null);
   const [showScanner, setShowScanner] = useState(false);
 
