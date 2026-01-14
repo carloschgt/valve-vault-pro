@@ -87,7 +87,8 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, userId, aprovado, search, adminEmail, tipo, status, suspendedUntil, statusFilter, notificationId } = await req.json();
+    const body = await req.json();
+    const { action, userId, aprovado, search, adminEmail, tipo, status, suspendedUntil, statusFilter, notificationId, profileId, profile } = body;
 
     console.log(`Admin users action: ${action}, adminEmail: ${adminEmail}`);
 
@@ -782,8 +783,7 @@ serve(async (req) => {
         );
       }
 
-      const body = await req.clone().json();
-      const { profileId, profile } = body;
+      // profileId and profile already extracted from body at the beginning
 
       if (!profileId) {
         return new Response(
