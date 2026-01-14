@@ -51,6 +51,20 @@ async function verifyAdminUser(supabase: any, userEmail: string): Promise<boolea
   return user.tipo === 'admin';
 }
 
+// Verify if user is Super Admin
+async function verifySuperAdmin(supabase: any, userEmail: string): Promise<boolean> {
+  if (!userEmail) return false;
+  
+  const { data: user, error } = await supabase
+    .from("usuarios")
+    .select("role")
+    .eq("email", userEmail.toLowerCase().trim())
+    .maybeSingle();
+  
+  if (error || !user) return false;
+  return user.role === 'SUPER_ADMIN';
+}
+
 serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -596,6 +610,324 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =====================================================
+    // PROFILE MANAGEMENT (Super Admin Only)
+    // =====================================================
+    
+    if (action === "listProfiles") {
+      const isSuperAdmin = await verifySuperAdmin(supabase, adminEmail);
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Apenas Super Admin pode gerenciar perfis" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get all profiles with their permissions
+      const { data: profiles, error: profilesError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .order("is_system", { ascending: false })
+        .order("nome");
+      
+      if (profilesError) throw profilesError;
+
+      // Get permissions for each profile
+      const { data: allPermissions } = await supabase
+        .from("profile_permissions")
+        .select("profile_id, menu_key, can_access");
+
+      // Get user count per profile
+      const { data: userCounts } = await supabase
+        .from("usuarios")
+        .select("tipo");
+
+      // Map permissions to profiles
+      const profilesWithPermissions = (profiles || []).map((profile: any) => {
+        const permissions: Record<string, boolean> = {};
+        (allPermissions || []).forEach((p: any) => {
+          if (p.profile_id === profile.id) {
+            permissions[p.menu_key] = p.can_access;
+          }
+        });
+        
+        // Count users with this profile name
+        const userCount = (userCounts || []).filter((u: any) => u.tipo === profile.nome).length;
+        
+        return {
+          ...profile,
+          permissions,
+          user_count: userCount,
+        };
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, profiles: profilesWithPermissions }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "createProfile") {
+      const isSuperAdmin = await verifySuperAdmin(supabase, adminEmail);
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Apenas Super Admin pode criar perfis" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const body = await req.clone().json();
+      const { profile } = body;
+
+      if (!profile?.nome) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Nome do perfil é obrigatório" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if profile name already exists
+      const { data: existing } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("nome", profile.nome.toLowerCase().trim())
+        .maybeSingle();
+
+      if (existing) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Já existe um perfil com este nome" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Create profile
+      const { data: newProfile, error: createError } = await supabase
+        .from("user_profiles")
+        .insert({
+          nome: profile.nome.toLowerCase().trim(),
+          descricao: profile.descricao || null,
+          is_system: false,
+          created_by: adminEmail,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // Create permissions
+      if (profile.permissions && typeof profile.permissions === 'object') {
+        const permissionsToInsert = Object.entries(profile.permissions).map(([menuKey, canAccess]) => ({
+          profile_id: newProfile.id,
+          menu_key: menuKey,
+          can_access: Boolean(canAccess),
+        }));
+
+        if (permissionsToInsert.length > 0) {
+          const { error: permError } = await supabase
+            .from("profile_permissions")
+            .insert(permissionsToInsert);
+          
+          if (permError) throw permError;
+        }
+      }
+
+      console.log(`Profile ${profile.nome} created by ${adminEmail}`);
+
+      return new Response(
+        JSON.stringify({ success: true, profile: newProfile }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "updateProfile") {
+      const isSuperAdmin = await verifySuperAdmin(supabase, adminEmail);
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Apenas Super Admin pode atualizar perfis" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const body = await req.clone().json();
+      const { profileId, profile } = body;
+
+      if (!profileId) {
+        return new Response(
+          JSON.stringify({ success: false, error: "ID do perfil é obrigatório" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get existing profile
+      const { data: existingProfile } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", profileId)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Perfil não encontrado" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Update profile (only description for system profiles)
+      const updateData: any = {};
+      if (profile.descricao !== undefined) {
+        updateData.descricao = profile.descricao;
+      }
+      if (!existingProfile.is_system && profile.nome) {
+        updateData.nome = profile.nome.toLowerCase().trim();
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabase
+          .from("user_profiles")
+          .update(updateData)
+          .eq("id", profileId);
+        
+        if (updateError) throw updateError;
+      }
+
+      // Update permissions
+      if (profile.permissions && typeof profile.permissions === 'object') {
+        // Delete existing permissions
+        await supabase
+          .from("profile_permissions")
+          .delete()
+          .eq("profile_id", profileId);
+
+        // Insert new permissions
+        const permissionsToInsert = Object.entries(profile.permissions).map(([menuKey, canAccess]) => ({
+          profile_id: profileId,
+          menu_key: menuKey,
+          can_access: Boolean(canAccess),
+        }));
+
+        if (permissionsToInsert.length > 0) {
+          const { error: permError } = await supabase
+            .from("profile_permissions")
+            .insert(permissionsToInsert);
+          
+          if (permError) throw permError;
+        }
+      }
+
+      console.log(`Profile ${profileId} updated by ${adminEmail}`);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "deleteProfile") {
+      const isSuperAdmin = await verifySuperAdmin(supabase, adminEmail);
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Apenas Super Admin pode excluir perfis" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const body = await req.clone().json();
+      const { profileId } = body;
+
+      if (!profileId) {
+        return new Response(
+          JSON.stringify({ success: false, error: "ID do perfil é obrigatório" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if profile is a system profile
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("is_system, nome")
+        .eq("id", profileId)
+        .maybeSingle();
+
+      if (!profile) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Perfil não encontrado" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (profile.is_system) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Não é possível excluir perfis do sistema" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Move users with this profile to 'user' profile
+      await supabase
+        .from("usuarios")
+        .update({ tipo: 'user' })
+        .eq("tipo", profile.nome);
+
+      // Delete profile (cascade will delete permissions)
+      const { error: deleteError } = await supabase
+        .from("user_profiles")
+        .delete()
+        .eq("id", profileId);
+
+      if (deleteError) throw deleteError;
+
+      console.log(`Profile ${profileId} deleted by ${adminEmail}`);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get user permissions based on their profile
+    if (action === "getUserPermissions") {
+      const body = await req.clone().json();
+      const { userTipo } = body;
+
+      if (!userTipo) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Tipo de usuário não fornecido" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get profile by name
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("nome", userTipo)
+        .maybeSingle();
+
+      if (!profile) {
+        // Return default permissions if profile not found
+        return new Response(
+          JSON.stringify({ success: true, permissions: {} }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get permissions
+      const { data: permissions } = await supabase
+        .from("profile_permissions")
+        .select("menu_key, can_access")
+        .eq("profile_id", profile.id);
+
+      const permissionsMap: Record<string, boolean> = {};
+      (permissions || []).forEach((p: any) => {
+        permissionsMap[p.menu_key] = p.can_access;
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, permissions: permissionsMap }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
