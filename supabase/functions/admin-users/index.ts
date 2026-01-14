@@ -458,13 +458,14 @@ serve(async (req) => {
     }
 
     if (action === "approve") {
-      // Update both aprovado and status
+      // Update both aprovado, status, and is_active
       const newStatus = aprovado ? 'ativo' : 'pendente';
       const { error } = await supabase
         .from("usuarios")
         .update({ 
           aprovado, 
           status: newStatus,
+          is_active: aprovado, // CRITICAL: Set is_active when approving
           notificado_aprovacao: false, // Reset notification flag when status changes
           suspenso_ate: null,
         })
@@ -481,13 +482,14 @@ serve(async (req) => {
     if (action === "updateUser") {
       const updateData: any = {};
       
-      if (tipo && ['user', 'admin', 'estoque', 'comercial'].includes(tipo)) {
+      if (tipo && ['user', 'admin', 'estoque', 'comercial', 'compras'].includes(tipo)) {
         updateData.tipo = tipo;
       }
       
       if (status && ['pendente', 'ativo', 'suspenso', 'negado'].includes(status)) {
         updateData.status = status;
         updateData.aprovado = status === 'ativo';
+        updateData.is_active = status === 'ativo'; // CRITICAL: Set is_active based on status
         
         // Reset notification flag so user sees notification on next login
         if (status === 'ativo') {
@@ -529,7 +531,7 @@ serve(async (req) => {
     }
 
     if (action === "updateRole") {
-      if (!userId || !tipo || !['user', 'admin', 'estoque', 'comercial'].includes(tipo)) {
+      if (!userId || !tipo || !['user', 'admin', 'estoque', 'comercial', 'compras'].includes(tipo)) {
         return new Response(
           JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -367,6 +367,7 @@ const AdminUserDetail = () => {
                     <SelectItem value="user">{USER_ROLE_LABELS.user}</SelectItem>
                     <SelectItem value="estoque">{USER_ROLE_LABELS.estoque}</SelectItem>
                     <SelectItem value="comercial">{USER_ROLE_LABELS.comercial}</SelectItem>
+                    <SelectItem value="compras">{USER_ROLE_LABELS.compras}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

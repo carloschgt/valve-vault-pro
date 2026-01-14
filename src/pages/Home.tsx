@@ -25,6 +25,7 @@ const Home = () => {
   const isAdmin = user?.tipo === 'admin';
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isComercial = user?.tipo === 'comercial';
+  const isCompras = user?.tipo === 'compras';
   const canRequestCode = user?.tipo === 'user' || user?.tipo === 'admin';
 
   // Redirecionar usuário comercial diretamente para processar códigos
@@ -307,27 +308,27 @@ const Home = () => {
           <button
             onClick={() => navigate('/estoque-atual')}
             className={`flex items-center gap-4 rounded-2xl border-2 p-4 transition-all active:scale-[0.98] ${
-              isAdmin 
+              (isAdmin || isCompras) 
                 ? 'border-emerald-500/50 bg-emerald-500/5 hover:bg-emerald-500/10 hover:shadow-lg cursor-pointer' 
                 : 'border-muted/50 bg-muted/5 cursor-pointer'
             }`}
           >
             <div className={`flex h-12 w-12 items-center justify-center rounded-full shadow-md ${
-              isAdmin ? 'bg-emerald-500' : 'bg-muted/50'
+              (isAdmin || isCompras) ? 'bg-emerald-500' : 'bg-muted/50'
             }`}>
-              <Package className={`h-6 w-6 ${isAdmin ? 'text-white' : 'text-muted-foreground/50'}`} />
+              <Package className={`h-6 w-6 ${(isAdmin || isCompras) ? 'text-white' : 'text-muted-foreground/50'}`} />
             </div>
             <div className="flex-1 text-left">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-foreground">Estoque Atual</h2>
-                {!isAdmin && (
+                {!(isAdmin || isCompras) && (
                   <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-600">
                     Em desenvolvimento
                   </span>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {isAdmin ? 'Ver saldo atual por item e endereço' : 'Em breve disponível para todos'}
+                {(isAdmin || isCompras) ? 'Ver saldo atual por item e endereço' : 'Em breve disponível para todos'}
               </p>
             </div>
           </button>
