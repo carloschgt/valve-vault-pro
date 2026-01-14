@@ -75,8 +75,8 @@ export async function desbloquearSolicitacao(solicitacao_id: string) {
 }
 
 // Salvar código criado (comercial)
-export async function salvarCodigo(solicitacao_id: string, codigo: string) {
-  return invokeFunction('salvar_codigo', { solicitacao_id, codigo });
+export async function salvarCodigo(solicitacao_id: string, codigo: string, descricao_imex?: string) {
+  return invokeFunction('salvar_codigo', { solicitacao_id, codigo, descricao_imex });
 }
 
 // Aprovar código (admin)

@@ -1441,6 +1441,7 @@ serve(async (req) => {
             id,
             codigo,
             descricao,
+            descricao_imex,
             tipo_material,
             rua,
             coluna,
@@ -1484,6 +1485,7 @@ serve(async (req) => {
       const grouped: Record<string, {
         codigo: string;
         descricao: string;
+        descricao_imex: string | null;
         tipo_material: string;
         enderecos: {
           rua: number;
@@ -1505,6 +1507,7 @@ serve(async (req) => {
           grouped[matCodigo] = {
             codigo: matCodigo,
             descricao: mat.descricao,
+            descricao_imex: mat.descricao_imex || null,
             tipo_material: mat.tipo_material,
             enderecos: [],
             qtd_total: 0,

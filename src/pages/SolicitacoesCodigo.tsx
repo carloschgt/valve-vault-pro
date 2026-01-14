@@ -43,6 +43,7 @@ const SolicitacoesCodigo = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [codigoInput, setCodigoInput] = useState('');
+  const [descricaoImexInput, setDescricaoImexInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
@@ -105,6 +106,7 @@ const SolicitacoesCodigo = () => {
       if (result.success) {
         setSelectedId(id);
         setCodigoInput('');
+        setDescricaoImexInput('');
         toast({
           title: 'Solicitação bloqueada',
           description: 'Você está processando esta solicitação',
@@ -130,6 +132,7 @@ const SolicitacoesCodigo = () => {
       if (result.success) {
         setSelectedId(null);
         setCodigoInput('');
+        setDescricaoImexInput('');
         toast({
           title: 'Solicitação liberada',
           description: 'A solicitação está disponível para outros usuários',
@@ -160,7 +163,7 @@ const SolicitacoesCodigo = () => {
 
     setIsSaving(true);
     try {
-      const result = await salvarCodigo(selectedId, codigoInput.trim());
+      const result = await salvarCodigo(selectedId, codigoInput.trim(), descricaoImexInput.trim() || undefined);
       if (result.success) {
         toast({
           title: 'Sucesso',
@@ -168,6 +171,7 @@ const SolicitacoesCodigo = () => {
         });
         setSelectedId(null);
         setCodigoInput('');
+        setDescricaoImexInput('');
         loadSolicitacoes();
       } else {
         toast({
@@ -297,40 +301,49 @@ const SolicitacoesCodigo = () => {
               {!isLockedByOther(s) && (
                 <div className="flex items-center gap-2">
                   {isLockedByMe(s) ? (
-                    <>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="Digite o código"
+                          value={codigoInput}
+                          onChange={(e) => setCodigoInput(e.target.value.toUpperCase())}
+                          className="h-8 text-sm flex-1"
+                          disabled={isSaving}
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleSalvarCodigo}
+                          disabled={isSaving || !codigoInput.trim()}
+                          className="h-8"
+                        >
+                          {isSaving ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDesbloquear(s.id)}
+                          disabled={isProcessing === s.id}
+                          className="h-8"
+                        >
+                          {isProcessing === s.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Unlock className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
                       <Input
-                        placeholder="Digite o código"
-                        value={codigoInput}
-                        onChange={(e) => setCodigoInput(e.target.value.toUpperCase())}
-                        className="h-8 text-sm flex-1"
+                        placeholder="Descrição Imex (opcional)"
+                        value={descricaoImexInput}
+                        onChange={(e) => setDescricaoImexInput(e.target.value.toUpperCase())}
+                        className="h-8 text-sm"
                         disabled={isSaving}
                       />
-                      <Button
-                        size="sm"
-                        onClick={handleSalvarCodigo}
-                        disabled={isSaving || !codigoInput.trim()}
-                        className="h-8"
-                      >
-                        {isSaving ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Save className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDesbloquear(s.id)}
-                        disabled={isProcessing === s.id}
-                        className="h-8"
-                      >
-                        {isProcessing === s.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Unlock className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </>
+                    </div>
                   ) : (
                     <Button
                       size="sm"

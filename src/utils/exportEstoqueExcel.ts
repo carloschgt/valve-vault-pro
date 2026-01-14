@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 interface EstoqueItem {
   codigo: string;
   descricao: string;
+  descricao_imex: string | null;
   tipo_material: string;
   enderecos: {
     rua: number;
@@ -27,6 +28,7 @@ export function exportEstoqueToExcel(estoque: EstoqueItem[]): void {
     item.enderecos.forEach((end, idx) => {
       rows.push({
         'Código': item.codigo,
+        'Descrição Imex': item.descricao_imex || '',
         'Descrição': item.descricao,
         'Tipo': item.tipo_material,
         'Rua': String(end.rua).padStart(2, '0'),
@@ -46,6 +48,7 @@ export function exportEstoqueToExcel(estoque: EstoqueItem[]): void {
   // Definir larguras das colunas
   const colWidths = [
     { wch: 12 },  // Código
+    { wch: 30 },  // Descrição Imex
     { wch: 60 },  // Descrição
     { wch: 10 },  // Tipo
     { wch: 6 },   // Rua
@@ -78,7 +81,7 @@ export function exportEstoqueToExcel(estoque: EstoqueItem[]): void {
         },
         alignment: { 
           vertical: 'center',
-          horizontal: C >= 3 && C <= 7 ? 'center' : 'left',
+          horizontal: C >= 4 && C <= 8 ? 'center' : 'left',
         },
       };
 
@@ -93,7 +96,7 @@ export function exportEstoqueToExcel(estoque: EstoqueItem[]): void {
       }
 
       // Estilo para coluna Total Geral
-      if (C === 8 && R > 0) {
+      if (C === 9 && R > 0) {
         ws[cellAddress].s = {
           ...ws[cellAddress].s,
           fill: { fgColor: { rgb: 'E2EFDA' } },

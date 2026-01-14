@@ -45,26 +45,26 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/etiquetas/print" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><EtiquetaPrint /></ProtectedRoute>} />
             <Route path="/etiquetas/identificacao-rua" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><IdentificacaoRuaPrint /></ProtectedRoute>} />
-            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-            <Route path="/enderecamento" element={<ProtectedRoute><Enderecamento /></ProtectedRoute>} />
-            <Route path="/inventario" element={<ProtectedRoute><Inventario /></ProtectedRoute>} />
-            <Route path="/fabricantes" element={<ProtectedRoute adminOnly><Fabricantes /></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/catalogo" element={<ProtectedRoute adminOnly><Catalogo /></ProtectedRoute>} />
-            <Route path="/catalogo-produto" element={<ProtectedRoute><CatalogoProduto /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
-            <Route path="/admin/usuarios/:id" element={<ProtectedRoute adminOnly><AdminUserDetail /></ProtectedRoute>} />
-            <Route path="/admin/perfis" element={<ProtectedRoute adminOnly><GerenciarPerfis /></ProtectedRoute>} />
-            <Route path="/gerenciamento-dados" element={<ProtectedRoute adminOnly><GerenciamentoDados /></ProtectedRoute>} />
-            <Route path="/etiquetas" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><Etiquetas /></ProtectedRoute>} />
-            <Route path="/estoque-atual" element={<ProtectedRoute><EstoqueAtual /></ProtectedRoute>} />
-            <Route path="/estoque-rua" element={<ProtectedRoute><EstoqueRua /></ProtectedRoute>} />
-            <Route path="/controle-inventario" element={<ProtectedRoute adminOnly><ControleInventario /></ProtectedRoute>} />
-            <Route path="/relatorio-inventario" element={<ProtectedRoute adminOnly><RelatorioInventario /></ProtectedRoute>} />
-            <Route path="/ajuste-inventario" element={<ProtectedRoute adminOnly><AjusteInventario /></ProtectedRoute>} />
-            <Route path="/solicitacoes-codigo" element={<ProtectedRoute allowRoles={['admin', 'user']}><NovaSolicitacao /></ProtectedRoute>} />
-            <Route path="/processar-codigos" element={<ProtectedRoute allowRoles={['comercial', 'admin']}><SolicitacoesCodigo /></ProtectedRoute>} />
-            <Route path="/aprovacao-codigos" element={<ProtectedRoute adminOnly><AprovacaoCodigos /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute requiredPermission="home"><Home /></ProtectedRoute>} />
+            <Route path="/enderecamento" element={<ProtectedRoute requiredPermission="enderecamento"><Enderecamento /></ProtectedRoute>} />
+            <Route path="/inventario" element={<ProtectedRoute requiredPermission="inventario"><Inventario /></ProtectedRoute>} />
+            <Route path="/fabricantes" element={<ProtectedRoute requiredPermission="fabricantes"><Fabricantes /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute requiredPermission="dashboard"><Dashboard /></ProtectedRoute>} />
+            <Route path="/catalogo" element={<ProtectedRoute requiredPermission="catalogo"><Catalogo /></ProtectedRoute>} />
+            <Route path="/catalogo-produto" element={<ProtectedRoute requiredPermission="catalogo_produto"><CatalogoProduto /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute requiredPermission="admin_panel"><Admin /></ProtectedRoute>} />
+            <Route path="/admin/usuarios/:id" element={<ProtectedRoute requiredPermission="admin_panel"><AdminUserDetail /></ProtectedRoute>} />
+            <Route path="/admin/perfis" element={<ProtectedRoute requiredPermission="admin_panel"><GerenciarPerfis /></ProtectedRoute>} />
+            <Route path="/gerenciamento-dados" element={<ProtectedRoute requiredPermission="gerenciamento_dados"><GerenciamentoDados /></ProtectedRoute>} />
+            <Route path="/etiquetas" element={<ProtectedRoute requiredPermission="etiquetas"><Etiquetas /></ProtectedRoute>} />
+            <Route path="/estoque-atual" element={<ProtectedRoute requiredPermission="estoque_atual"><EstoqueAtual /></ProtectedRoute>} />
+            <Route path="/estoque-rua" element={<ProtectedRoute requiredPermission="estoque_rua"><EstoqueRua /></ProtectedRoute>} />
+            <Route path="/controle-inventario" element={<ProtectedRoute requiredPermission="controle_inventario"><ControleInventario /></ProtectedRoute>} />
+            <Route path="/relatorio-inventario" element={<ProtectedRoute requiredPermission="relatorio_inventario"><RelatorioInventario /></ProtectedRoute>} />
+            <Route path="/ajuste-inventario" element={<ProtectedRoute requiredPermission="ajuste_inventario"><AjusteInventario /></ProtectedRoute>} />
+            <Route path="/solicitacoes-codigo" element={<ProtectedRoute requiredPermission="solicitar_codigo"><NovaSolicitacao /></ProtectedRoute>} />
+            <Route path="/processar-codigos" element={<ProtectedRoute requiredPermission="processar_codigos"><SolicitacoesCodigo /></ProtectedRoute>} />
+            <Route path="/aprovacao-codigos" element={<ProtectedRoute requiredPermission="aprovacao_codigos"><AprovacaoCodigos /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
