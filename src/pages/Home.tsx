@@ -503,20 +503,21 @@ const Home = () => {
               </Button>
             )}
 
+            {/* Auditoria de Itens - Super Admin only */}
+            {isSuperAdmin && (
+              <Button
+                variant="outline"
+                className="w-full border-amber-500 text-amber-600 hover:bg-amber-50"
+                onClick={() => navigate('/auditoria-itens')}
+              >
+                <History className="mr-2 h-4 w-4" />
+                Auditoria de Itens
+              </Button>
+            )}
+
+            {/* Exportar para Admin */}
             {isAdmin && (
               <div className="flex flex-col gap-3">
-                {/* Auditoria de Itens - Super Admin only */}
-                {isSuperAdmin && (
-                  <Button
-                    variant="outline"
-                    className="w-full border-amber-500 text-amber-600 hover:bg-amber-50"
-                    onClick={() => navigate('/auditoria-itens')}
-                  >
-                    <History className="mr-2 h-4 w-4" />
-                    Auditoria de Itens
-                  </Button>
-                )}
-                
                 <Button
                   variant="outline"
                   className="w-full"
