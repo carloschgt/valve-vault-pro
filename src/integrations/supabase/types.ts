@@ -172,6 +172,48 @@ export type Database = {
           },
         ]
       }
+      enderecos_materiais_audit: {
+        Row: {
+          acao: string
+          campo_alterado: string | null
+          codigo: string
+          created_at: string
+          endereco_material_id: string
+          id: string
+          usuario_email: string
+          usuario_id: string | null
+          usuario_nome: string
+          valor_anterior: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          acao: string
+          campo_alterado?: string | null
+          codigo: string
+          created_at?: string
+          endereco_material_id: string
+          id?: string
+          usuario_email: string
+          usuario_id?: string | null
+          usuario_nome: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          acao?: string
+          campo_alterado?: string | null
+          codigo?: string
+          created_at?: string
+          endereco_material_id?: string
+          id?: string
+          usuario_email?: string
+          usuario_id?: string | null
+          usuario_nome?: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: []
+      }
       fabricantes: {
         Row: {
           cadastrado_por: string

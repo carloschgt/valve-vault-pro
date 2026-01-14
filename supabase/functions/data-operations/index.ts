@@ -932,6 +932,25 @@ serve(async (req) => {
         .single();
 
       if (error) throw error;
+
+      // Registrar auditoria de criação
+      try {
+        await supabase.from("enderecos_materiais_audit").insert({
+          endereco_material_id: data.id,
+          codigo: codigoNorm,
+          acao: 'criacao',
+          campo_alterado: null,
+          valor_anterior: null,
+          valor_novo: `Endereço: R${String(ruaNum).padStart(2,'0')}.C${String(colunaNum).padStart(2,'0')}.N${String(nivelNum).padStart(2,'0')}.P${String(posicaoNum).padStart(2,'0')}`,
+          usuario_nome: user.nome,
+          usuario_email: user.email,
+          usuario_id: user.id,
+        });
+      } catch (auditError) {
+        console.warn("Erro ao registrar auditoria:", auditError);
+        // Não falhar a operação principal por erro de auditoria
+      }
+
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1174,6 +1193,14 @@ serve(async (req) => {
       }
 
       const { id, ativo } = params;
+      
+      // Buscar dados anteriores para auditoria
+      const { data: anterior } = await supabase
+        .from("enderecos_materiais")
+        .select("codigo, ativo")
+        .eq("id", id)
+        .single();
+
       const updateData: Record<string, any> = { ativo };
       
       if (!ativo) {
@@ -1192,6 +1219,26 @@ serve(async (req) => {
         .single();
 
       if (error) throw error;
+
+      // Registrar auditoria de alteração de status
+      if (anterior) {
+        try {
+          await supabase.from("enderecos_materiais_audit").insert({
+            endereco_material_id: id,
+            codigo: anterior.codigo,
+            acao: 'alteracao_status',
+            campo_alterado: 'status',
+            valor_anterior: anterior.ativo ? 'Ativo' : 'Inativo',
+            valor_novo: ativo ? 'Ativo' : 'Inativo',
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          });
+        } catch (auditError) {
+          console.warn("Erro ao registrar auditoria:", auditError);
+        }
+      }
+
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1207,11 +1254,19 @@ serve(async (req) => {
         );
       }
 
-      const { id, codigo, descricao, tipo_material, fabricante_id, peso, rua, coluna, nivel, posicao, comentario } = params;
+      const { id, codigo, descricao, descricao_imex, tipo_material, fabricante_id, peso, rua, coluna, nivel, posicao, comentario } = params;
       
+      // Buscar dados anteriores para auditoria
+      const { data: anterior } = await supabase
+        .from("enderecos_materiais")
+        .select("*")
+        .eq("id", id)
+        .single();
+
       const updateData: Record<string, any> = {};
       if (codigo !== undefined) updateData.codigo = codigo.trim().toUpperCase();
       if (descricao !== undefined) updateData.descricao = descricao.trim().toUpperCase();
+      if (descricao_imex !== undefined) updateData.descricao_imex = descricao_imex?.trim().toUpperCase() || null;
       if (tipo_material !== undefined) updateData.tipo_material = tipo_material;
       if (fabricante_id !== undefined) updateData.fabricante_id = fabricante_id;
       if (peso !== undefined) updateData.peso = parseFloat(peso);
@@ -1229,6 +1284,113 @@ serve(async (req) => {
         .single();
 
       if (error) throw error;
+
+      // Registrar auditoria de alterações
+      if (anterior) {
+        const codigoAtual = anterior.codigo;
+        const auditorias = [];
+
+        // Verificar cada campo alterado
+        if (codigo !== undefined && codigo.trim().toUpperCase() !== anterior.codigo) {
+          auditorias.push({
+            endereco_material_id: id,
+            codigo: codigoAtual,
+            acao: 'alteracao_codigo',
+            campo_alterado: 'código',
+            valor_anterior: anterior.codigo,
+            valor_novo: codigo.trim().toUpperCase(),
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          });
+        }
+
+        if (descricao !== undefined && descricao.trim().toUpperCase() !== anterior.descricao) {
+          auditorias.push({
+            endereco_material_id: id,
+            codigo: codigoAtual,
+            acao: 'alteracao_descricao',
+            campo_alterado: 'descrição',
+            valor_anterior: anterior.descricao,
+            valor_novo: descricao.trim().toUpperCase(),
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          });
+        }
+
+        if (descricao_imex !== undefined && (descricao_imex?.trim().toUpperCase() || null) !== anterior.descricao_imex) {
+          auditorias.push({
+            endereco_material_id: id,
+            codigo: codigoAtual,
+            acao: 'alteracao_descricao_imex',
+            campo_alterado: 'descrição imex',
+            valor_anterior: anterior.descricao_imex || '(vazio)',
+            valor_novo: descricao_imex?.trim().toUpperCase() || '(vazio)',
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          });
+        }
+
+        if (peso !== undefined && parseFloat(peso) !== anterior.peso) {
+          auditorias.push({
+            endereco_material_id: id,
+            codigo: codigoAtual,
+            acao: 'alteracao_peso',
+            campo_alterado: 'peso',
+            valor_anterior: String(anterior.peso),
+            valor_novo: String(peso),
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          });
+        }
+
+        if (tipo_material !== undefined && tipo_material !== anterior.tipo_material) {
+          auditorias.push({
+            endereco_material_id: id,
+            codigo: codigoAtual,
+            acao: 'alteracao_tipo_material',
+            campo_alterado: 'tipo material',
+            valor_anterior: anterior.tipo_material,
+            valor_novo: tipo_material,
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          });
+        }
+
+        // Verificar alteração de endereço
+        if ((rua !== undefined && parseInt(rua) !== anterior.rua) ||
+            (coluna !== undefined && parseInt(coluna) !== anterior.coluna) ||
+            (nivel !== undefined && parseInt(nivel) !== anterior.nivel) ||
+            (posicao !== undefined && parseInt(posicao) !== anterior.posicao)) {
+          const endAnterior = `R${String(anterior.rua).padStart(2,'0')}.C${String(anterior.coluna).padStart(2,'0')}.N${String(anterior.nivel).padStart(2,'0')}.P${String(anterior.posicao).padStart(2,'0')}`;
+          const endNovo = `R${String(rua !== undefined ? parseInt(rua) : anterior.rua).padStart(2,'0')}.C${String(coluna !== undefined ? parseInt(coluna) : anterior.coluna).padStart(2,'0')}.N${String(nivel !== undefined ? parseInt(nivel) : anterior.nivel).padStart(2,'0')}.P${String(posicao !== undefined ? parseInt(posicao) : anterior.posicao).padStart(2,'0')}`;
+          auditorias.push({
+            endereco_material_id: id,
+            codigo: codigoAtual,
+            acao: 'alteracao_endereco',
+            campo_alterado: 'endereço',
+            valor_anterior: endAnterior,
+            valor_novo: endNovo,
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          });
+        }
+
+        // Inserir todas as auditorias
+        if (auditorias.length > 0) {
+          try {
+            await supabase.from("enderecos_materiais_audit").insert(auditorias);
+          } catch (auditError) {
+            console.warn("Erro ao registrar auditoria:", auditError);
+          }
+        }
+      }
+
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -2557,6 +2719,44 @@ serve(async (req) => {
             logs: logsResult.error?.message || null
           }
         }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== AUDITORIA ITEM (Super Admin only) ==========
+    if (action === "auditoria_item") {
+      // Only super admin can view audit logs
+      if (user.role !== 'SUPER_ADMIN') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas Super Administradores podem acessar a auditoria' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { codigo } = params;
+      if (!codigo) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código é obrigatório' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const codigoUpper = codigo.trim().toUpperCase();
+      
+      const { data, error } = await supabase
+        .from('enderecos_materiais_audit')
+        .select('*')
+        .eq('codigo', codigoUpper)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (error) {
+        console.error('Audit query error:', error);
+        throw error;
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, data: data || [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

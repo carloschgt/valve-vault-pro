@@ -30,6 +30,7 @@ import NovaSolicitacao from "./pages/NovaSolicitacao";
 import SolicitacoesCodigo from "./pages/SolicitacoesCodigo";
 import AprovacaoCodigos from "./pages/AprovacaoCodigos";
 import ResetPassword from "./pages/ResetPassword";
+import AuditoriaItens from "./pages/AuditoriaItens";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/solicitacoes-codigo" element={<ProtectedRoute requiredPermission="solicitar_codigo"><NovaSolicitacao /></ProtectedRoute>} />
             <Route path="/processar-codigos" element={<ProtectedRoute requiredPermission="processar_codigos"><SolicitacoesCodigo /></ProtectedRoute>} />
             <Route path="/aprovacao-codigos" element={<ProtectedRoute requiredPermission="aprovacao_codigos"><AprovacaoCodigos /></ProtectedRoute>} />
+            <Route path="/auditoria-itens" element={<ProtectedRoute requiredPermission="admin_panel"><AuditoriaItens /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
