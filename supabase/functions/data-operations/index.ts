@@ -1399,7 +1399,29 @@ serve(async (req) => {
         .limit(1)
         .single();
       
+      // Check if user has bypass permission
+      let canBypass = false;
       if (!isAdmin && config?.bloquear_visualizacao_estoque) {
+        // Get user profile permissions
+        const { data: userProfile } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("nome", user.tipo)
+          .maybeSingle();
+        
+        if (userProfile) {
+          const { data: bypassPermission } = await supabase
+            .from("profile_permissions")
+            .select("can_access")
+            .eq("profile_id", userProfile.id)
+            .eq("menu_key", "bypass_inventario_block")
+            .maybeSingle();
+          
+          canBypass = bypassPermission?.can_access === true;
+        }
+      }
+      
+      if (!isAdmin && !canBypass && config?.bloquear_visualizacao_estoque) {
         return new Response(
           JSON.stringify({ success: false, error: 'Visualização de estoque bloqueada durante inventário' }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
