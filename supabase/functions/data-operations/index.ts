@@ -2864,11 +2864,14 @@ serve(async (req) => {
       }
 
       // Get solicitacao info to see who requested the code
-      const { data: solicitacaoData } = await supabase
+      console.log('Searching solicitacoes_codigo for:', codigoUpper);
+      const { data: solicitacaoData, error: solError } = await supabase
         .from('solicitacoes_codigo')
         .select('id, solicitado_por, solicitado_por_id, created_at, aprovado_por, aprovado_em, descricao, peso, tipo_material, fabricante_id, status, codigo_gerado')
         .eq('codigo_gerado', codigoUpper)
         .maybeSingle();
+      
+      console.log('Solicitacao result:', solicitacaoData ? 'found' : 'not found', solError ? `error: ${solError.message}` : '');
 
       // Get fabricante name for solicitacao if item not in enderecos
       let solFabricanteNome = null;
