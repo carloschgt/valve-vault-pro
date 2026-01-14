@@ -2831,20 +2831,55 @@ serve(async (req) => {
 
       const codigoUpper = codigo.trim().toUpperCase();
       
-      const { data, error } = await supabase
+      // First, get audit records
+      const { data: auditData, error: auditError } = await supabase
         .from('enderecos_materiais_audit')
         .select('*')
         .eq('codigo', codigoUpper)
         .order('created_at', { ascending: false })
         .limit(100);
       
-      if (error) {
-        console.error('Audit query error:', error);
-        throw error;
+      if (auditError) {
+        console.error('Audit query error:', auditError);
+        throw auditError;
       }
 
+      // Also get the original item data from enderecos_materiais
+      const { data: itemData, error: itemError } = await supabase
+        .from('enderecos_materiais')
+        .select('id, codigo, descricao, descricao_imex, peso, tipo_material, rua, coluna, nivel, posicao, created_by, created_at, ativo, fabricante_id')
+        .eq('codigo', codigoUpper)
+        .limit(1)
+        .maybeSingle();
+
+      // Get fabricante name if exists
+      let fabricanteNome = null;
+      if (itemData?.fabricante_id) {
+        const { data: fabData } = await supabase
+          .from('fabricantes')
+          .select('nome')
+          .eq('id', itemData.fabricante_id)
+          .maybeSingle();
+        fabricanteNome = fabData?.nome;
+      }
+
+      // Get solicitacao info to see who requested the code
+      const { data: solicitacaoData } = await supabase
+        .from('solicitacoes_codigo')
+        .select('solicitado_por, solicitado_por_id, created_at, aprovado_por, aprovado_em')
+        .eq('codigo_gerado', codigoUpper)
+        .maybeSingle();
+
       return new Response(
-        JSON.stringify({ success: true, data: data || [] }),
+        JSON.stringify({ 
+          success: true, 
+          data: auditData || [],
+          itemInfo: itemData ? {
+            ...itemData,
+            fabricante_nome: fabricanteNome
+          } : null,
+          solicitacaoInfo: solicitacaoData || null
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
