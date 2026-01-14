@@ -52,9 +52,11 @@ const AVAILABLE_MENUS = [
   { key: 'fabricantes', label: 'Fabricantes', description: 'Gerenciar fabricantes', category: 'Administrativo' },
   { key: 'gerenciamento_dados', label: 'Gerenciamento de Dados', description: 'Importar/exportar dados', category: 'Administrativo' },
   { key: 'admin_panel', label: 'Painel Administrativo', description: 'Acesso ao painel de administração', category: 'Administrativo' },
+  // Permissão especial para visualizar estoque durante inventário
+  { key: 'bypass_inventario_block', label: 'Ver Estoque Durante Inventário', description: 'Permite visualizar estoque mesmo com inventário em andamento', category: 'Permissões Especiais' },
 ];
 
-const MENU_CATEGORIES = ['Geral', 'Operacional', 'Consultas', 'Solicitações', 'Administrativo'];
+const MENU_CATEGORIES = ['Geral', 'Operacional', 'Consultas', 'Solicitações', 'Administrativo', 'Permissões Especiais'];
 
 interface UserProfile {
   id: string;

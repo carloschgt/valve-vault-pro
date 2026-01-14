@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search, Package, Loader2, ScanLine, X, MapPin, Scale, Tag, Factory } from 'lucide-react';
+import { ArrowLeft, Search, Package, Loader2, ScanLine, X, MapPin, Scale, Tag, Factory, Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useUserPermissions, MENU_KEYS } from '@/hooks/useUserPermissions';
 import logoImex from '@/assets/logo-imex.png';
 import { supabase } from '@/integrations/supabase/client';
 import { QRScanner } from '@/components/QRScanner';
+import { exportEstoqueToExcel } from '@/utils/exportEstoqueExcel';
 
 const AUTH_KEY = 'imex_auth_user';
 
@@ -73,7 +75,10 @@ const EstoqueAtual = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
-  const isAdmin = user?.tipo === 'admin';
+  const { hasPermission, isAdmin, isLoading: permissionsLoading } = useUserPermissions();
+  
+  // Verifica se o usuário pode ver estoque durante inventário
+  const canBypassInventoryBlock = hasPermission(MENU_KEYS.bypass_inventario_block);
 
   // Initialize search from URL parameter if present
   const initialSearch = searchParams.get('search') || '';
@@ -85,6 +90,7 @@ const EstoqueAtual = () => {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [bloqueadoParaUsuarios, setBloqueadoParaUsuarios] = useState(false);
   const [isCheckingConfig, setIsCheckingConfig] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Check inventory config for stock view block
   useEffect(() => {
@@ -111,12 +117,13 @@ const EstoqueAtual = () => {
   }, []);
 
   useEffect(() => {
-    if (isAdmin && !isCheckingConfig) {
+    // Admin ou usuários com permissão bypass sempre podem ver
+    if ((isAdmin || canBypassInventoryBlock) && !isCheckingConfig) {
       loadEstoque();
-    } else if (!isAdmin && !isCheckingConfig && !bloqueadoParaUsuarios) {
+    } else if (!isAdmin && !canBypassInventoryBlock && !isCheckingConfig && !bloqueadoParaUsuarios) {
       loadEstoque();
     }
-  }, [isAdmin, isCheckingConfig, bloqueadoParaUsuarios]);
+  }, [isAdmin, canBypassInventoryBlock, isCheckingConfig, bloqueadoParaUsuarios]);
 
   const loadEstoque = async () => {
     setIsLoading(true);
@@ -233,14 +240,44 @@ const EstoqueAtual = () => {
   // Recarregar quando busca mudar (com debounce)
   useEffect(() => {
     if (isCheckingConfig) return;
-    if (!isAdmin && bloqueadoParaUsuarios) return;
+    // Se estiver bloqueado e usuário não tem bypass, não carrega
+    if (!isAdmin && !canBypassInventoryBlock && bloqueadoParaUsuarios) return;
     
     const timer = setTimeout(() => {
       loadEstoque();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, isAdmin, isCheckingConfig, bloqueadoParaUsuarios]);
+  }, [search, isAdmin, canBypassInventoryBlock, isCheckingConfig, bloqueadoParaUsuarios]);
+
+  // Handler para exportar Excel
+  const handleExportExcel = () => {
+    if (estoque.length === 0) {
+      toast({
+        title: 'Aviso',
+        description: 'Nenhum dado para exportar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      exportEstoqueToExcel(estoque);
+      toast({
+        title: 'Sucesso',
+        description: `${estoque.length} itens exportados para Excel`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao exportar',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Show loading while checking config
   if (isCheckingConfig) {
@@ -263,8 +300,8 @@ const EstoqueAtual = () => {
     );
   }
 
-  // Show blocked message for non-admin users when inventory is in progress
-  if (!isAdmin && bloqueadoParaUsuarios) {
+  // Show blocked message for non-admin users without bypass permission when inventory is in progress
+  if (!isAdmin && !canBypassInventoryBlock && bloqueadoParaUsuarios) {
     return (
       <div className="flex h-screen flex-col bg-background">
         {/* Header */}
@@ -296,15 +333,31 @@ const EstoqueAtual = () => {
   return (
     <div className="flex h-screen flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 shrink-0">
-        <button
-          onClick={() => navigate('/')}
-          className="rounded-lg p-1.5 hover:bg-accent"
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-2 shrink-0">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg p-1.5 hover:bg-accent"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <img src={logoImex} alt="IMEX Solutions" className="h-6" />
+          <h1 className="text-base font-bold">Estoque Atual</h1>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportExcel}
+          disabled={isExporting || estoque.length === 0}
+          className="gap-1"
         >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <img src={logoImex} alt="IMEX Solutions" className="h-6" />
-        <h1 className="text-base font-bold">Estoque Atual</h1>
+          {isExporting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          <span className="hidden sm:inline">Excel</span>
+        </Button>
       </div>
 
       {/* Search */}
