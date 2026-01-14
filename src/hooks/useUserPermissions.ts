@@ -22,6 +22,8 @@ export const MENU_KEYS = {
   fabricantes: 'fabricantes',
   gerenciamento_dados: 'gerenciamento_dados',
   admin_panel: 'admin_panel',
+  // Permissão especial para bypass do bloqueio de inventário
+  bypass_inventario_block: 'bypass_inventario_block',
 } as const;
 
 export type MenuKey = keyof typeof MENU_KEYS;
