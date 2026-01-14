@@ -41,7 +41,22 @@ export function useUserPermissions(): UserPermissions {
   const { user } = useAuth();
   
   const isAdmin = user?.tipo === 'admin';
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  // SUPER_ADMIN check: role must be exactly 'SUPER_ADMIN'
+  // Also check if tipo is 'admin' AND the protected email for legacy sessions
+  const PROTECTED_SUPER_ADMIN_EMAIL = "carlos.teixeira@imexsolutions.com.br";
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || 
+    (user?.tipo === 'admin' && user?.email?.toLowerCase() === PROTECTED_SUPER_ADMIN_EMAIL);
+
+  // Debug log for troubleshooting
+  if (user) {
+    console.log('[useUserPermissions] User check:', {
+      email: user.email,
+      tipo: user.tipo,
+      role: user.role,
+      isAdmin,
+      isSuperAdmin,
+    });
+  }
 
   const { data: permissions = {}, isLoading } = useQuery({
     queryKey: ['user_permissions', user?.tipo],
