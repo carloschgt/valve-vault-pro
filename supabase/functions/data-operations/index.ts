@@ -2866,19 +2866,63 @@ serve(async (req) => {
       // Get solicitacao info to see who requested the code
       const { data: solicitacaoData } = await supabase
         .from('solicitacoes_codigo')
-        .select('solicitado_por, solicitado_por_id, created_at, aprovado_por, aprovado_em')
+        .select('id, solicitado_por, solicitado_por_id, created_at, aprovado_por, aprovado_em, descricao, peso, tipo_material, fabricante_id, status, codigo_gerado')
         .eq('codigo_gerado', codigoUpper)
         .maybeSingle();
+
+      // Get fabricante name for solicitacao if item not in enderecos
+      let solFabricanteNome = null;
+      if (!itemData && solicitacaoData?.fabricante_id) {
+        const { data: fabData } = await supabase
+          .from('fabricantes')
+          .select('nome')
+          .eq('id', solicitacaoData.fabricante_id)
+          .maybeSingle();
+        solFabricanteNome = fabData?.nome;
+      }
+
+      // Build itemInfo from solicitacaoData if not in enderecos_materiais (pending items)
+      let finalItemInfo = null;
+      if (itemData) {
+        finalItemInfo = {
+          ...itemData,
+          fabricante_nome: fabricanteNome,
+          pendente: false
+        };
+      } else if (solicitacaoData) {
+        // Item exists in solicitacoes but not yet addressed
+        finalItemInfo = {
+          id: solicitacaoData.id,
+          codigo: solicitacaoData.codigo_gerado,
+          descricao: solicitacaoData.descricao,
+          descricao_imex: null,
+          peso: solicitacaoData.peso,
+          tipo_material: solicitacaoData.tipo_material,
+          rua: null,
+          coluna: null,
+          nivel: null,
+          posicao: null,
+          created_by: solicitacaoData.solicitado_por,
+          created_at: solicitacaoData.created_at,
+          ativo: true,
+          fabricante_nome: solFabricanteNome,
+          pendente: true,
+          status: solicitacaoData.status
+        };
+      }
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           data: auditData || [],
-          itemInfo: itemData ? {
-            ...itemData,
-            fabricante_nome: fabricanteNome
-          } : null,
-          solicitacaoInfo: solicitacaoData || null
+          itemInfo: finalItemInfo,
+          solicitacaoInfo: solicitacaoData ? {
+            solicitado_por: solicitacaoData.solicitado_por,
+            solicitado_por_id: solicitacaoData.solicitado_por_id,
+            created_at: solicitacaoData.created_at,
+            aprovado_por: solicitacaoData.aprovado_por,
+            aprovado_em: solicitacaoData.aprovado_em
+          } : null
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

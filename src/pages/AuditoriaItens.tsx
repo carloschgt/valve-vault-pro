@@ -43,14 +43,16 @@ interface ItemInfo {
   descricao_imex: string | null;
   peso: number;
   tipo_material: string;
-  rua: number;
-  coluna: number;
-  nivel: number;
-  posicao: number;
+  rua: number | null;
+  coluna: number | null;
+  nivel: number | null;
+  posicao: number | null;
   created_by: string;
   created_at: string;
   ativo: boolean;
   fabricante_nome: string | null;
+  pendente?: boolean;
+  status?: string;
 }
 
 interface SolicitacaoInfo {
@@ -216,6 +218,9 @@ const AuditoriaItens = () => {
                 <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <FileText className="h-5 w-5 text-primary" />
                   Informações do Item: <span className="text-primary">{itemInfo.codigo}</span>
+                  {itemInfo.pendente && (
+                    <Badge className="bg-amber-100 text-amber-800 ml-2">Pendente de Endereçamento</Badge>
+                  )}
                 </h2>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -229,31 +234,43 @@ const AuditoriaItens = () => {
                       <span className="ml-2 font-medium">{itemInfo.descricao_imex}</span>
                     </div>
                   )}
-                  <div>
-                    <span className="text-muted-foreground">Peso:</span>
-                    <span className="ml-2 font-medium">{itemInfo.peso} kg</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Tipo:</span>
-                    <span className="ml-2 font-medium">{itemInfo.tipo_material}</span>
-                  </div>
+                  {itemInfo.peso != null && (
+                    <div>
+                      <span className="text-muted-foreground">Peso:</span>
+                      <span className="ml-2 font-medium">{itemInfo.peso} kg</span>
+                    </div>
+                  )}
+                  {itemInfo.tipo_material && (
+                    <div>
+                      <span className="text-muted-foreground">Tipo:</span>
+                      <span className="ml-2 font-medium">{itemInfo.tipo_material}</span>
+                    </div>
+                  )}
                   {itemInfo.fabricante_nome && (
                     <div>
                       <span className="text-muted-foreground">Fabricante:</span>
                       <span className="ml-2 font-medium">{itemInfo.fabricante_nome}</span>
                     </div>
                   )}
-                  <div>
-                    <span className="text-muted-foreground">Endereço:</span>
-                    <span className="ml-2 font-medium">
-                      R{String(itemInfo.rua).padStart(2, '0')}.C{String(itemInfo.coluna).padStart(2, '0')}.N{String(itemInfo.nivel).padStart(2, '0')}.P{String(itemInfo.posicao).padStart(2, '0')}
-                    </span>
-                  </div>
+                  {itemInfo.rua != null && itemInfo.coluna != null && itemInfo.nivel != null && itemInfo.posicao != null && (
+                    <div>
+                      <span className="text-muted-foreground">Endereço:</span>
+                      <span className="ml-2 font-medium">
+                        R{String(itemInfo.rua).padStart(2, '0')}.C{String(itemInfo.coluna).padStart(2, '0')}.N{String(itemInfo.nivel).padStart(2, '0')}.P{String(itemInfo.posicao).padStart(2, '0')}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <span className="text-muted-foreground">Status:</span>
-                    <Badge className={itemInfo.ativo ? 'bg-green-100 text-green-800 ml-2' : 'bg-red-100 text-red-800 ml-2'}>
-                      {itemInfo.ativo ? 'Ativo' : 'Inativo'}
-                    </Badge>
+                    {itemInfo.pendente ? (
+                      <Badge className="bg-amber-100 text-amber-800 ml-2">
+                        {itemInfo.status === 'codigo_gerado' ? 'Código Gerado - Aguardando Endereçamento' : itemInfo.status}
+                      </Badge>
+                    ) : (
+                      <Badge className={itemInfo.ativo ? 'bg-green-100 text-green-800 ml-2' : 'bg-red-100 text-red-800 ml-2'}>
+                        {itemInfo.ativo ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    )}
                   </div>
                 </div>
 
