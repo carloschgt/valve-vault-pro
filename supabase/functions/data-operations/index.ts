@@ -2831,7 +2831,7 @@ serve(async (req) => {
 
       const codigoUpper = codigo.trim().toUpperCase();
       
-      // First, get audit records
+      // First, get audit records from enderecos_materiais_audit
       const { data: auditData, error: auditError } = await supabase
         .from('enderecos_materiais_audit')
         .select('*')
@@ -2914,6 +2914,33 @@ serve(async (req) => {
         };
       }
 
+      // Get inventory data if item exists in enderecos_materiais
+      let inventarioData: any[] = [];
+      let inventarioAuditData: any[] = [];
+      
+      if (itemData?.id) {
+        // Get all inventory records for this item
+        const { data: invData } = await supabase
+          .from('inventario')
+          .select('id, quantidade, contagem_num, contado_por, created_at, updated_at, comentario')
+          .eq('endereco_material_id', itemData.id)
+          .order('created_at', { ascending: true });
+        
+        inventarioData = invData || [];
+        
+        // Get inventory audit records
+        if (invData && invData.length > 0) {
+          const inventarioIds = invData.map((inv: any) => inv.id);
+          const { data: invAuditData } = await supabase
+            .from('inventario_audit')
+            .select('id, inventario_id, quantidade_anterior, quantidade_nova, editado_por, editado_em, motivo')
+            .in('inventario_id', inventarioIds)
+            .order('editado_em', { ascending: true });
+          
+          inventarioAuditData = invAuditData || [];
+        }
+      }
+
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -2929,7 +2956,9 @@ serve(async (req) => {
             aprovado_por: solicitacaoData.aprovado_por,
             aprovado_por_id: solicitacaoData.aprovado_por_id,
             aprovado_em: solicitacaoData.aprovado_em
-          } : null
+          } : null,
+          inventarioData,
+          inventarioAuditData
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
