@@ -59,7 +59,11 @@ interface SolicitacaoInfo {
   solicitado_por: string;
   solicitado_por_id: string;
   created_at: string;
+  processado_por: string | null;
+  processado_por_id: string | null;
+  processado_em: string | null;
   aprovado_por: string | null;
+  aprovado_por_id: string | null;
   aprovado_em: string | null;
 }
 
@@ -297,27 +301,99 @@ const AuditoriaItens = () => {
                   </div>
                 </div>
 
-                {/* Solicitacao info if available */}
+                {/* Solicitacao info if available - Timeline completa */}
                 {solicitacaoInfo && (
                   <div className="mt-3 pt-3 border-t border-border">
-                    <div className="text-sm text-muted-foreground mb-2">Solicitação de Código:</div>
-                    <div className="pl-2 text-sm space-y-1">
-                      <div>
-                        <span className="text-muted-foreground">Solicitado por:</span>
-                        <span className="ml-2 font-medium">{solicitacaoInfo.solicitado_por}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          ({formatDate(solicitacaoInfo.created_at)})
-                        </span>
-                      </div>
-                      {solicitacaoInfo.aprovado_por && (
-                        <div>
-                          <span className="text-muted-foreground">Aprovado por:</span>
-                          <span className="ml-2 font-medium">{solicitacaoInfo.aprovado_por}</span>
-                          {solicitacaoInfo.aprovado_em && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              ({formatDate(solicitacaoInfo.aprovado_em)})
+                    <div className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                      <History className="h-4 w-4 text-primary" />
+                      Linha do Tempo do Item
+                    </div>
+                    <div className="pl-2 space-y-3">
+                      {/* Step 1: Solicitação */}
+                      <div className="flex items-start gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">1</div>
+                          <div className="w-0.5 h-full bg-border mt-1" />
+                        </div>
+                        <div className="flex-1 pb-3">
+                          <Badge className="bg-blue-100 text-blue-800 mb-1">Solicitação Criada</Badge>
+                          <div className="text-sm">
+                            <span className="font-medium">{solicitacaoInfo.solicitado_por}</span>
+                            <span className="text-muted-foreground ml-2 text-xs">
+                              {formatDate(solicitacaoInfo.created_at)}
                             </span>
-                          )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">Criou a descrição do item e solicitou um código</p>
+                        </div>
+                      </div>
+
+                      {/* Step 2: Processamento (geração do código) */}
+                      {solicitacaoInfo.processado_por && (
+                        <div className="flex items-start gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm">2</div>
+                            <div className="w-0.5 h-full bg-border mt-1" />
+                          </div>
+                          <div className="flex-1 pb-3">
+                            <Badge className="bg-purple-100 text-purple-800 mb-1">Código Gerado</Badge>
+                            <div className="text-sm">
+                              <span className="font-medium">{solicitacaoInfo.processado_por}</span>
+                              {solicitacaoInfo.processado_em && (
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                  {formatDate(solicitacaoInfo.processado_em)}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Atribuiu o código ao item</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step 3: Aprovação */}
+                      {solicitacaoInfo.aprovado_por && (
+                        <div className="flex items-start gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm">
+                              {solicitacaoInfo.processado_por ? '3' : '2'}
+                            </div>
+                            <div className="w-0.5 h-full bg-border mt-1" />
+                          </div>
+                          <div className="flex-1 pb-3">
+                            <Badge className="bg-green-100 text-green-800 mb-1">Aprovado</Badge>
+                            <div className="text-sm">
+                              <span className="font-medium">{solicitacaoInfo.aprovado_por}</span>
+                              {solicitacaoInfo.aprovado_em && (
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                  {formatDate(solicitacaoInfo.aprovado_em)}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Aprovou o código gerado</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Step 4: Endereçamento (se já foi endereçado) */}
+                      {itemInfo && !itemInfo.pendente && itemInfo.rua != null && (
+                        <div className="flex items-start gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-sm">
+                              {solicitacaoInfo.processado_por && solicitacaoInfo.aprovado_por ? '4' : 
+                               solicitacaoInfo.processado_por || solicitacaoInfo.aprovado_por ? '3' : '2'}
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <Badge className="bg-orange-100 text-orange-800 mb-1">Endereçado</Badge>
+                            <div className="text-sm">
+                              <span className="font-medium">{itemInfo.created_by}</span>
+                              <span className="text-muted-foreground ml-2 text-xs">
+                                {formatDate(itemInfo.created_at)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Endereçou o item em R{String(itemInfo.rua).padStart(2, '0')}.C{String(itemInfo.coluna).padStart(2, '0')}.N{String(itemInfo.nivel).padStart(2, '0')}.P{String(itemInfo.posicao).padStart(2, '0')}
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>
