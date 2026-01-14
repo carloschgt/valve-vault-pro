@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import logoImex from '@/assets/logo-imex.png';
 
-const AUTH_KEY = 'auth_user';
+const AUTH_KEY = 'imex_auth_user';
 
 function getSessionToken(): string | null {
   try {
