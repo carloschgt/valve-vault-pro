@@ -91,12 +91,13 @@ const AuditoriaItens = () => {
   
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
-  const { data: auditResponse, isLoading } = useQuery({
+  const { data: auditResponse, isLoading, refetch } = useQuery({
     queryKey: ['auditoria_itens', searchCodigo],
     queryFn: async (): Promise<AuditResponse> => {
       if (!searchCodigo) return { data: [], itemInfo: null, solicitacaoInfo: null };
       
       const sessionToken = getSessionToken();
+      console.log('[Auditoria] Searching for:', searchCodigo, 'with token:', sessionToken ? 'present' : 'missing');
       if (!sessionToken) throw new Error('Não autenticado');
       
       const { data, error } = await supabase.functions.invoke('data-operations', {
@@ -106,6 +107,8 @@ const AuditoriaItens = () => {
           codigo: searchCodigo,
         },
       });
+      
+      console.log('[Auditoria] Response:', data, error);
       
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Erro ao buscar auditoria');
@@ -117,6 +120,8 @@ const AuditoriaItens = () => {
       };
     },
     enabled: !!searchCodigo,
+    staleTime: 0, // Always refetch
+    gcTime: 0, // Don't cache
   });
 
   const auditData = auditResponse?.data || [];
