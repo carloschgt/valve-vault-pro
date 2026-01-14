@@ -2867,7 +2867,7 @@ serve(async (req) => {
       console.log('Searching solicitacoes_codigo for:', codigoUpper);
       const { data: solicitacaoData, error: solError } = await supabase
         .from('solicitacoes_codigo')
-        .select('id, solicitado_por, solicitado_por_id, created_at, aprovado_por, aprovado_em, descricao, peso, tipo_material, fabricante_id, status, codigo_gerado')
+        .select('id, solicitado_por, solicitado_por_id, created_at, aprovado_por, aprovado_por_id, aprovado_em, processado_por, processado_por_id, processado_em, descricao, peso, tipo_material, fabricante_id, status, codigo_gerado')
         .eq('codigo_gerado', codigoUpper)
         .maybeSingle();
       
@@ -2923,7 +2923,11 @@ serve(async (req) => {
             solicitado_por: solicitacaoData.solicitado_por,
             solicitado_por_id: solicitacaoData.solicitado_por_id,
             created_at: solicitacaoData.created_at,
+            processado_por: solicitacaoData.processado_por,
+            processado_por_id: solicitacaoData.processado_por_id,
+            processado_em: solicitacaoData.processado_em,
             aprovado_por: solicitacaoData.aprovado_por,
+            aprovado_por_id: solicitacaoData.aprovado_por_id,
             aprovado_em: solicitacaoData.aprovado_em
           } : null
         }),
