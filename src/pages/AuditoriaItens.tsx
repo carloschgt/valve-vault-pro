@@ -36,6 +36,37 @@ interface AuditEntry {
   created_at: string;
 }
 
+interface ItemInfo {
+  id: string;
+  codigo: string;
+  descricao: string;
+  descricao_imex: string | null;
+  peso: number;
+  tipo_material: string;
+  rua: number;
+  coluna: number;
+  nivel: number;
+  posicao: number;
+  created_by: string;
+  created_at: string;
+  ativo: boolean;
+  fabricante_nome: string | null;
+}
+
+interface SolicitacaoInfo {
+  solicitado_por: string;
+  solicitado_por_id: string;
+  created_at: string;
+  aprovado_por: string | null;
+  aprovado_em: string | null;
+}
+
+interface AuditResponse {
+  data: AuditEntry[];
+  itemInfo: ItemInfo | null;
+  solicitacaoInfo: SolicitacaoInfo | null;
+}
+
 const ACAO_LABELS: Record<string, { label: string; color: string }> = {
   criacao: { label: 'Criação', color: 'bg-green-100 text-green-800' },
   alteracao_codigo: { label: 'Alteração de Código', color: 'bg-blue-100 text-blue-800' },
@@ -58,10 +89,10 @@ const AuditoriaItens = () => {
   
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
-  const { data: auditData, isLoading, refetch } = useQuery({
+  const { data: auditResponse, isLoading } = useQuery({
     queryKey: ['auditoria_itens', searchCodigo],
-    queryFn: async () => {
-      if (!searchCodigo) return [];
+    queryFn: async (): Promise<AuditResponse> => {
+      if (!searchCodigo) return { data: [], itemInfo: null, solicitacaoInfo: null };
       
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Não autenticado');
@@ -77,10 +108,18 @@ const AuditoriaItens = () => {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Erro ao buscar auditoria');
       
-      return data.data as AuditEntry[];
+      return {
+        data: data.data as AuditEntry[],
+        itemInfo: data.itemInfo as ItemInfo | null,
+        solicitacaoInfo: data.solicitacaoInfo as SolicitacaoInfo | null,
+      };
     },
     enabled: !!searchCodigo,
   });
+
+  const auditData = auditResponse?.data || [];
+  const itemInfo = auditResponse?.itemInfo;
+  const solicitacaoInfo = auditResponse?.solicitacaoInfo;
 
   const handleSearch = () => {
     if (!searchInput.trim()) {
@@ -163,75 +202,177 @@ const AuditoriaItens = () => {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : !auditData || auditData.length === 0 ? (
+        ) : !itemInfo && auditData.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhum registro de auditoria encontrado para o código <strong>{searchCodigo}</strong>.</p>
-            <p className="text-sm mt-2">Isso pode significar que o item foi cadastrado antes do sistema de auditoria.</p>
+            <p>Nenhum item encontrado com o código <strong>{searchCodigo}</strong>.</p>
+            <p className="text-sm mt-2">Verifique se o código está correto.</p>
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Item Info Card */}
+            {itemInfo && (
+              <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Informações do Item: <span className="text-primary">{itemInfo.codigo}</span>
+                </h2>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Descrição:</span>
+                    <span className="ml-2 font-medium">{itemInfo.descricao}</span>
+                  </div>
+                  {itemInfo.descricao_imex && (
+                    <div>
+                      <span className="text-muted-foreground">Descrição IMEX:</span>
+                      <span className="ml-2 font-medium">{itemInfo.descricao_imex}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Peso:</span>
+                    <span className="ml-2 font-medium">{itemInfo.peso} kg</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Tipo:</span>
+                    <span className="ml-2 font-medium">{itemInfo.tipo_material}</span>
+                  </div>
+                  {itemInfo.fabricante_nome && (
+                    <div>
+                      <span className="text-muted-foreground">Fabricante:</span>
+                      <span className="ml-2 font-medium">{itemInfo.fabricante_nome}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Endereço:</span>
+                    <span className="ml-2 font-medium">
+                      R{String(itemInfo.rua).padStart(2, '0')}.C{String(itemInfo.coluna).padStart(2, '0')}.N{String(itemInfo.nivel).padStart(2, '0')}.P{String(itemInfo.posicao).padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge className={itemInfo.ativo ? 'bg-green-100 text-green-800 ml-2' : 'bg-red-100 text-red-800 ml-2'}>
+                      {itemInfo.ativo ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Created by info */}
+                <div className="mt-4 pt-3 border-t border-border">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Plus className="h-4 w-4 text-green-600" />
+                    <Badge className="bg-green-100 text-green-800">Cadastro Original</Badge>
+                  </div>
+                  <div className="mt-2 pl-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{itemInfo.created_by}</span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1 text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(itemInfo.created_at)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Solicitacao info if available */}
+                {solicitacaoInfo && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="text-sm text-muted-foreground mb-2">Solicitação de Código:</div>
+                    <div className="pl-2 text-sm space-y-1">
+                      <div>
+                        <span className="text-muted-foreground">Solicitado por:</span>
+                        <span className="ml-2 font-medium">{solicitacaoInfo.solicitado_por}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          ({formatDate(solicitacaoInfo.created_at)})
+                        </span>
+                      </div>
+                      {solicitacaoInfo.aprovado_por && (
+                        <div>
+                          <span className="text-muted-foreground">Aprovado por:</span>
+                          <span className="ml-2 font-medium">{solicitacaoInfo.aprovado_por}</span>
+                          {solicitacaoInfo.aprovado_em && (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              ({formatDate(solicitacaoInfo.aprovado_em)})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Audit History */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">
-                Histórico do código: <span className="text-primary">{searchCodigo}</span>
+                Histórico de Alterações
               </h2>
-              <Badge variant="secondary">{auditData.length} registro(s)</Badge>
+              <Badge variant="secondary">{auditData.length} alteração(ões)</Badge>
             </div>
 
-            <div className="space-y-3">
-              {auditData.map((entry) => {
-                const acaoInfo = ACAO_LABELS[entry.acao] || { label: entry.acao, color: 'bg-gray-100 text-gray-800' };
-                
-                return (
-                  <div key={entry.id} className="bg-card border border-border rounded-lg p-4 shadow-sm">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        {entry.acao === 'criacao' ? (
-                          <Plus className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <Edit className="h-4 w-4 text-blue-600" />
-                        )}
-                        <Badge className={acaoInfo.color}>{acaoInfo.label}</Badge>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(entry.created_at)}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-3 text-sm">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{entry.usuario_nome}</span>
-                      <span className="text-muted-foreground">({entry.usuario_email})</span>
-                    </div>
-
-                    {entry.campo_alterado && (
-                      <div className="bg-muted/50 rounded-md p-3 text-sm">
-                        <div className="text-muted-foreground mb-1">
-                          Campo: <span className="font-medium text-foreground">{entry.campo_alterado}</span>
+            {auditData.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground bg-muted/30 rounded-lg">
+                <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nenhuma alteração registrada após o cadastro original.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {auditData.map((entry) => {
+                  const acaoInfo = ACAO_LABELS[entry.acao] || { label: entry.acao, color: 'bg-gray-100 text-gray-800' };
+                  
+                  return (
+                    <div key={entry.id} className="bg-card border border-border rounded-lg p-4 shadow-sm">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {entry.acao === 'criacao' ? (
+                            <Plus className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <Edit className="h-4 w-4 text-blue-600" />
+                          )}
+                          <Badge className={acaoInfo.color}>{acaoInfo.label}</Badge>
                         </div>
-                        {entry.valor_anterior && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground">De:</span>
-                            <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs">
-                              {entry.valor_anterior}
-                            </span>
-                          </div>
-                        )}
-                        {entry.valor_novo && (
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-muted-foreground">Para:</span>
-                            <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">
-                              {entry.valor_novo}
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(entry.created_at)}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+
+                      <div className="flex items-center gap-2 mb-3 text-sm">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{entry.usuario_nome}</span>
+                        <span className="text-muted-foreground">({entry.usuario_email})</span>
+                      </div>
+
+                      {entry.campo_alterado && (
+                        <div className="bg-muted/50 rounded-md p-3 text-sm">
+                          <div className="text-muted-foreground mb-1">
+                            Campo: <span className="font-medium text-foreground">{entry.campo_alterado}</span>
+                          </div>
+                          {entry.valor_anterior && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">De:</span>
+                              <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs">
+                                {entry.valor_anterior}
+                              </span>
+                            </div>
+                          )}
+                          {entry.valor_novo && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-muted-foreground">Para:</span>
+                              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">
+                                {entry.valor_novo}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
