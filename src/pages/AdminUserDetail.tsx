@@ -39,7 +39,7 @@ const AdminUserDetail = () => {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
 
-  const [selectedRole, setSelectedRole] = useState<UserRole>('user');
+  const [selectedRole, setSelectedRole] = useState<string>('user');
   const [selectedStatus, setSelectedStatus] = useState<UserStatus>('pendente');
   const [suspendedUntil, setSuspendedUntil] = useState('');
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -84,9 +84,21 @@ const AdminUserDetail = () => {
     },
   });
 
+  // Buscar perfis disponíveis dinamicamente
+  const { data: availableProfiles = [] } = useQuery({
+    queryKey: ['available_profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'listProfiles', adminEmail: currentUser?.email },
+      });
+      if (error) throw error;
+      return data.profiles || [];
+    },
+  });
+
   // Mutation para atualizar usuário
   const updateUserMutation = useMutation({
-    mutationFn: async (params: { tipo?: UserRole; status?: UserStatus; suspendedUntil?: string | null }) => {
+    mutationFn: async (params: { tipo?: string; status?: UserStatus; suspendedUntil?: string | null }) => {
       const { data, error } = await supabase.functions.invoke('admin-users', {
         body: {
           action: 'updateUser',
@@ -153,7 +165,7 @@ const AdminUserDetail = () => {
     setSelectedStatus('negado');
   };
 
-  const handleRoleChange = (role: UserRole) => {
+  const handleRoleChange = (role: string) => {
     setSelectedRole(role);
     updateUserMutation.mutate({ tipo: role });
   };
@@ -358,16 +370,17 @@ const AdminUserDetail = () => {
               {/* Perfil */}
               <div className="space-y-2">
                 <Label>Perfil</Label>
-              <Select value={selectedRole} onValueChange={(v) => handleRoleChange(v as UserRole)}>
+                <Select value={selectedRole} onValueChange={(v) => handleRoleChange(v)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">{USER_ROLE_LABELS.admin}</SelectItem>
-                    <SelectItem value="user">{USER_ROLE_LABELS.user}</SelectItem>
-                    <SelectItem value="estoque">{USER_ROLE_LABELS.estoque}</SelectItem>
-                    <SelectItem value="comercial">{USER_ROLE_LABELS.comercial}</SelectItem>
-                    <SelectItem value="compras">{USER_ROLE_LABELS.compras}</SelectItem>
+                    {availableProfiles.map((profile: any) => (
+                      <SelectItem key={profile.id} value={profile.nome}>
+                        {profile.nome.charAt(0).toUpperCase() + profile.nome.slice(1)}
+                        {profile.descricao && <span className="text-muted-foreground ml-2">({profile.descricao})</span>}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
