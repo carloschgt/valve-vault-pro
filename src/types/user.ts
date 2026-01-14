@@ -16,7 +16,8 @@ export const USER_STATUS_COLORS: Record<UserStatus, string> = {
 };
 
 // Tipos de perfil/role (tipo = perfil de acesso, role = nível de segurança)
-export type UserRole = 'admin' | 'user' | 'estoque' | 'comercial' | 'compras';
+// UserRole agora aceita qualquer string para suportar perfis dinâmicos criados pelo admin
+export type UserRole = 'admin' | 'user' | 'estoque' | 'comercial' | 'compras' | string;
 
 // Role de segurança (armazenado separadamente)
 export type SecurityRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
