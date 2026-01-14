@@ -16,7 +16,7 @@ export const USER_STATUS_COLORS: Record<UserStatus, string> = {
 };
 
 // Tipos de perfil/role (tipo = perfil de acesso, role = nível de segurança)
-export type UserRole = 'admin' | 'user' | 'estoque' | 'comercial';
+export type UserRole = 'admin' | 'user' | 'estoque' | 'comercial' | 'compras';
 
 // Role de segurança (armazenado separadamente)
 export type SecurityRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
@@ -26,6 +26,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   user: 'Usuário',
   estoque: 'Estoque',
   comercial: 'Comercial',
+  compras: 'Compras',
 };
 
 export const SECURITY_ROLE_LABELS: Record<SecurityRole, string> = {
