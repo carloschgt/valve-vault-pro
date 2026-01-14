@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse, FilePlus, CheckSquare, ScanLine } from 'lucide-react';
+import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse, FilePlus, CheckSquare, ScanLine, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -505,6 +505,18 @@ const Home = () => {
 
             {isAdmin && (
               <div className="flex flex-col gap-3">
+                {/* Auditoria de Itens - Super Admin only */}
+                {isSuperAdmin && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-amber-500 text-amber-600 hover:bg-amber-50"
+                    onClick={() => navigate('/auditoria-itens')}
+                  >
+                    <History className="mr-2 h-4 w-4" />
+                    Auditoria de Itens
+                  </Button>
+                )}
+                
                 <Button
                   variant="outline"
                   className="w-full"
