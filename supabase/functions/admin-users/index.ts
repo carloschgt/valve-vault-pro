@@ -934,8 +934,15 @@ serve(async (req) => {
 
     throw new Error("Ação inválida");
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Erro desconhecido";
-    console.error("Admin users error:", message);
+    let message = "Erro desconhecido";
+    if (error instanceof Error) {
+      message = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      // Handle Supabase errors which might be objects with message property
+      const err = error as any;
+      message = err.message || err.error || err.details || JSON.stringify(error);
+    }
+    console.error("Admin users error:", message, error);
     return new Response(
       JSON.stringify({ success: false, error: message }),
       {
