@@ -496,8 +496,23 @@ serve(async (req) => {
     if (action === "updateUser") {
       const updateData: any = {};
       
-      if (tipo && ['user', 'admin', 'estoque', 'comercial', 'compras'].includes(tipo)) {
-        updateData.tipo = tipo;
+      // Validate tipo against dynamic user_profiles table
+      if (tipo) {
+        const { data: validProfile } = await supabase
+          .from("user_profiles")
+          .select("nome")
+          .eq("nome", tipo)
+          .eq("is_active", true)
+          .maybeSingle();
+        
+        if (validProfile) {
+          updateData.tipo = tipo;
+        } else {
+          return new Response(
+            JSON.stringify({ success: false, error: `Perfil '${tipo}' não encontrado ou inativo` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
       
       if (status && ['pendente', 'ativo', 'suspenso', 'negado'].includes(status)) {
@@ -545,9 +560,24 @@ serve(async (req) => {
     }
 
     if (action === "updateRole") {
-      if (!userId || !tipo || !['user', 'admin', 'estoque', 'comercial', 'compras'].includes(tipo)) {
+      if (!userId || !tipo) {
         return new Response(
           JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate tipo against dynamic user_profiles table
+      const { data: validProfile } = await supabase
+        .from("user_profiles")
+        .select("nome")
+        .eq("nome", tipo)
+        .eq("is_active", true)
+        .maybeSingle();
+      
+      if (!validProfile) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Perfil '${tipo}' não encontrado ou inativo` }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
