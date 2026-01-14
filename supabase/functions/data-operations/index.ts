@@ -1440,10 +1440,51 @@ serve(async (req) => {
         );
       }
 
-      const { id, codigo, descricao, peso_kg } = params;
+      const { id, codigo, descricao, peso_kg, novo_codigo } = params;
       
+      // Se está alterando o código, apenas Super Admin pode fazer isso
+      const isSuperAdmin = user.role === 'SUPER_ADMIN';
+      
+      if (novo_codigo && novo_codigo.trim().toUpperCase() !== codigo.trim().toUpperCase()) {
+        if (!isSuperAdmin) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Apenas Super Administradores podem alterar o código de um produto' }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Verificar se o novo código já existe
+        const { data: existente } = await supabase
+          .from("catalogo_produtos")
+          .select("id, codigo")
+          .eq("codigo", novo_codigo.trim().toUpperCase())
+          .neq("id", id)
+          .maybeSingle();
+
+        if (existente) {
+          return new Response(
+            JSON.stringify({ success: false, error: `O código ${novo_codigo.trim().toUpperCase()} já existe no catálogo` }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      
+      // Buscar dados anteriores para auditoria
+      const { data: anterior } = await supabase
+        .from("catalogo_produtos")
+        .select("codigo, descricao")
+        .eq("id", id)
+        .maybeSingle();
+
       const updateData: Record<string, any> = {};
-      if (codigo !== undefined) updateData.codigo = codigo.trim().toUpperCase();
+      
+      // Se tem novo_codigo, usar ele; senão manter o codigo original
+      if (novo_codigo !== undefined && novo_codigo.trim()) {
+        updateData.codigo = novo_codigo.trim().toUpperCase();
+      } else if (codigo !== undefined) {
+        updateData.codigo = codigo.trim().toUpperCase();
+      }
+      
       if (descricao !== undefined) updateData.descricao = descricao.trim().toUpperCase();
       if (peso_kg !== undefined && peso_kg !== null && peso_kg !== '') {
         updateData.peso_kg = parseFloat(peso_kg);
@@ -1457,6 +1498,53 @@ serve(async (req) => {
         .single();
 
       if (error) throw error;
+
+      // Se alterou o código, atualizar também na tabela solicitacoes_codigo
+      if (novo_codigo && anterior && novo_codigo.trim().toUpperCase() !== anterior.codigo) {
+        const codigoAnterior = anterior.codigo;
+        const codigoNovo = novo_codigo.trim().toUpperCase();
+        
+        // Atualizar solicitação que gerou este código
+        await supabase
+          .from("solicitacoes_codigo")
+          .update({ codigo_gerado: codigoNovo })
+          .eq("codigo_gerado", codigoAnterior);
+
+        // Atualizar também em enderecos_materiais que usam este código
+        const { data: enderecosAfetados } = await supabase
+          .from("enderecos_materiais")
+          .select("id")
+          .eq("codigo", codigoAnterior);
+        
+        if (enderecosAfetados && enderecosAfetados.length > 0) {
+          await supabase
+            .from("enderecos_materiais")
+            .update({ codigo: codigoNovo })
+            .eq("codigo", codigoAnterior);
+
+          // Registrar auditoria para cada endereço afetado
+          const auditorias = enderecosAfetados.map(e => ({
+            endereco_material_id: e.id,
+            codigo: codigoNovo,
+            acao: 'alteracao_codigo',
+            campo_alterado: 'código',
+            valor_anterior: codigoAnterior,
+            valor_novo: codigoNovo,
+            usuario_nome: user.nome,
+            usuario_email: user.email,
+            usuario_id: user.id,
+          }));
+          
+          try {
+            await supabase.from("enderecos_materiais_audit").insert(auditorias);
+          } catch (auditError) {
+            console.warn("Erro ao registrar auditoria de endereços:", auditError);
+          }
+        }
+
+        console.log(`Código alterado de ${codigoAnterior} para ${codigoNovo} por ${user.nome} (Super Admin)`);
+      }
+
       return new Response(
         JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }

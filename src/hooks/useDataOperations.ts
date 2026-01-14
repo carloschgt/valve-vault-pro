@@ -241,9 +241,10 @@ export async function updateCatalogo(
   id: string, 
   codigo: string, 
   descricao: string, 
-  peso_kg?: number
+  peso_kg?: number,
+  novo_codigo?: string
 ): Promise<DataOperationResult> {
-  return invokeDataOperation('catalogo_update', { id, codigo, descricao, peso_kg });
+  return invokeDataOperation('catalogo_update', { id, codigo, descricao, peso_kg, novo_codigo });
 }
 
 // ========== EXPORT OPERATIONS (ADMIN ONLY) ==========
