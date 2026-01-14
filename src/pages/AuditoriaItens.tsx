@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Loader2, History, User, Calendar, Edit, Plus, FileText } from 'lucide-react';
+import { ArrowLeft, Search, Loader2, History, User, Calendar, Edit, Plus, FileText, Package, TrendingUp, TrendingDown, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,10 +67,32 @@ interface SolicitacaoInfo {
   aprovado_em: string | null;
 }
 
+interface InventarioEntry {
+  id: string;
+  quantidade: number;
+  contagem_num: number;
+  contado_por: string;
+  created_at: string;
+  updated_at: string;
+  comentario: string | null;
+}
+
+interface InventarioAuditEntry {
+  id: string;
+  inventario_id: string;
+  quantidade_anterior: number;
+  quantidade_nova: number;
+  editado_por: string;
+  editado_em: string;
+  motivo: string;
+}
+
 interface AuditResponse {
   data: AuditEntry[];
   itemInfo: ItemInfo | null;
   solicitacaoInfo: SolicitacaoInfo | null;
+  inventarioData: InventarioEntry[];
+  inventarioAuditData: InventarioAuditEntry[];
 }
 
 const ACAO_LABELS: Record<string, { label: string; color: string }> = {
@@ -98,7 +120,7 @@ const AuditoriaItens = () => {
   const { data: auditResponse, isLoading, refetch } = useQuery({
     queryKey: ['auditoria_itens', searchCodigo],
     queryFn: async (): Promise<AuditResponse> => {
-      if (!searchCodigo) return { data: [], itemInfo: null, solicitacaoInfo: null };
+      if (!searchCodigo) return { data: [], itemInfo: null, solicitacaoInfo: null, inventarioData: [], inventarioAuditData: [] };
       
       const sessionToken = getSessionToken();
       console.log('[Auditoria] Searching for:', searchCodigo, 'with token:', sessionToken ? 'present' : 'missing');
@@ -121,6 +143,8 @@ const AuditoriaItens = () => {
         data: data.data as AuditEntry[],
         itemInfo: data.itemInfo as ItemInfo | null,
         solicitacaoInfo: data.solicitacaoInfo as SolicitacaoInfo | null,
+        inventarioData: (data.inventarioData || []) as InventarioEntry[],
+        inventarioAuditData: (data.inventarioAuditData || []) as InventarioAuditEntry[],
       };
     },
     enabled: !!searchCodigo,
@@ -131,6 +155,8 @@ const AuditoriaItens = () => {
   const auditData = auditResponse?.data || [];
   const itemInfo = auditResponse?.itemInfo;
   const solicitacaoInfo = auditResponse?.solicitacaoInfo;
+  const inventarioData = auditResponse?.inventarioData || [];
+  const inventarioAuditData = auditResponse?.inventarioAuditData || [];
 
   const handleSearch = () => {
     if (!searchInput.trim()) {
@@ -381,8 +407,9 @@ const AuditoriaItens = () => {
                               {solicitacaoInfo.processado_por && solicitacaoInfo.aprovado_por ? '4' : 
                                solicitacaoInfo.processado_por || solicitacaoInfo.aprovado_por ? '3' : '2'}
                             </div>
+                            {inventarioData.length > 0 && <div className="w-0.5 h-full bg-border mt-1" />}
                           </div>
-                          <div className="flex-1">
+                          <div className="flex-1 pb-3">
                             <Badge className="bg-orange-100 text-orange-800 mb-1">Endereçado</Badge>
                             <div className="text-sm">
                               <span className="font-medium">{itemInfo.created_by}</span>
@@ -396,6 +423,86 @@ const AuditoriaItens = () => {
                           </div>
                         </div>
                       )}
+
+                      {/* Step 5+: Inventário */}
+                      {inventarioData.map((inv, index) => {
+                        const stepNumber = (solicitacaoInfo.processado_por ? 1 : 0) + 
+                                          (solicitacaoInfo.aprovado_por ? 1 : 0) + 
+                                          (itemInfo && !itemInfo.pendente && itemInfo.rua != null ? 1 : 0) + 
+                                          2 + index;
+                        const auditsForThisInv = inventarioAuditData.filter(a => a.inventario_id === inv.id);
+                        
+                        return (
+                          <div key={inv.id}>
+                            {/* Contagem inicial */}
+                            <div className="flex items-start gap-3">
+                              <div className="flex flex-col items-center">
+                                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">
+                                  <Package className="h-4 w-4" />
+                                </div>
+                                {(auditsForThisInv.length > 0 || index < inventarioData.length - 1) && (
+                                  <div className="w-0.5 h-full bg-border mt-1" />
+                                )}
+                              </div>
+                              <div className="flex-1 pb-3">
+                                <Badge className="bg-emerald-100 text-emerald-800 mb-1">
+                                  Inventário - Contagem {inv.contagem_num}
+                                </Badge>
+                                <div className="text-sm">
+                                  <span className="font-medium">{inv.contado_por}</span>
+                                  <span className="text-muted-foreground ml-2 text-xs">
+                                    {formatDate(inv.created_at)}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Registrou quantidade: <span className="font-semibold text-emerald-700">{inv.quantidade}</span>
+                                  {inv.comentario && <span className="ml-1">- {inv.comentario}</span>}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Ajustes de inventário */}
+                            {auditsForThisInv.map((audit, auditIndex) => (
+                              <div key={audit.id} className="flex items-start gap-3">
+                                <div className="flex flex-col items-center">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                                    audit.quantidade_nova > audit.quantidade_anterior 
+                                      ? 'bg-green-100 text-green-700' 
+                                      : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {audit.quantidade_nova > audit.quantidade_anterior 
+                                      ? <TrendingUp className="h-4 w-4" />
+                                      : <TrendingDown className="h-4 w-4" />
+                                    }
+                                  </div>
+                                  {auditIndex < auditsForThisInv.length - 1 && (
+                                    <div className="w-0.5 h-full bg-border mt-1" />
+                                  )}
+                                </div>
+                                <div className="flex-1 pb-3">
+                                  <Badge className={audit.quantidade_nova > audit.quantidade_anterior 
+                                    ? 'bg-green-100 text-green-800 mb-1' 
+                                    : 'bg-red-100 text-red-800 mb-1'
+                                  }>
+                                    Ajuste de Inventário
+                                  </Badge>
+                                  <div className="text-sm">
+                                    <span className="font-medium">{audit.editado_por}</span>
+                                    <span className="text-muted-foreground ml-2 text-xs">
+                                      {formatDate(audit.editado_em)}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Alterou de <span className="font-semibold text-red-600">{audit.quantidade_anterior}</span>
+                                    {' '}para <span className="font-semibold text-green-600">{audit.quantidade_nova}</span>
+                                    {audit.motivo && <span className="ml-1">- {audit.motivo}</span>}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
