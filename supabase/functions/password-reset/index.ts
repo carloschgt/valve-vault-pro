@@ -8,6 +8,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// PBKDF2 Configuration - must match auth function
+const PBKDF2_ITERATIONS = 210000;
+
 // Generate secure random token
 function generateToken(): string {
   const array = new Uint8Array(32);
@@ -15,22 +18,87 @@ function generateToken(): string {
   return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-// Hash password with salt
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const saltHex = Array.from(salt, b => b.toString(16).padStart(2, '0')).join('');
+// Generate PBKDF2 hash (same as auth function)
+async function generatePBKDF2Hash(password: string): Promise<{ hash: string; salt: string; iterations: number }> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(password + saltHex);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return `${saltHex}:${hashHex}`;
+  const passwordBuffer = encoder.encode(password);
+  
+  // Generate random salt
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const saltBase64 = btoa(String.fromCharCode(...salt));
+  
+  // Import password as key
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    passwordBuffer,
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  
+  // Derive bits using PBKDF2
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    256
+  );
+  
+  // Convert to base64
+  const hashArray = new Uint8Array(derivedBits);
+  const hashBase64 = btoa(String.fromCharCode(...hashArray));
+  
+  return { hash: hashBase64, salt: saltBase64, iterations: PBKDF2_ITERATIONS };
 }
 
-// Verify password against stored hash
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  // Handle new salted format
+// Verify PBKDF2 password
+async function verifyPBKDF2(password: string, storedHash: string, storedSalt: string, iterations: number): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const passwordBuffer = encoder.encode(password);
+  
+  // Decode salt from base64
+  const saltBinary = atob(storedSalt);
+  const salt = new Uint8Array(saltBinary.length);
+  for (let i = 0; i < saltBinary.length; i++) {
+    salt[i] = saltBinary.charCodeAt(i);
+  }
+  
+  // Import password as key
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    passwordBuffer,
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  
+  // Derive bits using same parameters
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: iterations,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    256
+  );
+  
+  // Convert to base64 and compare
+  const hashArray = new Uint8Array(derivedBits);
+  const hashBase64 = btoa(String.fromCharCode(...hashArray));
+  
+  return hashBase64 === storedHash;
+}
+
+// Legacy SHA-256 verification (for checking if new password matches old legacy password)
+async function verifyLegacySHA256(password: string, storedHash: string): Promise<boolean> {
   if (storedHash.includes(':')) {
+    // Salted SHA-256 format
     const [salt, hash] = storedHash.split(':');
     const encoder = new TextEncoder();
     const data = encoder.encode(password + salt);
@@ -40,7 +108,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
     return hashHex === hash;
   }
   
-  // Handle legacy unsalted format (SHA-256 only)
+  // Unsalted SHA-256
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -355,16 +423,30 @@ serve(async (req) => {
         );
       }
 
-      // Get the user's current password hash to verify new password is different
+      // Get the user's current password info to verify new password is different
       const { data: currentUser } = await supabase
         .from("usuarios")
-        .select("senha_hash")
+        .select("senha_hash, password_algo, password_salt, password_iterations")
         .eq("id", tokenData.user_id)
         .single();
 
       if (currentUser?.senha_hash) {
         // Check if new password matches the old password
-        const isSamePassword = await verifyPassword(newPassword, currentUser.senha_hash);
+        let isSamePassword = false;
+        
+        if (currentUser.password_algo === 'pbkdf2' && currentUser.password_salt && currentUser.password_iterations) {
+          // Verify against PBKDF2 hash
+          isSamePassword = await verifyPBKDF2(
+            newPassword, 
+            currentUser.senha_hash, 
+            currentUser.password_salt, 
+            currentUser.password_iterations
+          );
+        } else {
+          // Verify against legacy SHA-256 hash
+          isSamePassword = await verifyLegacySHA256(newPassword, currentUser.senha_hash);
+        }
+        
         if (isSamePassword) {
           return new Response(
             JSON.stringify({ success: false, error: "A nova senha deve ser diferente da senha anterior. Por favor, escolha uma nova senha." }),
@@ -373,13 +455,22 @@ serve(async (req) => {
         }
       }
 
-      // Hash new password
-      const hashedPassword = await hashPassword(newPassword);
+      // Generate PBKDF2 hash for the new password
+      const { hash, salt, iterations } = await generatePBKDF2Hash(newPassword);
 
-      // Update user password
+      // Update user password with PBKDF2 and clear any locks/failed attempts
       const { error: updateError } = await supabase
         .from("usuarios")
-        .update({ senha_hash: hashedPassword, updated_at: new Date().toISOString() })
+        .update({ 
+          senha_hash: hash,
+          password_salt: salt,
+          password_algo: 'pbkdf2',
+          password_iterations: iterations,
+          password_updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          failed_attempts: 0,
+          locked_until: null
+        })
         .eq("id", tokenData.user_id);
 
       if (updateError) {
@@ -459,7 +550,6 @@ serve(async (req) => {
       JSON.stringify({ success: false, error: "Ação inválida" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
     console.error("Password reset error:", error);
     return new Response(
