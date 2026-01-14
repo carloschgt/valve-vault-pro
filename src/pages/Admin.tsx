@@ -91,6 +91,7 @@ const Admin = () => {
   const queryClient = useQueryClient();
   
   const isAdmin = user?.tipo === 'admin';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   
   const [searchEnderecos, setSearchEnderecos] = useState('');
   const [searchInventario, setSearchInventario] = useState('');
@@ -448,10 +449,18 @@ const Admin = () => {
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-8" />
         <h1 className="flex-1 text-lg font-bold">Painel Administrativo</h1>
-        <Button variant="outline" size="sm" onClick={handleExportComplete} disabled={isExporting}>
-          {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          <span className="ml-2 hidden sm:inline">Exportar</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {isSuperAdmin && (
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin/perfis')}>
+              <Shield className="h-4 w-4" />
+              <span className="ml-2 hidden sm:inline">Perfis</span>
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleExportComplete} disabled={isExporting}>
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            <span className="ml-2 hidden sm:inline">Exportar</span>
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}

@@ -476,6 +476,38 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_permissions: {
+        Row: {
+          can_access: boolean
+          created_at: string
+          id: string
+          menu_key: string
+          profile_id: string
+        }
+        Insert: {
+          can_access?: boolean
+          created_at?: string
+          id?: string
+          menu_key: string
+          profile_id: string
+        }
+        Update: {
+          can_access?: boolean
+          created_at?: string
+          id?: string
+          menu_key?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_permissions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_tokens: {
         Row: {
           created_at: string
@@ -600,6 +632,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_profiles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          is_active: boolean
+          is_system: boolean
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       usuarios: {
         Row: {
