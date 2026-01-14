@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Search, Edit2, X, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search, Edit2, X, Trash2, AlertCircle, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos, deleteEndereco, listCodigosSemEnderecamento } from '@/hooks/useDataOperations';
+import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos, deleteEndereco, listCodigosSemEnderecamento, updateCatalogo } from '@/hooks/useDataOperations';
+import { supabase } from '@/integrations/supabase/client';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
 
@@ -89,6 +90,7 @@ const Enderecamento = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.tipo === 'admin';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -124,6 +126,11 @@ const Enderecamento = () => {
   const [codigosSemEndereco, setCodigosSemEndereco] = useState<CodigoSemEndereco[]>([]);
   const [isLoadingPendentes, setIsLoadingPendentes] = useState(false);
   const [showPendentes, setShowPendentes] = useState(true);
+  
+  // Estados para edição de código pendente (Super Admin)
+  const [editingPendente, setEditingPendente] = useState<CodigoSemEndereco | null>(null);
+  const [editPendenteCodigo, setEditPendenteCodigo] = useState('');
+  const [isSavingPendente, setIsSavingPendente] = useState(false);
 
   // Carregar fabricantes do banco
   useEffect(() => {
@@ -293,6 +300,82 @@ const Enderecamento = () => {
     }
   };
 
+  // Abrir modal de edição de código pendente (Super Admin)
+  const handleEditPendente = (item: CodigoSemEndereco, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPendente(item);
+    setEditPendenteCodigo(item.codigo);
+  };
+
+  // Salvar alteração de código pendente
+  const handleSavePendenteCodigo = async () => {
+    if (!editingPendente || !isSuperAdmin) return;
+    
+    const novoCodigo = editPendenteCodigo.trim().toUpperCase();
+    if (!novoCodigo) {
+      toast({
+        title: 'Erro',
+        description: 'O código não pode estar vazio',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (novoCodigo === editingPendente.codigo) {
+      setEditingPendente(null);
+      return;
+    }
+
+    setIsSavingPendente(true);
+    try {
+      // Buscar o produto no catálogo pelo código atual
+      const catalogoResult = await getCatalogoDescricao(editingPendente.codigo);
+      
+      if (!catalogoResult.success || !catalogoResult.data) {
+        throw new Error('Produto não encontrado no catálogo');
+      }
+
+      // Atualizar o código
+      const updateResult = await updateCatalogo(
+        catalogoResult.data.id,
+        editingPendente.codigo,
+        catalogoResult.data.descricao,
+        catalogoResult.data.peso_kg,
+        novoCodigo
+      );
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Erro ao atualizar código');
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: `Código alterado de ${editingPendente.codigo} para ${novoCodigo}`,
+      });
+
+      // Atualizar lista localmente
+      setCodigosSemEndereco(prev => 
+        prev.map(item => 
+          item.codigo === editingPendente.codigo 
+            ? { ...item, codigo: novoCodigo }
+            : item
+        )
+      );
+
+      setEditingPendente(null);
+      
+      // Recarregar lista completa
+      reloadPendentes();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao alterar código',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingPendente(false);
+    }
+  };
 
   const handleBuscarDescricao = async () => {
     if (!codigo.trim()) {
@@ -835,30 +918,44 @@ const Enderecamento = () => {
                 ) : (
                   <div className="divide-y divide-amber-500/20">
                     {codigosSemEndereco.map((item) => (
-                      <button
+                      <div
                         key={item.codigo}
-                        onClick={() => handleSelectPendente(item)}
-                        className="w-full p-2 text-left hover:bg-amber-500/10 transition-colors"
+                        className="flex items-center gap-2 p-2 hover:bg-amber-500/10 transition-colors"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm text-foreground">{item.codigo}</div>
-                            <div className="text-xs text-muted-foreground truncate">{item.descricao}</div>
+                        <button
+                          onClick={() => handleSelectPendente(item)}
+                          className="flex-1 text-left"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-foreground">{item.codigo}</div>
+                              <div className="text-xs text-muted-foreground truncate">{item.descricao}</div>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                              {item.tipo_material && (
+                                <div className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
+                                  {item.tipo_material}
+                                </div>
+                              )}
+                              {item.fabricante_nome && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  {item.fabricante_nome}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-right shrink-0 space-y-0.5">
-                            {item.tipo_material && (
-                              <div className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
-                                {item.tipo_material}
-                              </div>
-                            )}
-                            {item.fabricante_nome && (
-                              <div className="text-[10px] text-muted-foreground">
-                                {item.fabricante_nome}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
+                        </button>
+                        {/* Botão de editar código - apenas Super Admin */}
+                        {isSuperAdmin && (
+                          <button
+                            onClick={(e) => handleEditPendente(item, e)}
+                            className="p-1.5 rounded hover:bg-amber-500/20 text-amber-600"
+                            title="Editar código"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -931,6 +1028,60 @@ const Enderecamento = () => {
                 <Trash2 className="mr-2 h-4 w-4" />
               )}
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de edição de código pendente (Super Admin) */}
+      <AlertDialog open={!!editingPendente} onOpenChange={(open) => !open && setEditingPendente(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-amber-600">
+              Editar Código do Item
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <p>Altere o código deste item no catálogo e solicitações.</p>
+              {editingPendente && (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-border bg-muted p-3">
+                    <p className="text-xs text-muted-foreground">Descrição:</p>
+                    <p className="text-sm font-medium">{editingPendente.descricao}</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="editCodigo" className="text-sm font-medium">
+                      Código
+                    </Label>
+                    <Input
+                      id="editCodigo"
+                      value={editPendenteCodigo}
+                      onChange={(e) => setEditPendenteCodigo(e.target.value.toUpperCase())}
+                      className="mt-1"
+                      disabled={isSavingPendente}
+                    />
+                    {editPendenteCodigo !== editingPendente.codigo && editPendenteCodigo.trim() && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        O código será alterado de "{editingPendente.codigo}" para "{editPendenteCodigo.trim().toUpperCase()}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSavingPendente}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSavePendenteCodigo}
+              disabled={isSavingPendente || !editPendenteCodigo.trim()}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {isSavingPendente ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Salvar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -33,8 +33,10 @@ const CatalogoProduto = () => {
   // Edit fields
   const [editDescricao, setEditDescricao] = useState('');
   const [editPeso, setEditPeso] = useState('');
+  const [editCodigo, setEditCodigo] = useState('');
 
   const isAdmin = user?.tipo === 'admin';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   // Wait for auth to load before showing UI
   useEffect(() => {
@@ -72,6 +74,7 @@ const CatalogoProduto = () => {
         setProduto(result.data);
         setEditDescricao(result.data.descricao || '');
         setEditPeso(result.data.peso_kg?.toString() || '');
+        setEditCodigo(result.data.codigo || '');
         toast({
           title: 'Produto encontrado',
           description: `${result.data.codigo} - ${result.data.descricao}`,
@@ -111,11 +114,26 @@ const CatalogoProduto = () => {
     try {
       const pesoNum = editPeso.trim() ? parseFloat(editPeso) : undefined;
       
+      // Verificar se o código foi alterado (apenas Super Admin pode fazer isso)
+      const novoCodigoTrimmed = editCodigo.trim().toUpperCase();
+      const codigoAlterado = novoCodigoTrimmed !== produto.codigo;
+      
+      if (codigoAlterado && !isSuperAdmin) {
+        toast({
+          title: 'Erro',
+          description: 'Apenas Super Administradores podem alterar o código de um produto',
+          variant: 'destructive',
+        });
+        setIsSaving(false);
+        return;
+      }
+      
       const result = await updateCatalogo(
         produto.id,
         produto.codigo,
         editDescricao.trim(),
-        pesoNum
+        pesoNum,
+        codigoAlterado ? novoCodigoTrimmed : undefined
       );
 
       if (!result.success) {
@@ -125,13 +143,16 @@ const CatalogoProduto = () => {
       // Update local state
       setProduto({
         ...produto,
+        codigo: codigoAlterado ? novoCodigoTrimmed : produto.codigo,
         descricao: editDescricao.trim().toUpperCase(),
         peso_kg: pesoNum,
       });
 
       toast({
         title: 'Sucesso',
-        description: 'Produto atualizado com sucesso!',
+        description: codigoAlterado 
+          ? `Código alterado de ${produto.codigo} para ${novoCodigoTrimmed}!`
+          : 'Produto atualizado com sucesso!',
       });
     } catch (error: any) {
       toast({
@@ -229,15 +250,26 @@ const CatalogoProduto = () => {
               </div>
 
               <div className="space-y-4">
-                {/* Código - Read-only */}
+                {/* Código - Editável apenas para Super Admin */}
                 <div>
-                  <Label htmlFor="codigo">Código</Label>
+                  <Label htmlFor="codigo">
+                    Código
+                    {isSuperAdmin && (
+                      <span className="ml-2 text-xs text-amber-600">(Super Admin pode editar)</span>
+                    )}
+                  </Label>
                   <Input
                     id="codigo"
-                    value={produto.codigo}
-                    disabled
-                    className="bg-muted"
+                    value={editCodigo}
+                    onChange={(e) => setEditCodigo(e.target.value.toUpperCase())}
+                    disabled={!isSuperAdmin}
+                    className={!isSuperAdmin ? 'bg-muted' : 'border-amber-500'}
                   />
+                  {isSuperAdmin && editCodigo !== produto.codigo && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠️ O código será alterado de "{produto.codigo}" para "{editCodigo}"
+                    </p>
+                  )}
                 </div>
 
                 {/* Descrição */}
