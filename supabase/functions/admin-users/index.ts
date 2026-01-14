@@ -128,6 +128,49 @@ serve(async (req) => {
       );
     }
 
+    // Get user permissions based on their profile (no admin required - users fetch their own permissions)
+    if (action === "getUserPermissions") {
+      const { userTipo } = body;
+
+      if (!userTipo) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Tipo de usuário não fornecido" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get profile by name
+      const { data: userProfile } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("nome", userTipo)
+        .maybeSingle();
+
+      if (!userProfile) {
+        // Return default permissions if profile not found
+        return new Response(
+          JSON.stringify({ success: true, permissions: {} }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get permissions
+      const { data: permissions } = await supabase
+        .from("profile_permissions")
+        .select("menu_key, can_access")
+        .eq("profile_id", userProfile.id);
+
+      const permissionsMap: Record<string, boolean> = {};
+      (permissions || []).forEach((p: any) => {
+        permissionsMap[p.menu_key] = p.can_access;
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, permissions: permissionsMap }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // CRITICAL: Server-side admin verification for ALL other operations
     if (!adminEmail) {
       return new Response(
@@ -914,50 +957,6 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get user permissions based on their profile
-    if (action === "getUserPermissions") {
-      const body = await req.clone().json();
-      const { userTipo } = body;
-
-      if (!userTipo) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Tipo de usuário não fornecido" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Get profile by name
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("id")
-        .eq("nome", userTipo)
-        .maybeSingle();
-
-      if (!profile) {
-        // Return default permissions if profile not found
-        return new Response(
-          JSON.stringify({ success: true, permissions: {} }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Get permissions
-      const { data: permissions } = await supabase
-        .from("profile_permissions")
-        .select("menu_key, can_access")
-        .eq("profile_id", profile.id);
-
-      const permissionsMap: Record<string, boolean> = {};
-      (permissions || []).forEach((p: any) => {
-        permissionsMap[p.menu_key] = p.can_access;
-      });
-
-      return new Response(
-        JSON.stringify({ success: true, permissions: permissionsMap }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
