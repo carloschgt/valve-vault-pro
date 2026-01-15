@@ -40,6 +40,7 @@ interface EstoqueItem {
     endereco_id: string;
   }[];
   qtd_total: number;
+  valor_unitario: number | null;
 }
 
 interface MaterialDetail {
@@ -80,6 +81,8 @@ const EstoqueAtual = () => {
   
   // Verifica se o usuário pode ver estoque durante inventário
   const canBypassInventoryBlock = hasPermission(MENU_KEYS.bypass_inventario_block);
+  // Verifica se o usuário pode ver valores financeiros
+  const canSeeValues = hasPermission(MENU_KEYS.ver_valores);
 
   // Initialize search from URL parameter if present
   const initialSearch = searchParams.get('search') || '';
@@ -278,6 +281,15 @@ const EstoqueAtual = () => {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // Format currency
+  const formatCurrency = (value: number | null) => {
+    if (value === null || value === undefined) return '-';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
   };
 
   // Show loading while checking config
@@ -500,7 +512,7 @@ const EstoqueAtual = () => {
           <>
             {/* Header fixo */}
             <div className="overflow-x-auto shrink-0 bg-card border-b-2 border-border">
-              <table className="w-full text-xs sm:text-sm table-fixed min-w-[700px]">
+              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[900px]' : 'min-w-[700px]'}`}>
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
                   <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
@@ -512,6 +524,12 @@ const EstoqueAtual = () => {
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
+                  {canSeeValues && (
+                    <>
+                      <col className="w-[70px] sm:w-[80px] lg:w-[90px]" />
+                      <col className="w-[80px] sm:w-[90px] lg:w-[100px]" />
+                    </>
+                  )}
                 </colgroup>
                 <thead>
                   <tr>
@@ -525,13 +543,19 @@ const EstoqueAtual = () => {
                     <th className="px-1 py-2 text-center font-semibold bg-card">P</th>
                     <th className="px-1 py-2 text-center font-semibold bg-card">Qtd</th>
                     <th className="px-1 py-2 text-center font-semibold bg-primary/10">Total</th>
+                    {canSeeValues && (
+                      <>
+                        <th className="px-1 py-2 text-center font-semibold bg-green-500/10">V. Unit.</th>
+                        <th className="px-1 py-2 text-center font-semibold bg-green-500/10">V. Total</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
               </table>
             </div>
             {/* Body com scroll */}
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-xs sm:text-sm table-fixed min-w-[700px]">
+              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[900px]' : 'min-w-[700px]'}`}>
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
                   <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
@@ -543,11 +567,18 @@ const EstoqueAtual = () => {
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
+                  {canSeeValues && (
+                    <>
+                      <col className="w-[70px] sm:w-[80px] lg:w-[90px]" />
+                      <col className="w-[80px] sm:w-[90px] lg:w-[100px]" />
+                    </>
+                  )}
                 </colgroup>
                 <tbody>
                   {estoque.map((item, idx) => {
                     // Os endereços já vêm ordenados do backend por rua, coluna, nivel, posicao
                     const enderecos = item.enderecos;
+                    const valorTotal = item.valor_unitario !== null ? item.valor_unitario * item.qtd_total : null;
                     
                     return enderecos.map((end, endIdx) => (
                       <tr 
@@ -588,12 +619,30 @@ const EstoqueAtual = () => {
                         <td className="px-1 py-2 text-center">{String(end.posicao).padStart(2, '0')}</td>
                         <td className="px-1 py-2 text-center font-medium">{end.quantidade}</td>
                         {endIdx === 0 ? (
-                          <td 
-                            className="px-1 py-2 text-center font-bold text-primary bg-primary/5 align-top"
-                            rowSpan={enderecos.length}
-                          >
-                            {item.qtd_total}
-                          </td>
+                          <>
+                            <td 
+                              className="px-1 py-2 text-center font-bold text-primary bg-primary/5 align-top"
+                              rowSpan={enderecos.length}
+                            >
+                              {item.qtd_total}
+                            </td>
+                            {canSeeValues && (
+                              <>
+                                <td 
+                                  className="px-1 py-2 text-center text-xs font-medium text-green-600 bg-green-500/5 align-top"
+                                  rowSpan={enderecos.length}
+                                >
+                                  {formatCurrency(item.valor_unitario)}
+                                </td>
+                                <td 
+                                  className="px-1 py-2 text-center text-xs font-bold text-green-700 bg-green-500/10 align-top"
+                                  rowSpan={enderecos.length}
+                                >
+                                  {formatCurrency(valorTotal)}
+                                </td>
+                              </>
+                            )}
+                          </>
                         ) : null}
                       </tr>
                     ));

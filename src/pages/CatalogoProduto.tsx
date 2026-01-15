@@ -14,7 +14,9 @@ interface Produto {
   id: string;
   codigo: string;
   descricao: string;
+  descricao_imex?: string | null;
   peso_kg?: number | null;
+  valor_unitario?: number | null;
   ativo?: boolean;
 }
 
@@ -32,7 +34,9 @@ const CatalogoProduto = () => {
   
   // Edit fields
   const [editDescricao, setEditDescricao] = useState('');
+  const [editDescricaoImex, setEditDescricaoImex] = useState('');
   const [editPeso, setEditPeso] = useState('');
+  const [editValorUnitario, setEditValorUnitario] = useState('');
   const [editCodigo, setEditCodigo] = useState('');
 
   const isAdmin = user?.tipo === 'admin';
@@ -73,7 +77,9 @@ const CatalogoProduto = () => {
       if (result.data) {
         setProduto(result.data);
         setEditDescricao(result.data.descricao || '');
+        setEditDescricaoImex(result.data.descricao_imex || '');
         setEditPeso(result.data.peso_kg?.toString() || '');
+        setEditValorUnitario(result.data.valor_unitario?.toString() || '');
         setEditCodigo(result.data.codigo || '');
         toast({
           title: 'Produto encontrado',
@@ -113,6 +119,7 @@ const CatalogoProduto = () => {
     setIsSaving(true);
     try {
       const pesoNum = editPeso.trim() ? parseFloat(editPeso) : undefined;
+      const valorNum = editValorUnitario.trim() ? parseFloat(editValorUnitario) : undefined;
       
       // Verificar se o código foi alterado (apenas Super Admin pode fazer isso)
       const novoCodigoTrimmed = editCodigo.trim().toUpperCase();
@@ -133,7 +140,9 @@ const CatalogoProduto = () => {
         produto.codigo,
         editDescricao.trim(),
         pesoNum,
-        codigoAlterado ? novoCodigoTrimmed : undefined
+        codigoAlterado ? novoCodigoTrimmed : undefined,
+        editDescricaoImex.trim() || undefined,
+        valorNum
       );
 
       if (!result.success) {
@@ -145,7 +154,9 @@ const CatalogoProduto = () => {
         ...produto,
         codigo: codigoAlterado ? novoCodigoTrimmed : produto.codigo,
         descricao: editDescricao.trim().toUpperCase(),
+        descricao_imex: editDescricaoImex.trim().toUpperCase() || null,
         peso_kg: pesoNum,
+        valor_unitario: valorNum,
       });
 
       toast({
@@ -285,6 +296,20 @@ const CatalogoProduto = () => {
                   />
                 </div>
 
+                {/* Descrição IMEX */}
+                <div>
+                  <Label htmlFor="descricaoImex">Descrição IMEX</Label>
+                  <Input
+                    id="descricaoImex"
+                    value={editDescricaoImex}
+                    onChange={(e) => setEditDescricaoImex(e.target.value)}
+                    disabled={!isAdmin}
+                    className={!isAdmin ? 'bg-muted' : ''}
+                    maxLength={500}
+                    placeholder="Descrição interna IMEX"
+                  />
+                </div>
+
                 {/* Peso */}
                 <div>
                   <Label htmlFor="peso">Peso (kg)</Label>
@@ -294,6 +319,21 @@ const CatalogoProduto = () => {
                     step="0.01"
                     value={editPeso}
                     onChange={(e) => setEditPeso(e.target.value)}
+                    disabled={!isAdmin}
+                    className={!isAdmin ? 'bg-muted' : ''}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* Valor Unitário */}
+                <div>
+                  <Label htmlFor="valorUnitario">Valor Unitário (R$)</Label>
+                  <Input
+                    id="valorUnitario"
+                    type="number"
+                    step="0.01"
+                    value={editValorUnitario}
+                    onChange={(e) => setEditValorUnitario(e.target.value)}
                     disabled={!isAdmin}
                     className={!isAdmin ? 'bg-muted' : ''}
                     placeholder="0.00"

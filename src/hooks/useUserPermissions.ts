@@ -25,6 +25,8 @@ export const MENU_KEYS = {
   auditoria_itens: 'auditoria_itens',
   // Permissão especial para bypass do bloqueio de inventário
   bypass_inventario_block: 'bypass_inventario_block',
+  // Permissão para visualizar valores financeiros (valor unitário e valor total)
+  ver_valores: 'ver_valores',
 } as const;
 
 export type MenuKey = keyof typeof MENU_KEYS;
