@@ -24,6 +24,8 @@ interface Produto {
   id: string;
   codigo: string;
   descricao: string;
+  descricao_imex?: string | null;
+  valor_unitario?: number | null;
   peso_kg?: number | null;
   ativo?: boolean;
 }
@@ -46,6 +48,8 @@ const Catalogo = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [novoCodigo, setNovoCodigo] = useState('');
   const [novaDescricao, setNovaDescricao] = useState('');
+  const [novaDescricaoImex, setNovaDescricaoImex] = useState('');
+  const [novoValorUnitario, setNovoValorUnitario] = useState('');
   const [novoPeso, setNovoPeso] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateItem[]>([]);
@@ -55,6 +59,8 @@ const Catalogo = () => {
   // Edit mode state
   const [editingProduct, setEditingProduct] = useState<Produto | null>(null);
   const [editDescricao, setEditDescricao] = useState('');
+  const [editDescricaoImex, setEditDescricaoImex] = useState('');
+  const [editValorUnitario, setEditValorUnitario] = useState('');
   const [editPeso, setEditPeso] = useState('');
 
   // Buscar produtos - lista todos automaticamente via edge function
@@ -118,6 +124,8 @@ const Catalogo = () => {
       queryClient.invalidateQueries({ queryKey: ['catalogo_produtos'] });
       setNovoCodigo('');
       setNovaDescricao('');
+      setNovaDescricaoImex('');
+      setNovoValorUnitario('');
       setNovoPeso('');
       toast({ title: 'Sucesso', description: 'Produto adicionado!' });
     },
@@ -143,8 +151,15 @@ const Catalogo = () => {
 
   // Editar produto
   const editMutation = useMutation({
-    mutationFn: async ({ id, codigo, descricao, peso_kg }: { id: string; codigo: string; descricao: string; peso_kg?: number }) => {
-      const result = await updateCatalogo(id, codigo, descricao, peso_kg);
+    mutationFn: async ({ id, codigo, descricao, descricao_imex, valor_unitario, peso_kg }: { 
+      id: string; 
+      codigo: string; 
+      descricao: string; 
+      descricao_imex?: string;
+      valor_unitario?: number;
+      peso_kg?: number;
+    }) => {
+      const result = await updateCatalogo(id, codigo, descricao, peso_kg, undefined, descricao_imex, valor_unitario);
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -328,7 +343,10 @@ const Catalogo = () => {
   const startEditing = (produto: Produto) => {
     setEditingProduct(produto);
     setEditDescricao(produto.descricao);
-    // Carregar o peso do produto se existir no banco de dados
+    setEditDescricaoImex(produto.descricao_imex || '');
+    setEditValorUnitario(produto.valor_unitario !== null && produto.valor_unitario !== undefined 
+      ? produto.valor_unitario.toString() 
+      : '');
     const pesoValue = produto.peso_kg !== null && produto.peso_kg !== undefined 
       ? produto.peso_kg.toString() 
       : '';
@@ -338,6 +356,8 @@ const Catalogo = () => {
   const cancelEditing = () => {
     setEditingProduct(null);
     setEditDescricao('');
+    setEditDescricaoImex('');
+    setEditValorUnitario('');
     setEditPeso('');
   };
 
@@ -345,10 +365,13 @@ const Catalogo = () => {
     if (!editingProduct) return;
     
     const pesoNum = editPeso.trim() ? parseFloat(editPeso) : undefined;
+    const valorNum = editValorUnitario.trim() ? parseFloat(editValorUnitario) : undefined;
     editMutation.mutate({
       id: editingProduct.id,
       codigo: editingProduct.codigo,
       descricao: editDescricao,
+      descricao_imex: editDescricaoImex.trim() || undefined,
+      valor_unitario: valorNum,
       peso_kg: pesoNum,
     });
   };
@@ -414,8 +437,8 @@ const Catalogo = () => {
         {/* Adicionar manualmente */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h2 className="mb-3 font-semibold">Adicionar Produto</h2>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            <div className="sm:col-span-1">
               <Label htmlFor="novoCodigo">Código</Label>
               <Input
                 id="novoCodigo"
@@ -426,7 +449,7 @@ const Catalogo = () => {
                 pattern="[0-9]*"
               />
             </div>
-            <div className="flex-[2]">
+            <div className="sm:col-span-1 lg:col-span-2">
               <Label htmlFor="novaDescricao">Descrição</Label>
               <Input
                 id="novaDescricao"
@@ -435,22 +458,44 @@ const Catalogo = () => {
                 onChange={(e) => setNovaDescricao(e.target.value)}
               />
             </div>
-            <div className="w-24">
-              <Label htmlFor="novoPeso">Peso (kg)</Label>
+            <div className="sm:col-span-1">
+              <Label htmlFor="novaDescricaoImex">Descrição IMEX</Label>
               <Input
-                id="novoPeso"
+                id="novaDescricaoImex"
+                placeholder="Descrição IMEX"
+                value={novaDescricaoImex}
+                onChange={(e) => setNovaDescricaoImex(e.target.value)}
+              />
+            </div>
+            <div className="sm:col-span-1">
+              <Label htmlFor="novoValorUnitario">Valor Unit. (R$)</Label>
+              <Input
+                id="novoValorUnitario"
                 type="number"
                 step="0.01"
                 placeholder="0.00"
-                value={novoPeso}
-                onChange={(e) => setNovoPeso(e.target.value)}
+                value={novoValorUnitario}
+                onChange={(e) => setNovoValorUnitario(e.target.value)}
                 inputMode="decimal"
               />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2 sm:col-span-1">
+              <div className="flex-1">
+                <Label htmlFor="novoPeso">Peso (kg)</Label>
+                <Input
+                  id="novoPeso"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={novoPeso}
+                  onChange={(e) => setNovoPeso(e.target.value)}
+                  inputMode="decimal"
+                />
+              </div>
               <Button
                 onClick={handleAddProduct}
                 disabled={addMutation.isPending}
+                className="shrink-0"
               >
                 {addMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -495,57 +540,85 @@ const Catalogo = () => {
                 >
                   {editingProduct?.id === produto.id ? (
                     // Edit mode
-                    <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-                      <div className="font-medium text-primary shrink-0">{produto.codigo}</div>
-                      <div className="flex-1">
-                        <Input
-                          value={editDescricao}
-                          onChange={(e) => setEditDescricao(e.target.value)}
-                          placeholder="Descrição"
-                          className="h-8"
-                        />
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium text-primary shrink-0 w-16">{produto.codigo}</div>
+                        <div className="flex-1">
+                          <Input
+                            value={editDescricao}
+                            onChange={(e) => setEditDescricao(e.target.value)}
+                            placeholder="Descrição"
+                            className="h-8"
+                          />
+                        </div>
                       </div>
-                      <div className="w-24">
-                        <Input
-                          value={editPeso}
-                          onChange={(e) => setEditPeso(e.target.value)}
-                          placeholder="Peso (kg)"
-                          type="number"
-                          step="0.01"
-                          inputMode="decimal"
-                          className="h-8"
-                        />
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="default"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={saveEdit}
-                          disabled={editMutation.isPending}
-                        >
-                          {editMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Save className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={cancelEditing}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <div className="flex-1 min-w-[150px]">
+                          <Input
+                            value={editDescricaoImex}
+                            onChange={(e) => setEditDescricaoImex(e.target.value)}
+                            placeholder="Descrição IMEX"
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="w-28">
+                          <Input
+                            value={editValorUnitario}
+                            onChange={(e) => setEditValorUnitario(e.target.value)}
+                            placeholder="Valor Unit."
+                            type="number"
+                            step="0.01"
+                            inputMode="decimal"
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="w-24">
+                          <Input
+                            value={editPeso}
+                            onChange={(e) => setEditPeso(e.target.value)}
+                            placeholder="Peso (kg)"
+                            type="number"
+                            step="0.01"
+                            inputMode="decimal"
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="default"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={saveEdit}
+                            disabled={editMutation.isPending}
+                          >
+                            {editMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={cancelEditing}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ) : (
                     // View mode
                     <>
-                      <div className="flex-1">
-                        <div className="flex items-baseline gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                           <p className="font-medium text-primary">{produto.codigo}</p>
+                          {produto.valor_unitario !== null && produto.valor_unitario !== undefined && (
+                            <span className="text-xs font-medium text-emerald-600">
+                              R$ {produto.valor_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          )}
                           {produto.peso_kg && (
                             <span className="text-xs text-muted-foreground">
                               {produto.peso_kg} kg
@@ -555,8 +628,13 @@ const Catalogo = () => {
                         <p className="text-sm text-muted-foreground line-clamp-1">
                           {produto.descricao}
                         </p>
+                        {produto.descricao_imex && (
+                          <p className="text-xs text-primary/70 line-clamp-1">
+                            IMEX: {produto.descricao_imex}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
