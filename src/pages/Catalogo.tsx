@@ -44,6 +44,7 @@ const Catalogo = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const isAdmin = user?.tipo === 'admin';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   
   const [searchTerm, setSearchTerm] = useState('');
   const [novoCodigo, setNovoCodigo] = useState('');
@@ -58,6 +59,7 @@ const Catalogo = () => {
   
   // Edit mode state
   const [editingProduct, setEditingProduct] = useState<Produto | null>(null);
+  const [editCodigo, setEditCodigo] = useState('');
   const [editDescricao, setEditDescricao] = useState('');
   const [editDescricaoImex, setEditDescricaoImex] = useState('');
   const [editValorUnitario, setEditValorUnitario] = useState('');
@@ -151,15 +153,16 @@ const Catalogo = () => {
 
   // Editar produto
   const editMutation = useMutation({
-    mutationFn: async ({ id, codigo, descricao, descricao_imex, valor_unitario, peso_kg }: { 
+    mutationFn: async ({ id, codigo, descricao, descricao_imex, valor_unitario, peso_kg, novo_codigo }: { 
       id: string; 
       codigo: string; 
       descricao: string; 
       descricao_imex?: string;
       valor_unitario?: number;
       peso_kg?: number;
+      novo_codigo?: string;
     }) => {
-      const result = await updateCatalogo(id, codigo, descricao, peso_kg, undefined, descricao_imex, valor_unitario);
+      const result = await updateCatalogo(id, codigo, descricao, peso_kg, novo_codigo, descricao_imex, valor_unitario);
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -342,6 +345,7 @@ const Catalogo = () => {
 
   const startEditing = (produto: Produto) => {
     setEditingProduct(produto);
+    setEditCodigo(produto.codigo);
     setEditDescricao(produto.descricao);
     setEditDescricaoImex(produto.descricao_imex || '');
     setEditValorUnitario(produto.valor_unitario !== null && produto.valor_unitario !== undefined 
@@ -355,6 +359,7 @@ const Catalogo = () => {
 
   const cancelEditing = () => {
     setEditingProduct(null);
+    setEditCodigo('');
     setEditDescricao('');
     setEditDescricaoImex('');
     setEditValorUnitario('');
@@ -363,6 +368,19 @@ const Catalogo = () => {
 
   const saveEdit = () => {
     if (!editingProduct) return;
+    
+    // Se Super Admin está editando o código, validar 6 caracteres
+    const novoCodigo = editCodigo.trim();
+    if (isSuperAdmin && novoCodigo !== editingProduct.codigo) {
+      if (novoCodigo.length !== 6) {
+        toast({
+          title: 'Código inválido',
+          description: 'O código deve ter exatamente 6 caracteres',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
     
     const pesoNum = editPeso.trim() ? parseFloat(editPeso) : undefined;
     const valorNum = editValorUnitario.trim() ? parseFloat(editValorUnitario) : undefined;
@@ -373,6 +391,7 @@ const Catalogo = () => {
       descricao_imex: editDescricaoImex.trim() || undefined,
       valor_unitario: valorNum,
       peso_kg: pesoNum,
+      novo_codigo: isSuperAdmin && novoCodigo !== editingProduct.codigo ? novoCodigo : undefined,
     });
   };
 
@@ -542,7 +561,22 @@ const Catalogo = () => {
                     // Edit mode
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className="font-medium text-primary shrink-0 w-16">{produto.codigo}</div>
+                        {isSuperAdmin ? (
+                          <div className="shrink-0 space-y-1">
+                            <Input
+                              value={editCodigo}
+                              onChange={(e) => setEditCodigo(e.target.value.toUpperCase().slice(0, 6))}
+                              placeholder="Código"
+                              className={`h-8 w-20 font-mono text-sm ${editCodigo.length !== 6 ? 'border-destructive' : ''}`}
+                              maxLength={6}
+                            />
+                            <span className={`text-xs ${editCodigo.length !== 6 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                              {editCodigo.length}/6
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="font-medium text-primary shrink-0 w-16">{produto.codigo}</div>
+                        )}
                         <div className="flex-1">
                           <Input
                             value={editDescricao}
