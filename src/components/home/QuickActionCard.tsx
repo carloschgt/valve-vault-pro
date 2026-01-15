@@ -62,7 +62,7 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
     <button
       onClick={onClick}
       className={cn(
-        'flex flex-col items-start gap-3 rounded-2xl border p-4 transition-all duration-200',
+        'flex flex-col items-start gap-2 sm:gap-3 rounded-2xl border p-3 sm:p-4 transition-all duration-200 min-w-0 overflow-hidden',
         'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]',
         styles.bg,
         styles.border,
@@ -71,13 +71,13 @@ export const QuickActionCard: React.FC<QuickActionCardProps> = ({
     >
       <div
         className={cn(
-          'flex h-12 w-12 items-center justify-center rounded-xl shadow-sm',
+          'flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl shadow-sm flex-shrink-0',
           styles.iconBg
         )}
       >
-        <Icon className={cn('h-6 w-6', styles.iconColor)} />
+        <Icon className={cn('h-5 w-5 sm:h-6 sm:w-6', styles.iconColor)} />
       </div>
-      <span className="text-sm font-semibold text-foreground">{title}</span>
+      <span className="text-xs sm:text-sm font-semibold text-foreground truncate w-full text-left">{title}</span>
     </button>
   );
 };
