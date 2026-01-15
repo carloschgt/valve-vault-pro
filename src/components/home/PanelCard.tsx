@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, DollarSign, Boxes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ChartDataPoint {
@@ -8,16 +8,26 @@ interface ChartDataPoint {
   inventario: number;
 }
 
+interface ValorMensalDataPoint {
+  month: string;
+  quantidade: number;
+  valor: number;
+}
+
 interface PanelCardProps {
   title: string;
   onClick: () => void;
-  variant: 'dashboard' | 'estoque';
+  variant: 'dashboard' | 'estoque' | 'valor_estoque';
   stats?: {
     total?: number;
     divergencias?: number;
+    totalQuantidade?: number;
+    totalValor?: number;
   };
   chartData?: ChartDataPoint[];
+  valorMensalData?: ValorMensalDataPoint[];
   isLoading?: boolean;
+  showValues?: boolean; // Controls whether to show financial values (permission-based)
 }
 
 export const PanelCard: React.FC<PanelCardProps> = ({
@@ -26,8 +36,95 @@ export const PanelCard: React.FC<PanelCardProps> = ({
   variant,
   stats,
   chartData,
+  valorMensalData,
   isLoading,
+  showValues = false,
 }) => {
+  // Format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  // Format large numbers
+  const formatNumber = (value: number) => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}K`;
+    }
+    return value.toLocaleString('pt-BR');
+  };
+
+  if (variant === 'valor_estoque') {
+    const totalQuantidade = stats?.totalQuantidade || 0;
+    const totalValor = stats?.totalValor || 0;
+
+    return (
+      <button
+        onClick={onClick}
+        className="flex flex-col rounded-2xl border border-border bg-card p-3 sm:p-4 transition-all hover:shadow-md hover:border-primary/30 min-w-0 overflow-hidden"
+      >
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <span className="text-xs sm:text-sm font-semibold text-foreground truncate">{title}</span>
+          <div className="flex items-center gap-1 text-xs text-emerald-600 flex-shrink-0">
+            <DollarSign className="h-3 w-3" />
+          </div>
+        </div>
+        
+        {isLoading ? (
+          <div className="space-y-2">
+            <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {/* Total Quantity */}
+            <div className="flex items-center gap-2">
+              <Boxes className="h-4 w-4 text-primary/60 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-lg sm:text-xl font-bold text-primary">
+                  {formatNumber(totalQuantidade)}
+                </p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">itens em estoque</p>
+              </div>
+            </div>
+            
+            {/* Total Value - only show if user has permission */}
+            {showValues && (
+              <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+                <DollarSign className="h-4 w-4 text-emerald-600/60 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-lg sm:text-xl font-bold text-emerald-600">
+                    {formatCurrency(totalValor)}
+                  </p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">valor total</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 sm:mt-3 w-full text-xs sm:text-sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        >
+          Ver Detalhes
+        </Button>
+      </button>
+    );
+  }
+
   if (variant === 'dashboard') {
     // Calculate max value for chart scaling
     const maxValue = chartData && chartData.length > 0

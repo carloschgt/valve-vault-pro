@@ -40,12 +40,21 @@ interface ChartDataPoint {
   inventario: number;
 }
 
+interface ValorMensalDataPoint {
+  month: string;
+  quantidade: number;
+  valor: number;
+}
+
 interface HomeStats {
   totalItens: number;
   divergencias: number;
   codigosPendentes: number;
   codigosAguardandoAprovacao: number;
   chartData: ChartDataPoint[];
+  totalQuantidadeEstoque: number;
+  totalValorEstoque: number;
+  valorMensalData: ValorMensalDataPoint[];
 }
 
 const REFRESH_INTERVAL = 30000; // 30 seconds
@@ -64,6 +73,9 @@ const Home = () => {
     codigosPendentes: 0,
     codigosAguardandoAprovacao: 0,
     chartData: [],
+    totalQuantidadeEstoque: 0,
+    totalValorEstoque: 0,
+    valorMensalData: [],
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -80,6 +92,9 @@ const Home = () => {
           codigosPendentes: result.data.codigosPendentes || 0,
           codigosAguardandoAprovacao: result.data.codigosAguardandoAprovacao || 0,
           chartData: result.data.chartData || [],
+          totalQuantidadeEstoque: result.data.totalQuantidadeEstoque || 0,
+          totalValorEstoque: result.data.totalValorEstoque || 0,
+          valorMensalData: result.data.valorMensalData || [],
         });
         setLastRefresh(new Date());
       }
@@ -370,6 +385,18 @@ const Home = () => {
                 isLoading={statsLoading}
               />
             )}
+            {/* Stock Value Panel - always visible but values only shown with permission */}
+            <PanelCard
+              title="Valor do Estoque"
+              onClick={() => navigate('/estoque-atual')}
+              variant="valor_estoque"
+              stats={{
+                totalQuantidade: stats.totalQuantidadeEstoque,
+                totalValor: stats.totalValorEstoque,
+              }}
+              isLoading={statsLoading}
+              showValues={hasPermission(MENU_KEYS.ver_valores)}
+            />
           </div>
         </section>
 

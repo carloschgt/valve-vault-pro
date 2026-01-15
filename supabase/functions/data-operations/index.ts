@@ -3103,6 +3103,84 @@ serve(async (req) => {
         });
       }
 
+      // ========== STOCK VALUE CALCULATION ==========
+      // Get all active addresses with their latest inventory count
+      const { data: enderecosAtivos } = await supabase
+        .from("enderecos_materiais")
+        .select("id, codigo")
+        .eq("ativo", true);
+
+      let totalQuantidadeEstoque = 0;
+      let totalValorEstoque = 0;
+
+      if (enderecosAtivos && enderecosAtivos.length > 0) {
+        // Get latest inventory count for each endereco
+        const enderecoIds = enderecosAtivos.map(e => e.id);
+        const { data: inventarioAtual } = await supabase
+          .from("inventario")
+          .select("endereco_material_id, quantidade, contagem_num")
+          .in("endereco_material_id", enderecoIds);
+
+        // Get unit values from catalogo_produtos
+        const codigos = [...new Set(enderecosAtivos.map(e => e.codigo))];
+        const { data: catalogoData } = await supabase
+          .from("catalogo_produtos")
+          .select("codigo, valor_unitario")
+          .in("codigo", codigos);
+
+        // Create maps for quick lookup
+        const valorUnitarioMap = new Map<string, number>();
+        catalogoData?.forEach(item => {
+          if (item.valor_unitario !== null) {
+            valorUnitarioMap.set(item.codigo, Number(item.valor_unitario));
+          }
+        });
+
+        // Get the latest quantity for each endereco (highest contagem_num)
+        const quantidadeMap = new Map<string, number>();
+        inventarioAtual?.forEach(inv => {
+          const existing = quantidadeMap.get(inv.endereco_material_id);
+          if (existing === undefined || inv.contagem_num > (existing || 0)) {
+            quantidadeMap.set(inv.endereco_material_id, inv.quantidade);
+          }
+        });
+
+        // Calculate totals
+        enderecosAtivos.forEach(endereco => {
+          const quantidade = quantidadeMap.get(endereco.id) || 0;
+          const valorUnitario = valorUnitarioMap.get(endereco.codigo) || 0;
+          
+          totalQuantidadeEstoque += quantidade;
+          totalValorEstoque += quantidade * valorUnitario;
+        });
+      }
+
+      // ========== MONTHLY VALUE CHART (last 6 months) ==========
+      const valorMensalData: { month: string; quantidade: number; valor: number }[] = [];
+      
+      // For simplicity, we'll show the current month totals
+      // A full implementation would track historical snapshots
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthIndex = monthDate.getMonth();
+        
+        // For now, show current values only for the current month
+        // Historical data would require a snapshot table
+        if (i === 0) {
+          valorMensalData.push({
+            month: monthNames[monthIndex],
+            quantidade: totalQuantidadeEstoque,
+            valor: totalValorEstoque
+          });
+        } else {
+          valorMensalData.push({
+            month: monthNames[monthIndex],
+            quantidade: 0,
+            valor: 0
+          });
+        }
+      }
+
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -3111,7 +3189,11 @@ serve(async (req) => {
             codigosPendentes: codigosPendentes || 0,
             codigosAguardandoAprovacao: codigosAguardandoAprovacao || 0,
             divergencias: divergenciasCount,
-            chartData
+            chartData,
+            // New stock value data
+            totalQuantidadeEstoque,
+            totalValorEstoque,
+            valorMensalData
           }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
