@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ClipboardList, Settings, Download, Loader2, LogOut, Activity, BookOpen, Shield, Database, QrCode, Package, FileBarChart, Wrench, SlidersHorizontal, Warehouse, FilePlus, CheckSquare, ScanLine, History } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import {
+  MapPin,
+  ClipboardList,
+  Warehouse,
+  QrCode,
+  AlertTriangle,
+  CheckSquare,
+  FilePlus,
+  Shield,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserPermissions, MENU_KEYS } from '@/hooks/useUserPermissions';
 import { exportEnderecos, exportInventario } from '@/hooks/useDataOperations';
 import { exportEnderecamentosToCSV, exportInventarioToCSV } from '@/utils/exportEnderecamentos';
-import { AdminNotificationCenter } from '@/components/AdminNotificationCenter';
 import { QRScanner } from '@/components/QRScanner';
-import logoImex from '@/assets/logo-imex.png';
+import { supabase } from '@/integrations/supabase/client';
+
+// New components
+import { HomeHeader } from '@/components/home/HomeHeader';
+import { HomeSearchBar } from '@/components/home/HomeSearchBar';
+import { QuickActionCard } from '@/components/home/QuickActionCard';
+import { PanelCard } from '@/components/home/PanelCard';
+import { PendingBadge } from '@/components/home/PendingBadge';
+import { AdminAccordion } from '@/components/home/AdminAccordion';
+import { BottomNavigation } from '@/components/home/BottomNavigation';
 
 interface QRData {
   cod?: string;
@@ -19,24 +35,76 @@ interface QRData {
   rua?: number;
 }
 
+interface HomeStats {
+  totalItens: number;
+  divergencias: number;
+  codigosPendentes: number;
+  codigosAprovados: number;
+}
+
 const Home = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, logout } = useAuth();
-  const { hasPermission, isAdmin, isSuperAdmin, isLoading: permissionsLoading } = useUserPermissions();
+  const { hasPermission, isAdmin, isSuperAdmin } = useUserPermissions();
   const [isExporting, setIsExporting] = useState<'enderecamentos' | 'inventario' | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [showMenuSheet, setShowMenuSheet] = useState(false);
+  const [stats, setStats] = useState<HomeStats>({
+    totalItens: 0,
+    divergencias: 0,
+    codigosPendentes: 0,
+    codigosAprovados: 0,
+  });
 
-  // Handle QR code scan - navegação inteligente baseada no conteúdo
+  // Fetch stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Total items
+        const { count: totalItens } = await supabase
+          .from('enderecos_materiais')
+          .select('*', { count: 'exact', head: true })
+          .eq('ativo', true);
+
+        // Pending codes
+        const { count: codigosPendentes } = await supabase
+          .from('solicitacoes_codigo')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pendente');
+
+        // Approved codes waiting processing
+        const { count: codigosAprovados } = await supabase
+          .from('solicitacoes_codigo')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'aprovado');
+
+        // Divergências - simplified count
+        const { data: divergData } = await supabase.rpc('cleanup_expired_sessions');
+
+        setStats({
+          totalItens: totalItens || 0,
+          divergencias: 0, // Will be calculated on relatório page
+          codigosPendentes: codigosPendentes || 0,
+          codigosAprovados: codigosAprovados || 0,
+        });
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // Handle QR code scan
   const handleQRScan = (data: string) => {
     setShowScanner(false);
-    
-    // Primeiro: verificar se é uma URL (QR da placa de identificação de rua)
+
+    // URL check
     if (data.startsWith('http://') || data.startsWith('https://')) {
       try {
         const url = new URL(data);
-        
-        // Verificar se é uma URL do nosso sistema com parâmetro de rua
+
         if (url.pathname.includes('/estoque-rua') || url.pathname.includes('estoque-rua')) {
           const ruaParam = url.searchParams.get('rua');
           if (ruaParam) {
@@ -51,8 +119,7 @@ const Home = () => {
             }
           }
         }
-        
-        // Verificar se é uma URL do nosso sistema com parâmetro de busca/código
+
         if (url.pathname.includes('/estoque-atual')) {
           const searchParam = url.searchParams.get('search');
           if (searchParam) {
@@ -65,15 +132,14 @@ const Home = () => {
           }
         }
       } catch {
-        // URL inválida, continuar com outras verificações
+        // Continue
       }
     }
-    
-    // Segundo: tentar como JSON (etiqueta de material)
+
+    // JSON parse
     try {
       const qrData: QRData = JSON.parse(data);
-      
-      // Se o QR code contém um código de material
+
       if (qrData.cod || qrData.codigo) {
         const codigo = qrData.cod || qrData.codigo;
         navigate(`/estoque-atual?search=${encodeURIComponent(codigo || '')}`);
@@ -83,8 +149,7 @@ const Home = () => {
         });
         return;
       }
-      
-      // Se o QR code contém apenas número da rua
+
       if (qrData.rua !== undefined) {
         navigate(`/estoque-rua?rua=${qrData.rua}`);
         toast({
@@ -93,14 +158,14 @@ const Home = () => {
         });
         return;
       }
-      
+
       toast({
         title: 'QR Code não reconhecido',
         description: 'Este QR code não contém informações de material ou rua',
         variant: 'destructive',
       });
     } catch {
-      // Terceiro: verificar se é apenas um número (rua)
+      // Number check
       const ruaNum = parseInt(data);
       if (!isNaN(ruaNum) && ruaNum > 0 && ruaNum <= 99) {
         navigate(`/estoque-rua?rua=${ruaNum}`);
@@ -110,8 +175,8 @@ const Home = () => {
         });
         return;
       }
-      
-      // Quarto: tentar como código de material direto (6 dígitos)
+
+      // 6-digit code
       if (data.match(/^\d{6}$/)) {
         navigate(`/estoque-atual?search=${encodeURIComponent(data)}`);
         toast({
@@ -120,7 +185,7 @@ const Home = () => {
         });
         return;
       }
-      
+
       toast({
         title: 'QR Code inválido',
         description: 'Não foi possível interpretar o conteúdo do QR Code',
@@ -133,7 +198,7 @@ const Home = () => {
     setIsExporting('enderecamentos');
     try {
       const result = await exportEnderecos();
-      
+
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -164,7 +229,7 @@ const Home = () => {
     setIsExporting('inventario');
     try {
       const result = await exportInventario();
-      
+
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -197,365 +262,168 @@ const Home = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-background pb-20">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-card p-4">
-        <img src={logoImex} alt="IMEX Solutions" className="h-10" />
-        <div className="flex items-center gap-2">
-          {/* QR Scanner Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowScanner(true)}
-            title="Escanear QR Code"
-          >
-            <ScanLine className="h-5 w-5" />
-          </Button>
-          {isAdmin && (
-            <>
-              <AdminNotificationCenter />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/fabricantes')}
-                title="Gerenciar Fabricantes"
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
-            </>
-          )}
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Sair">
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
+      <HomeHeader
+        userName={user?.nome || 'Usuário'}
+        userEmail={user?.email || ''}
+        isAdmin={isAdmin}
+        isSuperAdmin={isSuperAdmin}
+        onLogout={handleLogout}
+      />
 
-      {/* Content */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">
-            Olá, {user?.nome?.split(' ')[0] || 'Usuário'}!
-          </h1>
-          <p className="text-muted-foreground">Selecione a operação</p>
+      {/* Search Bar */}
+      <HomeSearchBar onScanClick={() => setShowScanner(true)} />
+
+      {/* Main Content */}
+      <main className="flex-1 px-4 pb-4 space-y-6 animate-fade-in">
+        {/* Greeting */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-foreground">
+              Olá, {user?.nome?.split(' ')[0] || 'Usuário'}!
+            </h1>
+            <p className="text-sm text-muted-foreground">O que você precisa fazer hoje?</p>
+          </div>
           {isSuperAdmin && (
-            <span className="inline-flex items-center gap-1 mt-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
               <Shield className="h-3 w-3" />
               Super Admin
             </span>
           )}
         </div>
 
-        <div className="flex w-full max-w-md flex-col gap-4">
-          {/* Endereçamento Button - Usa permissões */}
-          {hasPermission(MENU_KEYS.enderecamento) && (
-            <button
-              onClick={() => navigate('/enderecamento')}
-              className="flex flex-col items-center gap-4 rounded-2xl border-2 border-primary bg-primary/5 p-8 transition-all hover:bg-primary/10 hover:shadow-lg active:scale-[0.98]"
-            >
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary shadow-md">
-                <MapPin className="h-10 w-10 text-primary-foreground" />
-              </div>
-              <div className="text-center">
-                <h2 className="text-xl font-bold text-foreground">Endereçamento</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Cadastrar localização de materiais
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* Inventário Button - Usa permissões */}
-          {hasPermission(MENU_KEYS.inventario) && (
-            <button
-              onClick={() => navigate('/inventario')}
-              className="flex flex-col items-center gap-4 rounded-2xl border-2 border-secondary bg-secondary/5 p-8 transition-all hover:bg-secondary/10 hover:shadow-lg active:scale-[0.98]"
-            >
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-secondary shadow-md">
-                <ClipboardList className="h-10 w-10 text-secondary-foreground" />
-              </div>
-              <div className="text-center">
-                <h2 className="text-xl font-bold text-foreground">Inventário</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Realizar contagem de materiais
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* Dashboard Button - Usa permissões */}
-          {hasPermission(MENU_KEYS.dashboard) && (
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-4 rounded-2xl border-2 border-accent bg-accent/5 p-4 transition-all hover:bg-accent/10 hover:shadow-lg active:scale-[0.98]"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent shadow-md">
-                <Activity className="h-6 w-6 text-accent-foreground" />
-              </div>
-              <div className="text-left">
-                <h2 className="text-lg font-bold text-foreground">Dashboard Tempo Real</h2>
-                <p className="text-sm text-muted-foreground">
-                  Ver lançamentos e exportar Excel
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* Estoque Atual Button - Usa permissões */}
-          {hasPermission(MENU_KEYS.estoque_atual) && (
-            <button
-              onClick={() => navigate('/estoque-atual')}
-              className="flex items-center gap-4 rounded-2xl border-2 border-emerald-500/50 bg-emerald-500/5 p-4 transition-all hover:bg-emerald-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 shadow-md">
-                <Package className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <h2 className="text-lg font-bold text-foreground">Estoque Atual</h2>
-                <p className="text-sm text-muted-foreground">
-                  Ver saldo atual por item e endereço
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* Consulta por Rua - Usa permissões */}
-          {hasPermission(MENU_KEYS.estoque_rua) && (
-            <button
-              onClick={() => navigate('/estoque-rua')}
-              className="flex items-center gap-4 rounded-2xl border-2 border-blue-500/50 bg-blue-500/5 p-4 transition-all hover:bg-blue-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 shadow-md">
-                <Warehouse className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <h2 className="text-lg font-bold text-foreground">Consulta por Rua</h2>
-                <p className="text-sm text-muted-foreground">
-                  Ler QR Code e ver materiais da rua
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* Etiquetas Button - Usa permissões */}
-          {hasPermission(MENU_KEYS.etiquetas) && (
-            <button
-              onClick={() => navigate('/etiquetas')}
-              className="flex items-center gap-4 rounded-2xl border-2 border-muted bg-muted/5 p-4 transition-all hover:bg-muted/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted shadow-md">
-                <QrCode className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <div className="flex-1 text-left">
-                <h2 className="text-lg font-bold text-foreground">Gerar Etiquetas</h2>
-                <p className="text-sm text-muted-foreground">
-                  Imprimir etiquetas com QR Code
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* Solicitação de Código - Usa permissões */}
-          {hasPermission(MENU_KEYS.solicitar_codigo) && (
-            <button
-              onClick={() => navigate('/solicitacoes-codigo')}
-              className="flex items-center gap-4 rounded-2xl border-2 border-purple-500/50 bg-purple-500/5 p-4 transition-all hover:bg-purple-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500 shadow-md">
-                <FilePlus className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <h2 className="text-lg font-bold text-foreground">Solicitar Código</h2>
-                <p className="text-sm text-muted-foreground">
-                  Solicitar código para novo material
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* Processar Códigos - Usa permissões */}
-          {hasPermission(MENU_KEYS.processar_codigos) && (
-            <button
-              onClick={() => navigate('/processar-codigos')}
-              className="flex items-center gap-4 rounded-2xl border-2 border-orange-500/50 bg-orange-500/5 p-4 transition-all hover:bg-orange-500/10 hover:shadow-lg active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 shadow-md">
-                <CheckSquare className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <h2 className="text-lg font-bold text-foreground">Processar Códigos</h2>
-                <p className="text-sm text-muted-foreground">
-                  Gerar códigos para solicitações pendentes
-                </p>
-              </div>
-            </button>
-          )}
-        </div>
-
-        {/* Admin Actions */}
-        {/* Ações Administrativas - Usa permissões por item */}
-        {(hasPermission(MENU_KEYS.admin_panel) || 
-          hasPermission(MENU_KEYS.aprovacao_codigos) || 
-          hasPermission(MENU_KEYS.controle_inventario) ||
-          hasPermission(MENU_KEYS.relatorio_inventario) ||
-          hasPermission(MENU_KEYS.ajuste_inventario) ||
-          hasPermission(MENU_KEYS.catalogo_produto) ||
-          hasPermission(MENU_KEYS.catalogo) ||
-          hasPermission(MENU_KEYS.fabricantes) ||
-          hasPermission(MENU_KEYS.gerenciamento_dados)) && (
-          <div className="mt-4 w-full max-w-md space-y-3">
-            <p className="text-center text-sm font-medium text-muted-foreground">
-              Ações Administrativas
-            </p>
-            
-            {/* Painel Admin */}
-            {hasPermission(MENU_KEYS.admin_panel) && (
-              <Button
-                variant="default"
-                className="w-full"
-                onClick={() => navigate('/admin')}
-              >
-                <Shield className="mr-2 h-4 w-4" />
-                Painel Administrativo
-              </Button>
+        {/* Quick Actions */}
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Ações Rápidas</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {hasPermission(MENU_KEYS.enderecamento) && (
+              <QuickActionCard
+                title="Endereçar Material"
+                icon={MapPin}
+                onClick={() => navigate('/enderecamento')}
+                variant="teal"
+              />
             )}
-
-            {/* Aprovação de Códigos */}
-            {hasPermission(MENU_KEYS.aprovacao_codigos) && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate('/aprovacao-codigos')}
-              >
-                <CheckSquare className="mr-2 h-4 w-4" />
-                Aprovação de Códigos
-              </Button>
+            {hasPermission(MENU_KEYS.inventario) && (
+              <QuickActionCard
+                title="Inventariar / Contar"
+                icon={ClipboardList}
+                onClick={() => navigate('/inventario')}
+                variant="secondary"
+              />
             )}
-
-            {/* Controle de Inventário */}
-            {hasPermission(MENU_KEYS.controle_inventario) && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate('/controle-inventario')}
-              >
-                <SlidersHorizontal className="mr-2 h-4 w-4" />
-                Controle de Inventário
-              </Button>
+            {hasPermission(MENU_KEYS.estoque_rua) && (
+              <QuickActionCard
+                title="Consultar por Rua"
+                icon={Warehouse}
+                onClick={() => navigate('/estoque-rua')}
+                variant="blue"
+              />
             )}
-
-            {/* Relatório de Inventário */}
-            {hasPermission(MENU_KEYS.relatorio_inventario) && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate('/relatorio-inventario')}
-              >
-                <FileBarChart className="mr-2 h-4 w-4" />
-                Relatório de Divergências
-              </Button>
-            )}
-
-            {/* Ajuste de Inventário */}
-            {hasPermission(MENU_KEYS.ajuste_inventario) && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate('/ajuste-inventario')}
-              >
-                <Wrench className="mr-2 h-4 w-4" />
-                Ajustes de Inventário
-              </Button>
-            )}
-
-            {/* Cadastro de Produto */}
-            {hasPermission(MENU_KEYS.catalogo_produto) && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate('/catalogo-produto')}
-              >
-                <BookOpen className="mr-2 h-4 w-4" />
-                Cadastro de Produto
-              </Button>
-            )}
-            
-            {/* Catálogo de Produtos (Importar) */}
-            {hasPermission(MENU_KEYS.catalogo) && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate('/catalogo')}
-              >
-                <BookOpen className="mr-2 h-4 w-4" />
-                Importar Catálogo de Produtos
-              </Button>
-            )}
-
-            {/* Gerenciamento de Dados */}
-            {hasPermission(MENU_KEYS.gerenciamento_dados) && (
-              <Button
-                variant="outline"
-                className="w-full border-destructive text-destructive hover:bg-destructive/10"
-                onClick={() => navigate('/gerenciamento-dados')}
-              >
-                <Database className="mr-2 h-4 w-4" />
-                Gerenciamento de Dados
-              </Button>
-            )}
-
-            {/* Auditoria de Itens - Super Admin only */}
-            {isSuperAdmin && (
-              <Button
-                variant="outline"
-                className="w-full border-amber-500 text-amber-600 hover:bg-amber-50"
-                onClick={() => navigate('/auditoria-itens')}
-              >
-                <History className="mr-2 h-4 w-4" />
-                Auditoria de Itens
-              </Button>
-            )}
-
-            {/* Exportar para Admin */}
-            {isAdmin && (
-              <div className="flex flex-col gap-3">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleExportEnderecamentos}
-                  disabled={isExporting !== null}
-                >
-                  {isExporting === 'enderecamentos' ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-                  Exportar Endereçamentos
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleExportInventario}
-                  disabled={isExporting !== null}
-                >
-                  {isExporting === 'inventario' ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-                  Exportar Inventário
-                </Button>
-              </div>
+            {hasPermission(MENU_KEYS.etiquetas) && (
+              <QuickActionCard
+                title="Gerar Etiquetas"
+                icon={QrCode}
+                onClick={() => navigate('/etiquetas')}
+                variant="purple"
+              />
             )}
           </div>
+        </section>
+
+        {/* Panels */}
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Painéis</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {hasPermission(MENU_KEYS.dashboard) && (
+              <PanelCard
+                title="Dashboard Tempo Real"
+                onClick={() => navigate('/dashboard')}
+                variant="dashboard"
+              />
+            )}
+            {hasPermission(MENU_KEYS.estoque_atual) && (
+              <PanelCard
+                title="Estoque Atual"
+                onClick={() => navigate('/estoque-atual')}
+                variant="estoque"
+                stats={{
+                  total: stats.totalItens,
+                  divergencias: stats.divergencias,
+                }}
+              />
+            )}
+          </div>
+        </section>
+
+        {/* Pending Items */}
+        {(hasPermission(MENU_KEYS.relatorio_inventario) ||
+          hasPermission(MENU_KEYS.processar_codigos) ||
+          hasPermission(MENU_KEYS.solicitar_codigo)) && (
+          <section>
+            <h2 className="mb-3 text-sm font-semibold text-foreground">Pendências</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {hasPermission(MENU_KEYS.relatorio_inventario) && (
+                <PendingBadge
+                  title="Divergências Abertas"
+                  count={stats.divergencias}
+                  icon={AlertTriangle}
+                  onClick={() => navigate('/relatorio-inventario')}
+                  variant="warning"
+                />
+              )}
+              {hasPermission(MENU_KEYS.processar_codigos) && (
+                <PendingBadge
+                  title="Códigos para Processar"
+                  count={stats.codigosAprovados}
+                  icon={CheckSquare}
+                  onClick={() => navigate('/processar-codigos')}
+                  variant="info"
+                />
+              )}
+              {hasPermission(MENU_KEYS.aprovacao_codigos) && (
+                <PendingBadge
+                  title="Aguardando Aprovação"
+                  count={stats.codigosPendentes}
+                  icon={Shield}
+                  onClick={() => navigate('/aprovacao-codigos')}
+                  variant="purple"
+                />
+              )}
+              {hasPermission(MENU_KEYS.solicitar_codigo) && (
+                <PendingBadge
+                  title="Solicitar Código"
+                  subtitle="Novo material"
+                  count={0}
+                  icon={FilePlus}
+                  onClick={() => navigate('/solicitacoes-codigo')}
+                  variant="default"
+                />
+              )}
+            </div>
+          </section>
         )}
-      </div>
+
+        {/* Admin Accordion */}
+        <section className="pb-2">
+          <AdminAccordion
+            hasPermission={hasPermission}
+            isAdmin={isAdmin}
+            isSuperAdmin={isSuperAdmin}
+            isExporting={isExporting}
+            onExportEnderecamentos={handleExportEnderecamentos}
+            onExportInventario={handleExportInventario}
+          />
+        </section>
+      </main>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation onMenuClick={() => setShowMenuSheet(true)} />
 
       {/* QR Scanner Modal */}
       {showScanner && (
-        <QRScanner
-          onScan={handleQRScan}
-          onClose={() => setShowScanner(false)}
-        />
+        <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
       )}
     </div>
   );
