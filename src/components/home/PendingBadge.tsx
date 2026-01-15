@@ -47,23 +47,23 @@ export const PendingBadge: React.FC<PendingBadgeProps> = ({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-all hover:shadow-sm hover:border-primary/30 active:scale-[0.98]"
+      className="flex items-center gap-2 sm:gap-3 rounded-xl border border-border bg-card p-2.5 sm:p-3 transition-all hover:shadow-sm hover:border-primary/30 active:scale-[0.98] min-w-0 overflow-hidden"
     >
       <div
         className={cn(
-          'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
+          'flex h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-lg',
           styles.iconBg
         )}
       >
-        <Icon className={cn('h-5 w-5', styles.iconColor)} />
+        <Icon className={cn('h-4 w-4 sm:h-5 sm:w-5', styles.iconColor)} />
       </div>
-      <div className="flex-1 text-left min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{title}</p>
+      <div className="flex-1 text-left min-w-0 overflow-hidden">
+        <p className="text-xs sm:text-sm font-medium text-foreground truncate">{title}</p>
         {subtitle && (
-          <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{subtitle}</p>
         )}
       </div>
-      <span className={cn('text-lg font-bold', styles.countColor)}>{count}</span>
+      <span className={cn('text-base sm:text-lg font-bold flex-shrink-0', styles.countColor)}>{count}</span>
     </button>
   );
 };
