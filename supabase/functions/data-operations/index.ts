@@ -3137,17 +3137,21 @@ serve(async (req) => {
         });
 
         // Get the latest quantity for each endereco (highest contagem_num)
-        const quantidadeMap = new Map<string, number>();
+        const quantidadeMap = new Map<string, { quantidade: number; contagem: number }>();
         inventarioAtual?.forEach(inv => {
           const existing = quantidadeMap.get(inv.endereco_material_id);
-          if (existing === undefined || inv.contagem_num > (existing || 0)) {
-            quantidadeMap.set(inv.endereco_material_id, inv.quantidade);
+          if (!existing || inv.contagem_num > existing.contagem) {
+            quantidadeMap.set(inv.endereco_material_id, { 
+              quantidade: inv.quantidade, 
+              contagem: inv.contagem_num 
+            });
           }
         });
 
         // Calculate totals
         enderecosAtivos.forEach(endereco => {
-          const quantidade = quantidadeMap.get(endereco.id) || 0;
+          const invData = quantidadeMap.get(endereco.id);
+          const quantidade = invData?.quantidade || 0;
           const valorUnitario = valorUnitarioMap.get(endereco.codigo) || 0;
           
           totalQuantidadeEstoque += quantidade;
