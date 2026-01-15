@@ -46,10 +46,9 @@ const AprovacaoCodigos = () => {
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectMotivo, setRejectMotivo] = useState('');
 
-  const isAdmin = user?.tipo === 'admin';
+  // Access is controlled by ProtectedRoute via permission 'aprovacao_codigos'
 
   const loadSolicitacoes = async () => {
-    if (!isAdmin) return;
     setIsLoading(true);
     try {
       const result = await listarParaAprovacao();
@@ -59,7 +58,7 @@ const AprovacaoCodigos = () => {
     }
   };
 
-  useEffect(() => { loadSolicitacoes(); }, [isAdmin]);
+  useEffect(() => { loadSolicitacoes(); }, []);
 
   const handleAprovar = async (id: string) => {
     setIsProcessing(id);
@@ -95,15 +94,7 @@ const AprovacaoCodigos = () => {
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-background p-4">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-xl font-bold mb-2">Acesso Negado</h1>
-        <Button onClick={() => navigate('/')}>Voltar ao Início</Button>
-      </div>
-    );
-  }
+  // Access control is handled by ProtectedRoute - if user reached here, they have permission
 
   return (
     <div className="flex h-screen flex-col bg-background overflow-hidden">

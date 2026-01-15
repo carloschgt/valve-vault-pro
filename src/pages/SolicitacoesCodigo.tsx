@@ -47,13 +47,10 @@ const SolicitacoesCodigo = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  // Verificar permissão - Comercial e Admin podem processar códigos
-  const canAccess = isComercial || isAdmin;
+  // Access is controlled by ProtectedRoute via permission 'processar_codigos'
 
   // Carregar solicitações
   const loadSolicitacoes = useCallback(async () => {
-    if (!canAccess) return;
-    
     setIsLoading(true);
     try {
       const result = await listarPendentes();
@@ -69,12 +66,10 @@ const SolicitacoesCodigo = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [canAccess, toast]);
+  }, [toast]);
 
   // Carregar ao montar e configurar realtime
   useEffect(() => {
-    if (!canAccess) return;
-
     loadSolicitacoes();
 
     // Configurar realtime
@@ -96,7 +91,7 @@ const SolicitacoesCodigo = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [canAccess, loadSolicitacoes]);
+  }, [loadSolicitacoes]);
 
   // Bloquear solicitação
   const handleBloquear = async (id: string) => {
@@ -191,18 +186,7 @@ const SolicitacoesCodigo = () => {
   // Verificar se está bloqueado por outro
   const isLockedByOther = (s: Solicitacao) => s.locked_by_id && s.locked_by_id !== user?.id;
 
-  if (!canAccess) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-background p-4">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-xl font-bold mb-2">Acesso Negado</h1>
-        <p className="text-muted-foreground text-center mb-4">
-          Você não tem permissão para acessar esta página.
-        </p>
-        <Button onClick={() => navigate('/')}>Voltar ao Início</Button>
-      </div>
-    );
-  }
+  // Access control is handled by ProtectedRoute - if user reached here, they have permission
 
   const handleLogout = () => {
     logout();
