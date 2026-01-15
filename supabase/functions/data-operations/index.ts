@@ -1461,17 +1461,26 @@ serve(async (req) => {
           );
         }
 
+        // Validar que o novo código tem exatamente 6 caracteres
+        const novoCodigoTrimmed = novo_codigo.trim().toUpperCase();
+        if (novoCodigoTrimmed.length !== 6) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'O código deve ter exatamente 6 caracteres' }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         // Verificar se o novo código já existe
         const { data: existente } = await supabase
           .from("catalogo_produtos")
           .select("id, codigo")
-          .eq("codigo", novo_codigo.trim().toUpperCase())
+          .eq("codigo", novoCodigoTrimmed)
           .neq("id", id)
           .maybeSingle();
 
         if (existente) {
           return new Response(
-            JSON.stringify({ success: false, error: `O código ${novo_codigo.trim().toUpperCase()} já existe no catálogo` }),
+            JSON.stringify({ success: false, error: `O código ${novoCodigoTrimmed} já existe no catálogo` }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
