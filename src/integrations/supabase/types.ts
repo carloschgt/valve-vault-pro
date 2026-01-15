@@ -72,10 +72,12 @@ export type Database = {
           created_at: string
           data_inativacao: string | null
           descricao: string
+          descricao_imex: string | null
           id: string
           inativado_por: string | null
           peso_kg: number | null
           updated_at: string
+          valor_unitario: number | null
         }
         Insert: {
           ativo?: boolean
@@ -83,10 +85,12 @@ export type Database = {
           created_at?: string
           data_inativacao?: string | null
           descricao: string
+          descricao_imex?: string | null
           id?: string
           inativado_por?: string | null
           peso_kg?: number | null
           updated_at?: string
+          valor_unitario?: number | null
         }
         Update: {
           ativo?: boolean
@@ -94,10 +98,12 @@ export type Database = {
           created_at?: string
           data_inativacao?: string | null
           descricao?: string
+          descricao_imex?: string | null
           id?: string
           inativado_por?: string | null
           peso_kg?: number | null
           updated_at?: string
+          valor_unitario?: number | null
         }
         Relationships: []
       }

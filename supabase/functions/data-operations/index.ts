@@ -800,7 +800,7 @@ serve(async (req) => {
         );
       }
 
-      const { codigo, descricao, peso_kg } = params;
+      const { codigo, descricao, peso_kg, descricao_imex, valor_unitario } = params;
       const insertData: Record<string, any> = { 
         codigo: codigo.trim().toUpperCase(), 
         descricao: descricao.trim().toUpperCase(),
@@ -809,6 +809,14 @@ serve(async (req) => {
       
       if (peso_kg !== undefined && peso_kg !== null && peso_kg !== '') {
         insertData.peso_kg = parseFloat(peso_kg);
+      }
+      
+      if (descricao_imex !== undefined && descricao_imex !== null && descricao_imex !== '') {
+        insertData.descricao_imex = descricao_imex.trim().toUpperCase();
+      }
+      
+      if (valor_unitario !== undefined && valor_unitario !== null && valor_unitario !== '') {
+        insertData.valor_unitario = parseFloat(valor_unitario);
       }
       
       const { data, error } = await supabase
@@ -1440,7 +1448,7 @@ serve(async (req) => {
         );
       }
 
-      const { id, codigo, descricao, peso_kg, novo_codigo } = params;
+      const { id, codigo, descricao, peso_kg, novo_codigo, descricao_imex, valor_unitario } = params;
       
       // Se está alterando o código, apenas Super Admin pode fazer isso
       const isSuperAdmin = user.role === 'SUPER_ADMIN';
@@ -1488,6 +1496,12 @@ serve(async (req) => {
       if (descricao !== undefined) updateData.descricao = descricao.trim().toUpperCase();
       if (peso_kg !== undefined && peso_kg !== null && peso_kg !== '') {
         updateData.peso_kg = parseFloat(peso_kg);
+      }
+      if (descricao_imex !== undefined) {
+        updateData.descricao_imex = descricao_imex ? descricao_imex.trim().toUpperCase() : null;
+      }
+      if (valor_unitario !== undefined && valor_unitario !== null && valor_unitario !== '') {
+        updateData.valor_unitario = parseFloat(valor_unitario);
       }
 
       const { data, error } = await supabase
@@ -2959,6 +2973,78 @@ serve(async (req) => {
           } : null,
           inventarioData,
           inventarioAuditData
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== HOME STATS ==========
+    if (action === "home_stats") {
+      // Total active items
+      const { count: totalItens } = await supabase
+        .from("enderecos_materiais")
+        .select("*", { count: "exact", head: true })
+        .eq("ativo", true);
+
+      // Pending codes (waiting approval)
+      const { count: codigosPendentes } = await supabase
+        .from("solicitacoes_codigo")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pendente");
+
+      // Approved codes waiting processing
+      const { count: codigosAprovados } = await supabase
+        .from("solicitacoes_codigo")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "aprovado");
+
+      // Count divergencias (items with different counts between contagem 1 and 2)
+      // Get the current active contagem from config
+      const { data: configData } = await supabase
+        .from("inventario_config")
+        .select("contagem_ativa")
+        .maybeSingle();
+      
+      const contagemAtiva = configData?.contagem_ativa || 1;
+      let divergenciasCount = 0;
+
+      if (contagemAtiva >= 2) {
+        // Get all inventario records for contagem 1 and 2
+        const { data: invData } = await supabase
+          .from("inventario")
+          .select("endereco_material_id, contagem_num, quantidade")
+          .in("contagem_num", [1, 2]);
+
+        if (invData && invData.length > 0) {
+          // Group by endereco_material_id
+          const byEndereco = new Map<string, Map<number, number>>();
+          for (const inv of invData) {
+            if (!byEndereco.has(inv.endereco_material_id)) {
+              byEndereco.set(inv.endereco_material_id, new Map());
+            }
+            byEndereco.get(inv.endereco_material_id)!.set(inv.contagem_num, inv.quantidade);
+          }
+          
+          // Count divergences
+          for (const [_, contagens] of byEndereco) {
+            if (contagens.has(1) && contagens.has(2)) {
+              if (contagens.get(1) !== contagens.get(2)) {
+                divergenciasCount++;
+              }
+            }
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: {
+            totalItens: totalItens || 0,
+            codigosPendentes: codigosPendentes || 0,
+            codigosAprovados: codigosAprovados || 0,
+            divergencias: divergenciasCount
+          }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
