@@ -25,6 +25,7 @@ import { PanelCard } from '@/components/home/PanelCard';
 import { PendingBadge } from '@/components/home/PendingBadge';
 import { BottomNavigation } from '@/components/home/BottomNavigation';
 import { MenuSheet } from '@/components/home/MenuSheet';
+import { DollarQuote } from '@/components/home/DollarQuote';
 
 interface QRData {
   cod?: string;
@@ -300,20 +301,23 @@ const Home = () => {
 
       {/* Main Content */}
       <main className="flex-1 px-4 pb-4 space-y-6 animate-fade-in">
-        {/* Greeting */}
-        <div className="flex items-center justify-between">
-          <div>
+        {/* Greeting + Dollar Quote */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-foreground">
               Olá, {user?.nome?.split(' ')[0] || 'Usuário'}!
             </h1>
             <p className="text-sm text-muted-foreground">O que você precisa fazer hoje?</p>
           </div>
-          {isSuperAdmin && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
-              <Shield className="h-3 w-3" />
-              Super Admin
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            <DollarQuote />
+            {isSuperAdmin && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
+                <Shield className="h-3 w-3" />
+                Super Admin
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Quick Actions */}
