@@ -44,7 +44,7 @@ interface HomeStats {
   totalItens: number;
   divergencias: number;
   codigosPendentes: number;
-  codigosAprovados: number;
+  codigosAguardandoAprovacao: number;
   chartData: ChartDataPoint[];
 }
 
@@ -62,7 +62,7 @@ const Home = () => {
     totalItens: 0,
     divergencias: 0,
     codigosPendentes: 0,
-    codigosAprovados: 0,
+    codigosAguardandoAprovacao: 0,
     chartData: [],
   });
   const [statsLoading, setStatsLoading] = useState(true);
@@ -78,7 +78,7 @@ const Home = () => {
           totalItens: result.data.totalItens || 0,
           divergencias: result.data.divergencias || 0,
           codigosPendentes: result.data.codigosPendentes || 0,
-          codigosAprovados: result.data.codigosAprovados || 0,
+          codigosAguardandoAprovacao: result.data.codigosAguardandoAprovacao || 0,
           chartData: result.data.chartData || [],
         });
         setLastRefresh(new Date());
@@ -392,7 +392,7 @@ const Home = () => {
               {hasPermission(MENU_KEYS.processar_codigos) && (
                 <PendingBadge
                   title="Códigos para Processar"
-                  count={stats.codigosAprovados}
+                  count={stats.codigosPendentes}
                   icon={CheckSquare}
                   onClick={() => navigate('/processar-codigos')}
                   variant="info"
@@ -401,7 +401,7 @@ const Home = () => {
               {hasPermission(MENU_KEYS.aprovacao_codigos) && (
                 <PendingBadge
                   title="Aguardando Aprovação"
-                  count={stats.codigosPendentes}
+                  count={stats.codigosAguardandoAprovacao}
                   icon={Shield}
                   onClick={() => navigate('/aprovacao-codigos')}
                   variant="purple"

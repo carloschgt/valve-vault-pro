@@ -2986,17 +2986,17 @@ serve(async (req) => {
         .select("*", { count: "exact", head: true })
         .eq("ativo", true);
 
-      // Pending codes (waiting approval)
+      // Codes waiting admin approval (codigo_gerado status)
+      const { count: codigosAguardandoAprovacao } = await supabase
+        .from("solicitacoes_codigo")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "codigo_gerado");
+
+      // Pending codes waiting for comercial to generate code (pendente or em_processamento)
       const { count: codigosPendentes } = await supabase
         .from("solicitacoes_codigo")
         .select("*", { count: "exact", head: true })
-        .eq("status", "pendente");
-
-      // Approved codes waiting processing
-      const { count: codigosAprovados } = await supabase
-        .from("solicitacoes_codigo")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "aprovado");
+        .in("status", ["pendente", "em_processamento"]);
 
       // Count divergencias (items with different counts between contagem 1 and 2)
       // Get the current active contagem from config
@@ -3085,7 +3085,7 @@ serve(async (req) => {
           data: {
             totalItens: totalItens || 0,
             codigosPendentes: codigosPendentes || 0,
-            codigosAprovados: codigosAprovados || 0,
+            codigosAguardandoAprovacao: codigosAguardandoAprovacao || 0,
             divergencias: divergenciasCount,
             chartData
           }
