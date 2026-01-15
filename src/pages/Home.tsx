@@ -302,22 +302,22 @@ const Home = () => {
       {/* Main Content */}
       <main className="flex-1 px-4 pb-4 space-y-6 animate-fade-in">
         {/* Greeting + Dollar Quote */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-foreground">
-              Olá, {user?.nome?.split(' ')[0] || 'Usuário'}!
-            </h1>
-            <p className="text-sm text-muted-foreground">O que você precisa fazer hoje?</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <DollarQuote />
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h1 className="text-lg font-bold text-foreground">
+                Olá, {user?.nome?.split(' ')[0] || 'Usuário'}!
+              </h1>
+              <p className="text-sm text-muted-foreground">O que você precisa fazer hoje?</p>
+            </div>
             {isSuperAdmin && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm shrink-0">
                 <Shield className="h-3 w-3" />
                 Super Admin
               </span>
             )}
           </div>
+          <DollarQuote />
         </div>
 
         {/* Quick Actions */}
