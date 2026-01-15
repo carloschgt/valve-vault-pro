@@ -267,7 +267,7 @@ serve(async (req) => {
       
       const { data, error } = await supabase
         .from("catalogo_produtos")
-        .select("id, codigo, descricao, peso_kg, ativo")
+        .select("id, codigo, descricao, descricao_imex, peso_kg, valor_unitario, ativo")
         .eq("codigo", codigoTrimmed)
         .maybeSingle();
       if (error) throw error;
@@ -1760,7 +1760,30 @@ serve(async (req) => {
           endereco_id: string;
         }[];
         qtd_total: number;
+        valor_unitario: number | null;
       }> = {};
+
+      // Collect all unique codes for catalog lookup
+      const uniqueCodes = new Set<string>();
+      for (const inv of filteredData) {
+        const mat = inv.enderecos_materiais as any;
+        if (mat?.codigo) uniqueCodes.add(mat.codigo);
+      }
+
+      // Fetch catalog values for all codes at once
+      const catalogValues: Record<string, number | null> = {};
+      if (uniqueCodes.size > 0) {
+        const { data: catalogData } = await supabase
+          .from("catalogo_produtos")
+          .select("codigo, valor_unitario")
+          .in("codigo", Array.from(uniqueCodes));
+        
+        if (catalogData) {
+          for (const cat of catalogData) {
+            catalogValues[cat.codigo] = cat.valor_unitario;
+          }
+        }
+      }
 
       for (const inv of filteredData) {
         const mat = inv.enderecos_materiais as any;
@@ -1775,6 +1798,7 @@ serve(async (req) => {
             tipo_material: mat.tipo_material,
             enderecos: [],
             qtd_total: 0,
+            valor_unitario: catalogValues[matCodigo] ?? null,
           };
         }
 
