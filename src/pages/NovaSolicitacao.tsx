@@ -109,7 +109,8 @@ const NovaSolicitacao = () => {
   const [isEditing, setIsEditing] = useState(false);
 
   const isAdmin = user?.tipo === 'admin';
-  const canAccess = user?.tipo === 'user' || isAdmin;
+  // Access is controlled by ProtectedRoute via permission 'solicitar_codigo'
+  // No need for redundant check here - if user reached this page, they have permission
 
   const loadFabricantes = async () => {
     const result = await listFabricantes();
@@ -119,7 +120,6 @@ const NovaSolicitacao = () => {
   };
 
   const loadSolicitacoes = useCallback(async () => {
-    if (!canAccess) return;
     setIsLoading(true);
     try {
       // Admin vê todas, user vê só as suas
@@ -130,32 +130,30 @@ const NovaSolicitacao = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [canAccess, isAdmin]);
+  }, [isAdmin]);
 
   useEffect(() => {
-    if (canAccess) {
-      loadFabricantes();
-      loadSolicitacoes();
+    loadFabricantes();
+    loadSolicitacoes();
 
-      // Realtime para atualizar status
-      const channel = supabase
-        .channel('minhas-solicitacoes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'solicitacoes_codigo'
-          },
-          () => loadSolicitacoes()
-        )
-        .subscribe();
+    // Realtime para atualizar status
+    const channel = supabase
+      .channel('minhas-solicitacoes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'solicitacoes_codigo'
+        },
+        () => loadSolicitacoes()
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [canAccess, loadSolicitacoes]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadSolicitacoes]);
 
   const handleSubmit = async () => {
     if (!descricao.trim()) {
@@ -304,19 +302,7 @@ const NovaSolicitacao = () => {
     }
   };
 
-  if (!canAccess) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-background p-4">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-xl font-bold mb-2">Acesso Negado</h1>
-        <p className="text-muted-foreground text-center mb-4">
-          Você não tem permissão para acessar esta página.
-        </p>
-        <Button onClick={() => navigate('/')}>Voltar ao Início</Button>
-      </div>
-    );
-  }
-
+  // Access control is handled by ProtectedRoute - if user reached here, they have permission
   return (
     <div className="flex h-screen flex-col bg-background overflow-hidden">
       {/* Header */}
