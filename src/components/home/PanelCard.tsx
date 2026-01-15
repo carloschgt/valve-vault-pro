@@ -66,20 +66,20 @@ export const PanelCard: React.FC<PanelCardProps> = ({
             ))}
           </div>
         ) : chartData && chartData.length > 0 ? (
-          <div className="flex items-end gap-1 h-16 mt-auto">
+          <div className="flex items-end gap-1 h-20 mt-auto">
             {chartData.map((data, i) => {
-              const enderecadosHeight = maxValue > 0 ? (data.enderecados / maxValue) * 100 : 0;
-              const inventarioHeight = maxValue > 0 ? (data.inventario / maxValue) * 100 : 0;
+              const enderecadosHeight = maxValue > 0 ? (data.enderecados / maxValue) * 72 : 4;
+              const inventarioHeight = maxValue > 0 ? (data.inventario / maxValue) * 72 : 4;
               
               return (
-                <div key={i} className="flex-1 flex gap-0.5" title={`${data.month}: ${data.enderecados} end. / ${data.inventario} inv.`}>
+                <div key={i} className="flex-1 flex items-end gap-0.5 h-full" title={`${data.month}: ${data.enderecados} end. / ${data.inventario} inv.`}>
                   <div
-                    className="flex-1 rounded-t bg-primary/60 transition-all duration-500"
-                    style={{ height: `${Math.max(enderecadosHeight, 5)}%` }}
+                    className="flex-1 rounded-t bg-primary transition-all duration-500"
+                    style={{ height: `${Math.max(enderecadosHeight, 4)}px` }}
                   />
                   <div
-                    className="flex-1 rounded-t bg-secondary/60 transition-all duration-500"
-                    style={{ height: `${Math.max(inventarioHeight, 5)}%` }}
+                    className="flex-1 rounded-t bg-secondary transition-all duration-500"
+                    style={{ height: `${Math.max(inventarioHeight, 4)}px` }}
                   />
                 </div>
               );
@@ -105,11 +105,11 @@ export const PanelCard: React.FC<PanelCardProps> = ({
         {/* Legend */}
         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-primary/60" />
+            <div className="h-2 w-2 rounded-full bg-primary" />
             <span>Endereçados ({totalEnderecados})</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full bg-secondary/60" />
+            <div className="h-2 w-2 rounded-full bg-secondary" />
             <span>Inventário ({totalInventario})</span>
           </div>
         </div>
