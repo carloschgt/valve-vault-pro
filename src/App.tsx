@@ -58,6 +58,7 @@ const App = () => (
             <Route path="/admin" element={<ProtectedRoute requiredPermission="admin_panel"><Admin /></ProtectedRoute>} />
             <Route path="/admin/usuarios/:id" element={<ProtectedRoute requiredPermission="admin_panel"><AdminUserDetail /></ProtectedRoute>} />
             <Route path="/admin/perfis" element={<ProtectedRoute requiredPermission="admin_panel"><GerenciarPerfis /></ProtectedRoute>} />
+            <Route path="/gerenciar-perfis" element={<ProtectedRoute requiredPermission="admin_panel"><GerenciarPerfis /></ProtectedRoute>} />
             <Route path="/gerenciamento-dados" element={<ProtectedRoute requiredPermission="gerenciamento_dados"><GerenciamentoDados /></ProtectedRoute>} />
             <Route path="/etiquetas" element={<ProtectedRoute requiredPermission="etiquetas"><Etiquetas /></ProtectedRoute>} />
             <Route path="/estoque-atual" element={<ProtectedRoute requiredPermission="estoque_atual"><EstoqueAtual /></ProtectedRoute>} />
