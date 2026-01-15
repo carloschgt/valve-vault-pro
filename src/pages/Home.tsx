@@ -34,12 +34,21 @@ interface QRData {
   rua?: number;
 }
 
+interface ChartDataPoint {
+  month: string;
+  enderecados: number;
+  inventario: number;
+}
+
 interface HomeStats {
   totalItens: number;
   divergencias: number;
   codigosPendentes: number;
   codigosAprovados: number;
+  chartData: ChartDataPoint[];
 }
+
+const REFRESH_INTERVAL = 30000; // 30 seconds
 
 const Home = () => {
   const navigate = useNavigate();
@@ -54,31 +63,45 @@ const Home = () => {
     divergencias: 0,
     codigosPendentes: 0,
     codigosAprovados: 0,
+    chartData: [],
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Fetch stats using authenticated endpoint
-  useEffect(() => {
-    const fetchStats = async () => {
-      setStatsLoading(true);
-      try {
-        const result = await getHomeStats();
-        if (result.success && result.data) {
-          setStats({
-            totalItens: result.data.totalItens || 0,
-            divergencias: result.data.divergencias || 0,
-            codigosPendentes: result.data.codigosPendentes || 0,
-            codigosAprovados: result.data.codigosAprovados || 0,
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      } finally {
-        setStatsLoading(false);
+  // Fetch stats using authenticated endpoint with auto-refresh
+  const fetchStats = async (showLoader = true) => {
+    if (showLoader) setStatsLoading(true);
+    try {
+      const result = await getHomeStats();
+      if (result.success && result.data) {
+        setStats({
+          totalItens: result.data.totalItens || 0,
+          divergencias: result.data.divergencias || 0,
+          codigosPendentes: result.data.codigosPendentes || 0,
+          codigosAprovados: result.data.codigosAprovados || 0,
+          chartData: result.data.chartData || [],
+        });
+        setLastRefresh(new Date());
       }
-    };
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
-    fetchStats();
+  // Initial fetch
+  useEffect(() => {
+    fetchStats(true);
+  }, []);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchStats(false); // Don't show loading indicator on auto-refresh
+    }, REFRESH_INTERVAL);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Handle QR code scan
@@ -319,13 +342,20 @@ const Home = () => {
 
         {/* Panels */}
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Painéis</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Painéis</h2>
+            <span className="text-[10px] text-muted-foreground">
+              Atualizado: {lastRefresh.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {hasPermission(MENU_KEYS.dashboard) && (
               <PanelCard
                 title="Dashboard Tempo Real"
                 onClick={() => navigate('/dashboard')}
                 variant="dashboard"
+                chartData={stats.chartData}
+                isLoading={statsLoading}
               />
             )}
             {hasPermission(MENU_KEYS.estoque_atual) && (
@@ -337,6 +367,7 @@ const Home = () => {
                   total: stats.totalItens,
                   divergencias: stats.divergencias,
                 }}
+                isLoading={statsLoading}
               />
             )}
           </div>

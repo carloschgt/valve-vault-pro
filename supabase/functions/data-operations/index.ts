@@ -3036,6 +3036,49 @@ serve(async (req) => {
         }
       }
 
+      // Get last 6 months chart data for dashboard
+      const now = new Date();
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      
+      // Fetch endereçamentos (items created in last 6 months)
+      const { data: enderecamentosData } = await supabase
+        .from("enderecos_materiais")
+        .select("created_at")
+        .gte("created_at", sixMonthsAgo.toISOString())
+        .eq("ativo", true);
+      
+      // Fetch inventário counts in last 6 months
+      const { data: inventarioData } = await supabase
+        .from("inventario")
+        .select("created_at")
+        .gte("created_at", sixMonthsAgo.toISOString());
+
+      // Group by month
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const chartData: { month: string; enderecados: number; inventario: number }[] = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthIndex = monthDate.getMonth();
+        const monthYear = monthDate.getFullYear();
+        
+        const enderecadosCount = enderecamentosData?.filter(item => {
+          const date = new Date(item.created_at);
+          return date.getMonth() === monthIndex && date.getFullYear() === monthYear;
+        }).length || 0;
+        
+        const inventarioCount = inventarioData?.filter(item => {
+          const date = new Date(item.created_at);
+          return date.getMonth() === monthIndex && date.getFullYear() === monthYear;
+        }).length || 0;
+        
+        chartData.push({
+          month: monthNames[monthIndex],
+          enderecados: enderecadosCount,
+          inventario: inventarioCount
+        });
+      }
+
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -3043,7 +3086,8 @@ serve(async (req) => {
             totalItens: totalItens || 0,
             codigosPendentes: codigosPendentes || 0,
             codigosAprovados: codigosAprovados || 0,
-            divergencias: divergenciasCount
+            divergencias: divergenciasCount,
+            chartData
           }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
