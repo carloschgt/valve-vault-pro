@@ -367,7 +367,7 @@ serve(async (req) => {
         );
       }
 
-      const { solicitacao_id, codigo } = params;
+      const { solicitacao_id, codigo, descricao_imex } = params;
 
       if (!codigo || !codigo.trim()) {
         return new Response(
@@ -435,11 +435,12 @@ serve(async (req) => {
         );
       }
 
-      // Salvar código
+      // Salvar código e descrição IMEX
       const { data, error } = await supabase
         .from("solicitacoes_codigo")
         .update({
           codigo_gerado: codigoUpper,
+          descricao_imex: descricao_imex?.trim() || null,
           processado_por: user.nome,
           processado_por_id: user.id,
           processado_em: new Date().toISOString(),
@@ -515,12 +516,14 @@ serve(async (req) => {
         );
       }
 
-      // Adicionar ao catálogo
+      // Adicionar ao catálogo com descrição IMEX e peso
       const { error: catalogoError } = await supabase
         .from("catalogo_produtos")
         .insert({
           codigo: solicitacao.codigo_gerado,
-          descricao: solicitacao.descricao
+          descricao: solicitacao.descricao,
+          descricao_imex: solicitacao.descricao_imex || null,
+          peso_kg: solicitacao.peso || null
         });
 
       if (catalogoError) throw catalogoError;

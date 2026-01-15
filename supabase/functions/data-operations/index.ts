@@ -1770,17 +1770,20 @@ serve(async (req) => {
         if (mat?.codigo) uniqueCodes.add(mat.codigo);
       }
 
-      // Fetch catalog values for all codes at once
-      const catalogValues: Record<string, number | null> = {};
+      // Fetch catalog data (valor_unitario and descricao_imex) for all codes at once
+      const catalogData: Record<string, { valor_unitario: number | null; descricao_imex: string | null }> = {};
       if (uniqueCodes.size > 0) {
-        const { data: catalogData } = await supabase
+        const { data: catData } = await supabase
           .from("catalogo_produtos")
-          .select("codigo, valor_unitario")
+          .select("codigo, valor_unitario, descricao_imex")
           .in("codigo", Array.from(uniqueCodes));
         
-        if (catalogData) {
-          for (const cat of catalogData) {
-            catalogValues[cat.codigo] = cat.valor_unitario;
+        if (catData) {
+          for (const cat of catData) {
+            catalogData[cat.codigo] = { 
+              valor_unitario: cat.valor_unitario,
+              descricao_imex: cat.descricao_imex
+            };
           }
         }
       }
@@ -1791,14 +1794,18 @@ serve(async (req) => {
 
         const matCodigo = mat.codigo;
         if (!grouped[matCodigo]) {
+          // Priorizar descricao_imex do catálogo, depois do endereço
+          const catInfo = catalogData[matCodigo];
+          const descImex = catInfo?.descricao_imex || mat.descricao_imex || null;
+          
           grouped[matCodigo] = {
             codigo: matCodigo,
             descricao: mat.descricao,
-            descricao_imex: mat.descricao_imex || null,
+            descricao_imex: descImex,
             tipo_material: mat.tipo_material,
             enderecos: [],
             qtd_total: 0,
-            valor_unitario: catalogValues[matCodigo] ?? null,
+            valor_unitario: catInfo?.valor_unitario ?? null,
           };
         }
 

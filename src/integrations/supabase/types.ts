@@ -612,6 +612,7 @@ export type Database = {
           codigo_gerado: string | null
           created_at: string
           descricao: string
+          descricao_imex: string | null
           fabricante_id: string | null
           id: string
           locked_at: string | null
@@ -635,6 +636,7 @@ export type Database = {
           codigo_gerado?: string | null
           created_at?: string
           descricao: string
+          descricao_imex?: string | null
           fabricante_id?: string | null
           id?: string
           locked_at?: string | null
@@ -658,6 +660,7 @@ export type Database = {
           codigo_gerado?: string | null
           created_at?: string
           descricao?: string
+          descricao_imex?: string | null
           fabricante_id?: string | null
           id?: string
           locked_at?: string | null
