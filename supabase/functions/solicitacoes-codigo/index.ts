@@ -11,7 +11,7 @@ const corsHeaders = {
 async function verifySession(supabase: any, sessionToken: string): Promise<{ 
   success: boolean; 
   error?: string; 
-  user?: { id: string; email: string; nome: string; tipo: string } 
+  user?: { id: string; email: string; nome: string; tipo: string; role: string } 
 }> {
   if (!sessionToken) {
     return { success: false, error: 'Token de sessão não fornecido' };
@@ -34,7 +34,7 @@ async function verifySession(supabase: any, sessionToken: string): Promise<{
 
   const { data: usuario, error: findError } = await supabase
     .from("usuarios")
-    .select("id, email, nome, tipo, aprovado")
+    .select("id, email, nome, tipo, role, aprovado")
     .eq("email", session.user_email.toLowerCase())
     .maybeSingle();
 
@@ -52,7 +52,8 @@ async function verifySession(supabase: any, sessionToken: string): Promise<{
       id: usuario.id, 
       email: usuario.email, 
       nome: usuario.nome, 
-      tipo: usuario.tipo 
+      tipo: usuario.tipo,
+      role: usuario.role || 'USER'
     } 
   };
 }
@@ -377,6 +378,14 @@ serve(async (req) => {
       }
 
       const codigoUpper = codigo.trim().toUpperCase();
+
+      // Validar que código tem exatamente 6 caracteres
+      if (codigoUpper.length !== 6) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'O código deve ter exatamente 6 caracteres' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Verificar se código já existe no catálogo
       const { data: catalogoExistente } = await supabase
@@ -840,6 +849,89 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, data: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== EDITAR CÓDIGO AGUARDANDO APROVAÇÃO (Super Admin) ==========
+    if (action === "editar_codigo_aguardando") {
+      const isSuperAdmin = user.role === 'SUPER_ADMIN';
+      
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas Super Administradores podem editar códigos aguardando aprovação' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { solicitacao_id, novo_codigo } = params;
+
+      if (!solicitacao_id || !novo_codigo) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'ID da solicitação e novo código são obrigatórios' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const codigoTrimmed = novo_codigo.trim().toUpperCase();
+      
+      if (codigoTrimmed.length !== 6) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'O código deve ter exatamente 6 caracteres' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verificar se solicitação existe e está aguardando aprovação
+      const { data: solicitacao, error: solError } = await supabase
+        .from("solicitacoes_codigo")
+        .select("*")
+        .eq("id", solicitacao_id)
+        .eq("status", "aguardando_aprovacao")
+        .maybeSingle();
+
+      if (solError || !solicitacao) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Solicitação não encontrada ou não está aguardando aprovação' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verificar se o novo código já existe no catálogo
+      const { data: existing } = await supabase
+        .from("catalogo_produtos")
+        .select("codigo, descricao")
+        .eq("codigo", codigoTrimmed)
+        .maybeSingle();
+
+      if (existing) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Código ${codigoTrimmed} já existe no catálogo`,
+            existingItem: existing
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Atualizar o código
+      const { data, error } = await supabase
+        .from("solicitacoes_codigo")
+        .update({
+          codigo_gerado: codigoTrimmed,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", solicitacao_id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      console.log(`Código da solicitação #${data.numero_solicitacao} editado por Super Admin ${user.nome}: ${solicitacao.codigo_gerado} -> ${codigoTrimmed}`);
+
+      return new Response(
+        JSON.stringify({ success: true, data }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
