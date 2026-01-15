@@ -60,13 +60,17 @@ export function useUserPermissions(): UserPermissions {
     });
   }
 
-  const { data: permissions = {}, isLoading } = useQuery({
-    queryKey: ['user_permissions', user?.tipo],
+  const { data: permissions = {}, isLoading, refetch } = useQuery({
+    queryKey: ['user_permissions', user?.tipo, user?.id],
     queryFn: async () => {
-      if (!user?.tipo) return {};
+      if (!user?.tipo) {
+        console.log('[useUserPermissions] No user tipo, returning empty permissions');
+        return {};
+      }
       
       // Admin e Super Admin têm acesso total
       if (isAdmin || isSuperAdmin) {
+        console.log('[useUserPermissions] Admin/SuperAdmin detected, granting all permissions');
         const allPermissions: Record<string, boolean> = {};
         Object.keys(MENU_KEYS).forEach(key => {
           allPermissions[key] = true;
@@ -74,23 +78,32 @@ export function useUserPermissions(): UserPermissions {
         return allPermissions;
       }
       
+      console.log('[useUserPermissions] Fetching permissions for tipo:', user.tipo);
+      
       const { data, error } = await supabase.functions.invoke('admin-users', {
         body: { 
           action: 'getUserPermissions', 
           userTipo: user.tipo,
-          adminEmail: user.email // Required for the Edge Function
+          adminEmail: user.email
         },
       });
       
       if (error) {
-        console.error('Error fetching permissions:', error);
+        console.error('[useUserPermissions] Error fetching permissions:', error);
         return {};
       }
       
-      return data.permissions || {};
+      console.log('[useUserPermissions] Received permissions:', data);
+      
+      if (data?.profileNotFound) {
+        console.warn('[useUserPermissions] Profile not found for tipo:', user.tipo);
+      }
+      
+      return data?.permissions || {};
     },
     enabled: !!user?.tipo,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 60 * 1000, // Cache for 1 minute only (reduced from 5 minutes)
+    refetchOnWindowFocus: true, // Refetch when user returns to the tab
   });
 
   const hasPermission = (menuKey: string): boolean => {

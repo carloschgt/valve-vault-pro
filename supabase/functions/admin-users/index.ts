@@ -132,6 +132,8 @@ serve(async (req) => {
     if (action === "getUserPermissions") {
       const { userTipo } = body;
 
+      console.log(`[getUserPermissions] Fetching permissions for userTipo: "${userTipo}"`);
+
       if (!userTipo) {
         return new Response(
           JSON.stringify({ success: false, error: "Tipo de usuário não fornecido" }),
@@ -139,34 +141,41 @@ serve(async (req) => {
         );
       }
 
-      // Get profile by name
-      const { data: userProfile } = await supabase
+      // Get profile by name (case-insensitive)
+      const { data: userProfile, error: profileError } = await supabase
         .from("user_profiles")
-        .select("id")
-        .eq("nome", userTipo)
+        .select("id, nome")
+        .ilike("nome", userTipo)
         .maybeSingle();
 
+      console.log(`[getUserPermissions] Profile lookup result:`, { userProfile, profileError });
+
       if (!userProfile) {
+        console.log(`[getUserPermissions] Profile not found for tipo: "${userTipo}"`);
         // Return default permissions if profile not found
         return new Response(
-          JSON.stringify({ success: true, permissions: {} }),
+          JSON.stringify({ success: true, permissions: {}, profileNotFound: true }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       // Get permissions
-      const { data: permissions } = await supabase
+      const { data: permissions, error: permError } = await supabase
         .from("profile_permissions")
         .select("menu_key, can_access")
         .eq("profile_id", userProfile.id);
+
+      console.log(`[getUserPermissions] Permissions for profile ${userProfile.nome}:`, permissions);
 
       const permissionsMap: Record<string, boolean> = {};
       (permissions || []).forEach((p: any) => {
         permissionsMap[p.menu_key] = p.can_access;
       });
 
+      console.log(`[getUserPermissions] Returning permissions map:`, permissionsMap);
+
       return new Response(
-        JSON.stringify({ success: true, permissions: permissionsMap }),
+        JSON.stringify({ success: true, permissions: permissionsMap, profileFound: userProfile.nome }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
