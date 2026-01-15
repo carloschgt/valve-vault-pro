@@ -3104,31 +3104,37 @@ serve(async (req) => {
       }
 
       // ========== STOCK VALUE CALCULATION ==========
-      // Get all active addresses with their latest inventory count
-      const { data: enderecosAtivos } = await supabase
-        .from("enderecos_materiais")
-        .select("id, codigo")
-        .eq("ativo", true);
+      // Get total quantity directly from inventory joined with active addresses
+      const { data: stockData, error: stockError } = await supabase
+        .from("inventario")
+        .select(`
+          quantidade,
+          contagem_num,
+          endereco_material_id,
+          enderecos_materiais!inner (
+            id,
+            codigo,
+            ativo
+          )
+        `)
+        .eq("enderecos_materiais.ativo", true);
+
+      console.log(`[home_stats] Stock query: ${stockData?.length || 0} records, error: ${stockError?.message || 'none'}`);
 
       let totalQuantidadeEstoque = 0;
       let totalValorEstoque = 0;
 
-      if (enderecosAtivos && enderecosAtivos.length > 0) {
-        // Get latest inventory count for each endereco
-        const enderecoIds = enderecosAtivos.map(e => e.id);
-        const { data: inventarioAtual } = await supabase
-          .from("inventario")
-          .select("endereco_material_id, quantidade, contagem_num")
-          .in("endereco_material_id", enderecoIds);
-
+      if (stockData && stockData.length > 0) {
+        // Get unique codigos for valor lookup
+        const codigos = [...new Set(stockData.map((s: any) => s.enderecos_materiais.codigo))];
+        
         // Get unit values from catalogo_produtos
-        const codigos = [...new Set(enderecosAtivos.map(e => e.codigo))];
         const { data: catalogoData } = await supabase
           .from("catalogo_produtos")
           .select("codigo, valor_unitario")
           .in("codigo", codigos);
 
-        // Create maps for quick lookup
+        // Create map for valor lookup
         const valorUnitarioMap = new Map<string, number>();
         catalogoData?.forEach(item => {
           if (item.valor_unitario !== null) {
@@ -3137,26 +3143,27 @@ serve(async (req) => {
         });
 
         // Get the latest quantity for each endereco (highest contagem_num)
-        const quantidadeMap = new Map<string, { quantidade: number; contagem: number }>();
-        inventarioAtual?.forEach(inv => {
-          const existing = quantidadeMap.get(inv.endereco_material_id);
+        const quantidadeMap = new Map<string, { quantidade: number; contagem: number; codigo: string }>();
+        stockData.forEach((inv: any) => {
+          const enderecoId = inv.endereco_material_id;
+          const existing = quantidadeMap.get(enderecoId);
           if (!existing || inv.contagem_num > existing.contagem) {
-            quantidadeMap.set(inv.endereco_material_id, { 
+            quantidadeMap.set(enderecoId, { 
               quantidade: inv.quantidade, 
-              contagem: inv.contagem_num 
+              contagem: inv.contagem_num,
+              codigo: inv.enderecos_materiais.codigo
             });
           }
         });
 
         // Calculate totals
-        enderecosAtivos.forEach(endereco => {
-          const invData = quantidadeMap.get(endereco.id);
-          const quantidade = invData?.quantidade || 0;
-          const valorUnitario = valorUnitarioMap.get(endereco.codigo) || 0;
-          
-          totalQuantidadeEstoque += quantidade;
-          totalValorEstoque += quantidade * valorUnitario;
+        quantidadeMap.forEach((data) => {
+          const valorUnitario = valorUnitarioMap.get(data.codigo) || 0;
+          totalQuantidadeEstoque += data.quantidade;
+          totalValorEstoque += data.quantidade * valorUnitario;
         });
+
+        console.log(`[home_stats] Calculated: ${quantidadeMap.size} unique items, total qty: ${totalQuantidadeEstoque}, total value: ${totalValorEstoque}`);
       }
 
       // ========== MONTHLY VALUE CHART (last 6 months) ==========
