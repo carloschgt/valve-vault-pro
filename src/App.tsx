@@ -47,6 +47,7 @@ const App = () => (
             <Route path="/etiquetas/print" element={<ProtectedRoute allowRoles={['admin', 'user', 'estoque']}><EtiquetaPrint /></ProtectedRoute>} />
             <Route path="/etiquetas/identificacao-rua" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><IdentificacaoRuaPrint /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute requiredPermission="home"><Home /></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute requiredPermission="home"><Home /></ProtectedRoute>} />
             <Route path="/enderecamento" element={<ProtectedRoute requiredPermission="enderecamento"><Enderecamento /></ProtectedRoute>} />
             <Route path="/inventario" element={<ProtectedRoute requiredPermission="inventario"><Inventario /></ProtectedRoute>} />
             <Route path="/fabricantes" element={<ProtectedRoute requiredPermission="fabricantes"><Fabricantes /></ProtectedRoute>} />
