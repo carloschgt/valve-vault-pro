@@ -763,8 +763,7 @@ serve(async (req) => {
         );
       }
 
-      const body = await req.clone().json();
-      const { profile } = body;
+      // profile already extracted from body at the beginning (line 91)
 
       if (!profile?.nome) {
         return new Response(
