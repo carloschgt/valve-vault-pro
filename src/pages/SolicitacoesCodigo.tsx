@@ -147,10 +147,21 @@ const SolicitacoesCodigo = () => {
 
   // Salvar código
   const handleSalvarCodigo = async () => {
-    if (!selectedId || !codigoInput.trim()) {
+    const codigoTrimmed = codigoInput.trim();
+    
+    if (!selectedId || !codigoTrimmed) {
       toast({
         title: 'Atenção',
         description: 'Digite o código antes de salvar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (codigoTrimmed.length !== 6) {
+      toast({
+        title: 'Código inválido',
+        description: 'O código deve ter exatamente 6 caracteres',
         variant: 'destructive',
       });
       return;
@@ -287,13 +298,19 @@ const SolicitacoesCodigo = () => {
                   {isLockedByMe(s) ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <Input
-                          placeholder="Digite o código"
-                          value={codigoInput}
-                          onChange={(e) => setCodigoInput(e.target.value.toUpperCase())}
-                          className="h-8 text-sm flex-1"
-                          disabled={isSaving}
-                        />
+                        <div className="flex-1 space-y-1">
+                          <Input
+                            placeholder="Digite o código (6 caracteres)"
+                            value={codigoInput}
+                            onChange={(e) => setCodigoInput(e.target.value.toUpperCase().slice(0, 6))}
+                            className={`h-8 text-sm ${codigoInput.length > 0 && codigoInput.length !== 6 ? 'border-destructive' : ''}`}
+                            disabled={isSaving}
+                            maxLength={6}
+                          />
+                          {codigoInput.length > 0 && codigoInput.length !== 6 && (
+                            <p className="text-xs text-destructive">{codigoInput.length}/6 caracteres</p>
+                          )}
+                        </div>
                         <Button
                           size="sm"
                           onClick={handleSalvarCodigo}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Check, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Check, X, RefreshCw, AlertCircle, Edit2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ import { listarParaAprovacao, aprovarCodigo, rejeitarCodigo } from '@/hooks/useS
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import logoImex from '@/assets/logo-imex.png';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Solicitacao {
   id: string;
@@ -39,12 +40,18 @@ const AprovacaoCodigos = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectMotivo, setRejectMotivo] = useState('');
+  
+  // State for editing code (Super Admin only)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editedCodigo, setEditedCodigo] = useState('');
 
   // Access is controlled by ProtectedRoute via permission 'aprovacao_codigos'
 
@@ -60,7 +67,79 @@ const AprovacaoCodigos = () => {
 
   useEffect(() => { loadSolicitacoes(); }, []);
 
+  const handleStartEdit = (s: Solicitacao) => {
+    setEditingId(s.id);
+    setEditedCodigo(s.codigo_gerado);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditedCodigo('');
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    const codigoTrimmed = editedCodigo.trim();
+    
+    if (codigoTrimmed.length !== 6) {
+      toast({
+        title: 'Código inválido',
+        description: 'O código deve ter exatamente 6 caracteres',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(id);
+    try {
+      // Get session token
+      const stored = localStorage.getItem('imex_auth_user');
+      if (!stored) {
+        toast({ title: 'Erro', description: 'Sessão não encontrada', variant: 'destructive' });
+        return;
+      }
+      const { sessionToken } = JSON.parse(stored);
+
+      const { data, error } = await supabase.functions.invoke('solicitacoes-codigo', {
+        body: { 
+          action: 'editar_codigo_aguardando',
+          sessionToken,
+          solicitacao_id: id,
+          novo_codigo: codigoTrimmed
+        }
+      });
+
+      if (error || !data?.success) {
+        toast({ 
+          title: 'Erro', 
+          description: data?.error || error?.message || 'Erro ao editar código', 
+          variant: 'destructive' 
+        });
+      } else {
+        toast({ title: 'Sucesso', description: 'Código atualizado!' });
+        setEditingId(null);
+        setEditedCodigo('');
+        loadSolicitacoes();
+      }
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
   const handleAprovar = async (id: string) => {
+    // If editing, validate the edited code first
+    if (editingId === id) {
+      if (editedCodigo.trim().length !== 6) {
+        toast({
+          title: 'Código inválido',
+          description: 'O código deve ter exatamente 6 caracteres',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Save edit first, then approve
+      await handleSaveEdit(id);
+    }
+    
     setIsProcessing(id);
     try {
       const result = await aprovarCodigo(id);
@@ -121,7 +200,35 @@ const AprovacaoCodigos = () => {
             <div key={s.id} className="border border-border rounded-lg p-3 bg-card">
               <div className="flex items-center gap-2 mb-2">
                 <Badge variant="outline">#{s.numero_solicitacao}</Badge>
-                <Badge className="bg-blue-100 text-blue-800">{s.codigo_gerado}</Badge>
+                {editingId === s.id ? (
+                  <div className="flex items-center gap-1 flex-1">
+                    <Input
+                      value={editedCodigo}
+                      onChange={(e) => setEditedCodigo(e.target.value.toUpperCase().slice(0, 6))}
+                      className={`h-7 w-24 text-sm font-mono ${editedCodigo.length !== 6 ? 'border-destructive' : ''}`}
+                      maxLength={6}
+                      placeholder="6 caracteres"
+                    />
+                    <span className={`text-xs ${editedCodigo.length !== 6 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      {editedCodigo.length}/6
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => handleSaveEdit(s.id)} disabled={isProcessing === s.id || editedCodigo.length !== 6} className="h-7 px-2">
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={handleCancelEdit} className="h-7 px-2">
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Badge className="bg-blue-100 text-blue-800 font-mono">{s.codigo_gerado}</Badge>
+                    {isSuperAdmin && (
+                      <Button size="sm" variant="ghost" onClick={() => handleStartEdit(s)} className="h-6 px-1.5">
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
               <p className="font-medium text-sm mb-1">{s.descricao}</p>
               <p className="text-xs text-muted-foreground">
