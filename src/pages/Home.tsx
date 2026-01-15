@@ -13,10 +13,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserPermissions, MENU_KEYS } from '@/hooks/useUserPermissions';
-import { exportEnderecos, exportInventario } from '@/hooks/useDataOperations';
+import { exportEnderecos, exportInventario, getHomeStats } from '@/hooks/useDataOperations';
 import { exportEnderecamentosToCSV, exportInventarioToCSV } from '@/utils/exportEnderecamentos';
 import { QRScanner } from '@/components/QRScanner';
-import { supabase } from '@/integrations/supabase/client';
 
 // New components
 import { HomeHeader } from '@/components/home/HomeHeader';
@@ -24,8 +23,8 @@ import { HomeSearchBar } from '@/components/home/HomeSearchBar';
 import { QuickActionCard } from '@/components/home/QuickActionCard';
 import { PanelCard } from '@/components/home/PanelCard';
 import { PendingBadge } from '@/components/home/PendingBadge';
-import { AdminAccordion } from '@/components/home/AdminAccordion';
 import { BottomNavigation } from '@/components/home/BottomNavigation';
+import { MenuSheet } from '@/components/home/MenuSheet';
 
 interface QRData {
   cod?: string;
@@ -56,40 +55,26 @@ const Home = () => {
     codigosPendentes: 0,
     codigosAprovados: 0,
   });
+  const [statsLoading, setStatsLoading] = useState(true);
 
-  // Fetch stats
+  // Fetch stats using authenticated endpoint
   useEffect(() => {
     const fetchStats = async () => {
+      setStatsLoading(true);
       try {
-        // Total items
-        const { count: totalItens } = await supabase
-          .from('enderecos_materiais')
-          .select('*', { count: 'exact', head: true })
-          .eq('ativo', true);
-
-        // Pending codes
-        const { count: codigosPendentes } = await supabase
-          .from('solicitacoes_codigo')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pendente');
-
-        // Approved codes waiting processing
-        const { count: codigosAprovados } = await supabase
-          .from('solicitacoes_codigo')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'aprovado');
-
-        // Divergências - simplified count
-        const { data: divergData } = await supabase.rpc('cleanup_expired_sessions');
-
-        setStats({
-          totalItens: totalItens || 0,
-          divergencias: 0, // Will be calculated on relatório page
-          codigosPendentes: codigosPendentes || 0,
-          codigosAprovados: codigosAprovados || 0,
-        });
+        const result = await getHomeStats();
+        if (result.success && result.data) {
+          setStats({
+            totalItens: result.data.totalItens || 0,
+            divergencias: result.data.divergencias || 0,
+            codigosPendentes: result.data.codigosPendentes || 0,
+            codigosAprovados: result.data.codigosAprovados || 0,
+          });
+        }
       } catch (error) {
         console.error('Error fetching stats:', error);
+      } finally {
+        setStatsLoading(false);
       }
     };
 
@@ -404,22 +389,22 @@ const Home = () => {
             </div>
           </section>
         )}
-
-        {/* Admin Accordion */}
-        <section className="pb-2">
-          <AdminAccordion
-            hasPermission={hasPermission}
-            isAdmin={isAdmin}
-            isSuperAdmin={isSuperAdmin}
-            isExporting={isExporting}
-            onExportEnderecamentos={handleExportEnderecamentos}
-            onExportInventario={handleExportInventario}
-          />
-        </section>
       </main>
 
       {/* Bottom Navigation */}
       <BottomNavigation onMenuClick={() => setShowMenuSheet(true)} />
+
+      {/* Menu Sheet */}
+      <MenuSheet
+        open={showMenuSheet}
+        onOpenChange={setShowMenuSheet}
+        hasPermission={hasPermission}
+        isAdmin={isAdmin}
+        isSuperAdmin={isSuperAdmin}
+        isExporting={isExporting}
+        onExportEnderecamentos={handleExportEnderecamentos}
+        onExportInventario={handleExportInventario}
+      />
 
       {/* QR Scanner Modal */}
       {showScanner && (

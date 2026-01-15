@@ -308,6 +308,11 @@ export async function getInventarioDivergencias(rua?: number): Promise<DataOpera
   return invokeDataOperation('inventario_divergencias', { rua });
 }
 
+// ========== HOME STATS ==========
+export async function getHomeStats(): Promise<DataOperationResult> {
+  return invokeDataOperation('home_stats');
+}
+
 // ========== INVENTARIO AUDIT ==========
 export async function listInventarioAudit(inventario_id?: string, limit?: number): Promise<DataOperationResult> {
   return invokeDataOperation('inventario_audit_list', { inventario_id, limit });
