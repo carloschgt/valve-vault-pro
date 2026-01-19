@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Upload, Send, FileText, Loader2, Trash2, Clock, CheckCircle2, AlertTriangle, Package, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Send, FileText, Loader2, Trash2, Clock, CheckCircle2, AlertTriangle, Package, RefreshCw, X, Pencil, Check, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,8 @@ import {
   excluirSolicitacao,
   detalheSolicitacao,
   definirPrioridade,
+  buscarProduto,
+  editarLinha,
 } from '@/hooks/useSeparacaoMaterial';
 
 const statusColors: Record<string, string> = {
@@ -82,16 +84,20 @@ const SeparacaoComercial = () => {
   const [linhas, setLinhas] = useState<LinhasSolicitacao[]>([]);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   
-  // New line form
+  // New/Edit line form
   const [showAddLine, setShowAddLine] = useState(false);
-  const [newLine, setNewLine] = useState<LinhaImportacao>({
+  const [editingLinha, setEditingLinha] = useState<LinhasSolicitacao | null>(null);
+  const [newLine, setNewLine] = useState<LinhaImportacao & { descricao?: string }>({
     pedido_cliente: '',
     item_cliente: '',
     qtd: 0,
     codigo_item: '',
     fornecedor: '',
+    descricao: '',
   });
   const [isAddingLine, setIsAddingLine] = useState(false);
+  const [isSearchingCodigo, setIsSearchingCodigo] = useState(false);
+  const [codigoValidado, setCodigoValidado] = useState<boolean | null>(null);
   
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'linha' | 'solicitacao'; id: string } | null>(null);
@@ -153,6 +159,34 @@ const SeparacaoComercial = () => {
     setIsLoading(false);
   };
 
+  const handleBuscarCodigo = async (codigo: string) => {
+    if (!codigo || codigo.length < 3) {
+      setCodigoValidado(null);
+      setNewLine(prev => ({ ...prev, descricao: '', fornecedor: '' }));
+      return;
+    }
+    
+    setIsSearchingCodigo(true);
+    const result = await buscarProduto(codigo);
+    if (result.success && result.data) {
+      if (result.data.encontrado) {
+        setCodigoValidado(true);
+        setNewLine(prev => ({
+          ...prev,
+          codigo_item: result.data!.codigo,
+          descricao: result.data!.descricao || '',
+          fornecedor: result.data!.fornecedor || prev.fornecedor || '',
+        }));
+      } else {
+        setCodigoValidado(false);
+        setNewLine(prev => ({ ...prev, descricao: '', fornecedor: '' }));
+      }
+    } else {
+      setCodigoValidado(null);
+    }
+    setIsSearchingCodigo(false);
+  };
+
   const handleAddLine = async () => {
     if (!selectedSolicitacao) return;
     if (!newLine.pedido_cliente || !newLine.codigo_item || newLine.qtd <= 0) {
@@ -160,24 +194,84 @@ const SeparacaoComercial = () => {
       return;
     }
     
-    setIsAddingLine(true);
-    const result = await adicionarLinha(selectedSolicitacao.id, {
-      pedido_cliente: newLine.pedido_cliente,
-      item_cliente: newLine.item_cliente,
-      qtd: newLine.qtd,
-      codigo_item: newLine.codigo_item,
-      fornecedor: newLine.fornecedor,
-    });
+    if (codigoValidado === false) {
+      showError('Código não existe no sistema');
+      return;
+    }
     
-    if (result.success) {
-      showSuccess('Linha adicionada!');
-      setNewLine({ pedido_cliente: '', item_cliente: '', qtd: 0, codigo_item: '', fornecedor: '' });
-      setShowAddLine(false);
-      loadDetail(selectedSolicitacao);
-    } else if (result.error) {
-      showError(result.error);
+    setIsAddingLine(true);
+    
+    if (editingLinha) {
+      // Edit mode
+      const result = await editarLinha(editingLinha.id, {
+        pedido_cliente: newLine.pedido_cliente,
+        item_cliente: newLine.item_cliente,
+        codigo_item: newLine.codigo_item,
+        fornecedor: newLine.fornecedor,
+        qtd_solicitada: newLine.qtd,
+      });
+      
+      if (result.success) {
+        showSuccess('Linha atualizada!');
+        resetLineForm();
+        loadDetail(selectedSolicitacao);
+      } else if (result.error) {
+        showError(result.error);
+      }
+    } else {
+      // Add mode
+      const result = await adicionarLinha(selectedSolicitacao.id, {
+        pedido_cliente: newLine.pedido_cliente,
+        item_cliente: newLine.item_cliente,
+        qtd: newLine.qtd,
+        codigo_item: newLine.codigo_item,
+        fornecedor: newLine.fornecedor,
+      });
+      
+      if (result.success) {
+        showSuccess('Linha adicionada!');
+        resetLineForm();
+        loadDetail(selectedSolicitacao);
+      } else if (result.error) {
+        showError(result.error);
+      }
     }
     setIsAddingLine(false);
+  };
+
+  const resetLineForm = () => {
+    setNewLine({ pedido_cliente: '', item_cliente: '', qtd: 0, codigo_item: '', fornecedor: '', descricao: '' });
+    setShowAddLine(false);
+    setEditingLinha(null);
+    setCodigoValidado(null);
+  };
+
+  const handleEditLinha = (linha: LinhasSolicitacao) => {
+    setEditingLinha(linha);
+    setNewLine({
+      pedido_cliente: linha.pedido_cliente,
+      item_cliente: linha.item_cliente || '',
+      qtd: linha.qtd_solicitada,
+      codigo_item: linha.codigo_item,
+      fornecedor: linha.fornecedor || '',
+      descricao: '',
+    });
+    setCodigoValidado(true); // Assume it's valid since it's already in the system
+    setShowAddLine(true);
+  };
+
+  const canEditLinha = (linha: LinhasSolicitacao): boolean => {
+    if (!selectedSolicitacao) return false;
+    
+    // Can edit if:
+    // 1. Solicitacao is Rascunho
+    // 2. Solicitacao is Enviada AND linha is Pendente or FaltaPrioridade
+    if (selectedSolicitacao.status === 'Rascunho') return true;
+    if (selectedSolicitacao.status === 'Enviada' && 
+        (linha.status_linha === 'Pendente' || linha.status_linha === 'FaltaPrioridade')) {
+      return true;
+    }
+    return false;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -538,6 +632,18 @@ const SeparacaoComercial = () => {
                             </span>
                           )}
                           
+                          {canEditLinha(linha) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditLinha(linha)}
+                              className="gap-1"
+                            >
+                              <Pencil className="h-3 w-3" />
+                              Editar
+                            </Button>
+                          )}
+                          
                           {selectedSolicitacao.status === 'Rascunho' && (
                             <Button
                               size="sm"
@@ -559,11 +665,11 @@ const SeparacaoComercial = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Add Line Dialog */}
-      <Dialog open={showAddLine} onOpenChange={setShowAddLine}>
+      {/* Add/Edit Line Dialog */}
+      <Dialog open={showAddLine} onOpenChange={(open) => { if (!open) resetLineForm(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Adicionar Linha</DialogTitle>
+            <DialogTitle>{editingLinha ? 'Editar Linha' : 'Adicionar Linha'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -584,11 +690,30 @@ const SeparacaoComercial = () => {
             </div>
             <div>
               <Label>Código Item *</Label>
-              <Input
-                value={newLine.codigo_item}
-                onChange={(e) => setNewLine({ ...newLine, codigo_item: e.target.value })}
-                placeholder="000001"
-              />
+              <div className="relative">
+                <Input
+                  value={newLine.codigo_item}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setNewLine({ ...newLine, codigo_item: val });
+                    setCodigoValidado(null);
+                  }}
+                  onBlur={() => handleBuscarCodigo(newLine.codigo_item)}
+                  placeholder="000001"
+                  className={codigoValidado === false ? 'border-red-500' : codigoValidado === true ? 'border-green-500' : ''}
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  {isSearchingCodigo && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  {!isSearchingCodigo && codigoValidado === true && <Check className="h-4 w-4 text-green-500" />}
+                  {!isSearchingCodigo && codigoValidado === false && <XCircle className="h-4 w-4 text-red-500" />}
+                </div>
+              </div>
+              {codigoValidado === false && (
+                <p className="text-xs text-red-500 mt-1">Código não encontrado no sistema</p>
+              )}
+              {newLine.descricao && codigoValidado === true && (
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{newLine.descricao}</p>
+              )}
             </div>
             <div>
               <Label>Quantidade *</Label>
@@ -606,14 +731,18 @@ const SeparacaoComercial = () => {
                 value={newLine.fornecedor}
                 onChange={(e) => setNewLine({ ...newLine, fornecedor: e.target.value })}
                 placeholder="FORNECEDOR ABC"
+                disabled={codigoValidado === true && !!newLine.fornecedor}
               />
+              {codigoValidado === true && newLine.fornecedor && (
+                <p className="text-xs text-muted-foreground mt-1">Preenchido automaticamente</p>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddLine(false)}>Cancelar</Button>
-            <Button onClick={handleAddLine} disabled={isAddingLine}>
+            <Button variant="outline" onClick={resetLineForm}>Cancelar</Button>
+            <Button onClick={handleAddLine} disabled={isAddingLine || codigoValidado === false}>
               {isAddingLine && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Adicionar
+              {editingLinha ? 'Salvar' : 'Adicionar'}
             </Button>
           </DialogFooter>
         </DialogContent>

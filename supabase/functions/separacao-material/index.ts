@@ -210,6 +210,34 @@ serve(async (req) => {
         );
       }
 
+      // Validate codigo_item exists in the system
+      const codigoTrimmed = codigo_item.trim().toUpperCase();
+      const { data: produtoExiste } = await supabase
+        .from("enderecos_materiais")
+        .select("codigo")
+        .eq("codigo", codigoTrimmed)
+        .eq("ativo", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!produtoExiste) {
+        // Check catalogo_produtos
+        const { data: catalogoExiste } = await supabase
+          .from("catalogo_produtos")
+          .select("codigo")
+          .eq("codigo", codigoTrimmed)
+          .eq("ativo", true)
+          .limit(1)
+          .maybeSingle();
+
+        if (!catalogoExiste) {
+          return new Response(
+            JSON.stringify({ success: false, error: `Código "${codigo_item}" não existe no sistema. Somente códigos cadastrados podem ser adicionados.` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       // Check solicitacao is in Rascunho
       const { data: sol } = await supabase
         .from("sep_solicitacoes")
@@ -230,7 +258,7 @@ serve(async (req) => {
           solicitacao_id,
           pedido_cliente,
           item_cliente: item_cliente || null,
-          codigo_item,
+          codigo_item: codigoTrimmed,
           fornecedor: fornecedor || null,
           qtd_solicitada,
           obs_comercial: obs_comercial || null,
@@ -1334,6 +1362,190 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ----- Buscar produto por código (validação + auto-preenchimento) -----
+    if (action === "buscar_produto") {
+      const { codigo } = params;
+
+      if (!codigo || codigo.trim() === "") {
+        return new Response(
+          JSON.stringify({ success: false, error: "Código não informado" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const codigoTrimmed = codigo.trim().toUpperCase();
+
+      // First try to find in enderecos_materiais (stock items)
+      const { data: endereco, error: enderecoError } = await supabase
+        .from("enderecos_materiais")
+        .select("codigo, descricao, fabricantes(nome, codigo)")
+        .eq("codigo", codigoTrimmed)
+        .eq("ativo", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (endereco) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              codigo: endereco.codigo,
+              descricao: endereco.descricao,
+              fornecedor: (endereco.fabricantes as any)?.nome || (endereco.fabricantes as any)?.codigo || null,
+              encontrado: true,
+            },
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // If not found in enderecos, try catalogo_produtos
+      const { data: catalogo } = await supabase
+        .from("catalogo_produtos")
+        .select("codigo, descricao")
+        .eq("codigo", codigoTrimmed)
+        .eq("ativo", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (catalogo) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              codigo: catalogo.codigo,
+              descricao: catalogo.descricao,
+              fornecedor: null,
+              encontrado: true,
+            },
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Not found
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            codigo: codigoTrimmed,
+            descricao: null,
+            fornecedor: null,
+            encontrado: false,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ----- Editar linha de solicitação -----
+    if (action === "editar_linha") {
+      if (!isComercial) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Sem permissão" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { linha_id, pedido_cliente, item_cliente, codigo_item, fornecedor, qtd_solicitada, obs_comercial } = params;
+
+      if (!linha_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: "ID da linha não informado" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get line and check status
+      const { data: linha } = await supabase
+        .from("sep_linhas")
+        .select("id, status_linha, sep_solicitacoes(status)")
+        .eq("id", linha_id)
+        .single();
+
+      if (!linha) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Linha não encontrada" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const solStatus = (linha.sep_solicitacoes as any)?.status;
+      const linhaStatus = linha.status_linha;
+
+      // Can only edit if:
+      // - Solicitacao is Rascunho, OR
+      // - Solicitacao is Enviada and linha is Pendente or FaltaPrioridade
+      const isRascunho = solStatus === "Rascunho";
+      const isEnviadaPendente = solStatus === "Enviada" && (linhaStatus === "Pendente" || linhaStatus === "FaltaPrioridade");
+
+      if (!isRascunho && !isEnviadaPendente) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Não é possível editar linha após início da separação física" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate codigo_item if provided
+      if (codigo_item) {
+        const { data: produtoExiste } = await supabase
+          .from("enderecos_materiais")
+          .select("codigo")
+          .eq("codigo", codigo_item.trim().toUpperCase())
+          .eq("ativo", true)
+          .limit(1)
+          .maybeSingle();
+
+        if (!produtoExiste) {
+          // Check catalogo_produtos
+          const { data: catalogoExiste } = await supabase
+            .from("catalogo_produtos")
+            .select("codigo")
+            .eq("codigo", codigo_item.trim().toUpperCase())
+            .eq("ativo", true)
+            .limit(1)
+            .maybeSingle();
+
+          if (!catalogoExiste) {
+            return new Response(
+              JSON.stringify({ success: false, error: `Código "${codigo_item}" não existe no sistema` }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+      }
+
+      // Build update object
+      const updateData: Record<string, any> = {};
+      if (pedido_cliente !== undefined) updateData.pedido_cliente = pedido_cliente;
+      if (item_cliente !== undefined) updateData.item_cliente = item_cliente || null;
+      if (codigo_item !== undefined) updateData.codigo_item = codigo_item.trim().toUpperCase();
+      if (fornecedor !== undefined) updateData.fornecedor = fornecedor || null;
+      if (qtd_solicitada !== undefined && qtd_solicitada > 0) updateData.qtd_solicitada = qtd_solicitada;
+      if (obs_comercial !== undefined) updateData.obs_comercial = obs_comercial || null;
+
+      if (Object.keys(updateData).length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Nenhum campo para atualizar" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("sep_linhas")
+        .update(updateData)
+        .eq("id", linha_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return new Response(
+        JSON.stringify({ success: true, data }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

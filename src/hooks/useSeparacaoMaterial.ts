@@ -123,6 +123,13 @@ export interface LinhaImportacao {
   fornecedor?: string;
 }
 
+export interface ProdutoBusca {
+  codigo: string;
+  descricao: string | null;
+  fornecedor: string | null;
+  encontrado: boolean;
+}
+
 async function invokeOperation<T>(action: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: T; error?: string }> {
   const sessionToken = getSessionToken();
   if (!sessionToken) {
@@ -220,6 +227,24 @@ export async function excluirLinha(linhaId: string): Promise<{ success: boolean;
 
 export async function excluirSolicitacao(solicitacaoId: string): Promise<{ success: boolean; error?: string }> {
   return invokeOperation('excluir_solicitacao', { solicitacao_id: solicitacaoId });
+}
+
+export async function buscarProduto(codigo: string): Promise<{ success: boolean; data?: ProdutoBusca; error?: string }> {
+  return invokeOperation<ProdutoBusca>('buscar_produto', { codigo });
+}
+
+export async function editarLinha(
+  linhaId: string,
+  dados: {
+    pedido_cliente?: string;
+    item_cliente?: string;
+    codigo_item?: string;
+    fornecedor?: string;
+    qtd_solicitada?: number;
+    obs_comercial?: string;
+  }
+): Promise<{ success: boolean; data?: LinhasSolicitacao; error?: string }> {
+  return invokeOperation<LinhasSolicitacao>('editar_linha', { linha_id: linhaId, ...dados });
 }
 
 // ============ ESTOQUE ============
@@ -331,6 +356,8 @@ export function useSeparacaoMaterial() {
     detalheCancelamento,
     excluirLinha,
     excluirSolicitacao,
+    buscarProduto,
+    editarLinha,
     // Stock
     filaSeparacao,
     detalheSolicitacao,
