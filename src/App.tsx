@@ -32,6 +32,9 @@ import AprovacaoCodigos from "./pages/AprovacaoCodigos";
 import ResetPassword from "./pages/ResetPassword";
 import AuditoriaItens from "./pages/AuditoriaItens";
 import Configuracoes from "./pages/Configuracoes";
+import SeparacaoComercial from "./pages/SeparacaoComercial";
+import SeparacaoEstoque from "./pages/SeparacaoEstoque";
+import Cancelamentos from "./pages/Cancelamentos";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +74,9 @@ const App = () => (
             <Route path="/aprovacao-codigos" element={<ProtectedRoute requiredPermission="aprovacao_codigos"><AprovacaoCodigos /></ProtectedRoute>} />
             <Route path="/auditoria-itens" element={<ProtectedRoute requiredPermission="admin_panel"><AuditoriaItens /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute requiredPermission="admin_panel"><Configuracoes /></ProtectedRoute>} />
+            <Route path="/separacao-comercial" element={<ProtectedRoute allowRoles={['admin', 'comercial']}><SeparacaoComercial /></ProtectedRoute>} />
+            <Route path="/separacao-estoque" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><SeparacaoEstoque /></ProtectedRoute>} />
+            <Route path="/cancelamentos" element={<ProtectedRoute allowRoles={['admin', 'comercial', 'estoque']}><Cancelamentos /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
