@@ -23,6 +23,10 @@ export const MENU_KEYS = {
   gerenciamento_dados: 'gerenciamento_dados',
   admin_panel: 'admin_panel',
   auditoria_itens: 'auditoria_itens',
+  // Separação de material
+  separacao_comercial: 'separacao_comercial',
+  separacao_estoque: 'separacao_estoque',
+  cancelamentos: 'cancelamentos',
   // Permissão especial para bypass do bloqueio de inventário
   bypass_inventario_block: 'bypass_inventario_block',
   // Permissão para visualizar valores financeiros (valor unitário e valor total)

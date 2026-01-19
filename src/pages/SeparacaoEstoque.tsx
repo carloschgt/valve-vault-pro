@@ -101,14 +101,19 @@ const SeparacaoEstoque = () => {
     if (result.success && result.data) {
       setSolicitacoes(result.data);
     } else if (result.error) {
-      showError(result.error);
+      toast({
+        title: 'Erro',
+        description: result.error,
+        variant: 'destructive',
+      });
     }
     setIsLoading(false);
-  }, [showError]);
+  }, [toast]);
 
   useEffect(() => {
     loadFila();
-  }, [loadFila]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadDetail = async (sol: Solicitacao) => {
     setSelectedSolicitacao(sol);
