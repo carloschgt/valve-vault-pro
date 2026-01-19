@@ -31,17 +31,88 @@ export function CalculadoraModal({ open, onClose, onUseResult }: CalculadoraModa
     return totalCaixas + totalPaletes + totalSoltas;
   };
 
+  // Safe math expression parser without using Function() or eval()
   const calcularExpressao = (): number => {
     try {
-      // Permitir apenas números e operadores básicos
-      const safeExpr = expressao.replace(/[^0-9+\-*/().]/g, '');
-      if (!safeExpr) return 0;
-      // Avaliação segura
-      const result = Function(`"use strict"; return (${safeExpr})`)();
-      return isNaN(result) ? 0 : Math.round(result);
+      const expr = expressao.trim();
+      if (!expr) return 0;
+      
+      // Validate: only numbers, operators, parentheses, decimal points
+      if (!/^[0-9+\-*/().]+$/.test(expr)) {
+        return 0;
+      }
+      
+      // Validate balanced parentheses
+      let parenCount = 0;
+      for (const char of expr) {
+        if (char === '(') parenCount++;
+        if (char === ')') parenCount--;
+        if (parenCount < 0) return 0; // Closing before opening
+      }
+      if (parenCount !== 0) return 0; // Unbalanced
+      
+      // Use safe recursive descent parser
+      const result = parseExpression(expr);
+      return isNaN(result) || !isFinite(result) ? 0 : Math.round(result);
     } catch {
       return 0;
     }
+  };
+
+  // Safe recursive descent parser for mathematical expressions
+  const parseExpression = (expr: string): number => {
+    let pos = 0;
+    
+    const parseNumber = (): number => {
+      let numStr = '';
+      while (pos < expr.length && /[0-9.]/.test(expr[pos])) {
+        numStr += expr[pos++];
+      }
+      return parseFloat(numStr) || 0;
+    };
+    
+    const parseFactor = (): number => {
+      if (expr[pos] === '(') {
+        pos++; // Skip '('
+        const result = parseAddSub();
+        pos++; // Skip ')'
+        return result;
+      }
+      if (expr[pos] === '-') {
+        pos++;
+        return -parseFactor();
+      }
+      if (expr[pos] === '+') {
+        pos++;
+        return parseFactor();
+      }
+      return parseNumber();
+    };
+    
+    const parseMulDiv = (): number => {
+      let result = parseFactor();
+      while (pos < expr.length && (expr[pos] === '*' || expr[pos] === '/')) {
+        const op = expr[pos++];
+        const right = parseFactor();
+        if (op === '*') result *= right;
+        else if (right !== 0) result /= right;
+        else return NaN; // Division by zero
+      }
+      return result;
+    };
+    
+    const parseAddSub = (): number => {
+      let result = parseMulDiv();
+      while (pos < expr.length && (expr[pos] === '+' || expr[pos] === '-')) {
+        const op = expr[pos++];
+        const right = parseMulDiv();
+        if (op === '+') result += right;
+        else result -= right;
+      }
+      return result;
+    };
+    
+    return parseAddSub();
   };
 
   const total = calcularTotal();
