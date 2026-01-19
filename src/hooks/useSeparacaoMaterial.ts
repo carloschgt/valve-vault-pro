@@ -49,6 +49,9 @@ export interface LinhasSolicitacao {
   obs_estoque: string | null;
   created_at: string;
   updated_at: string;
+  // Enriched fields from API
+  descricao?: string | null;
+  qtd_disponivel_atual?: number;
 }
 
 export interface Alocacao {

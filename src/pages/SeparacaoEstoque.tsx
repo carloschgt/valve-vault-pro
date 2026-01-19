@@ -372,12 +372,21 @@ const SeparacaoEstoque = () => {
                         linha.status_linha !== 'Cancelado' &&
                         linha.status_linha !== 'FaltaPrioridade';
                       
+                      // Show confirm button when reservado > separado
+                      const canConfirm = selectedSolicitacao.status === 'EmSeparacao' && 
+                        linha.qtd_reservada > 0 && 
+                        linha.qtd_separada < linha.qtd_reservada;
+                      
                       return (
                         <Card key={linha.id}>
                           <CardContent className="p-3">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium text-sm">{linha.codigo_item}</p>
+                                {/* Show description if available */}
+                                {linha.descricao && (
+                                  <p className="text-xs text-muted-foreground truncate">{linha.descricao}</p>
+                                )}
                                 <p className="text-xs text-muted-foreground">Pedido: {linha.pedido_cliente}</p>
                                 {linha.fornecedor && <p className="text-xs text-muted-foreground">Forn: {linha.fornecedor}</p>}
                                 {linha.prioridade && (
@@ -392,6 +401,8 @@ const SeparacaoEstoque = () => {
                                 </Badge>
                                 <div className="text-xs mt-1 space-y-0.5">
                                   <p>Solicitado: <span className="font-medium">{linha.qtd_solicitada}</span></p>
+                                  {/* Show available stock */}
+                                  <p>Disponível: <span className="font-medium text-blue-600">{linha.qtd_disponivel_atual ?? '-'}</span></p>
                                   <p>Reservado: <span className="font-medium text-amber-600">{linha.qtd_reservada}</span></p>
                                   <p>Separado: <span className="font-medium text-green-600">{linha.qtd_separada}</span></p>
                                   {faltante > 0 && (
@@ -421,7 +432,7 @@ const SeparacaoEstoque = () => {
                                     Retirar do Endereço
                                   </Button>
                                 )}
-                                {linha.qtd_reservada > 0 && linha.qtd_separada < linha.qtd_reservada && (
+                                {canConfirm && (
                                   <Button
                                     size="sm"
                                     onClick={() => openConfirmDialog(linha)}
