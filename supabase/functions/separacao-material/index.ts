@@ -57,6 +57,7 @@ async function verifySession(supabase: any, sessionToken: string): Promise<{ val
 }
 
 // ===== Helper: Generate list code =====
+// Format: IMEX-DDMMYY-HHMM (e.g., IMEX-190126-1523 means 19/01/26 at 15:23)
 function generateCodigoLista(): string {
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
@@ -64,6 +65,7 @@ function generateCodigoLista(): string {
   const yy = String(now.getFullYear()).slice(-2);
   const hh = String(now.getHours()).padStart(2, "0");
   const mi = String(now.getMinutes()).padStart(2, "0");
+  // HHMM format: 1523 = 15:23
   return `IMEX-${dd}${mm}${yy}-${hh}${mi}`;
 }
 
@@ -383,7 +385,7 @@ serve(async (req) => {
         codigoMap[linha.codigo_item].linhaIds.push(linha.id);
       }
 
-      // Get available stock from inventario
+      // Get available stock from inventario (quantidade - qtd_reservada = disponível)
       const codigos = Object.keys(codigoMap);
       const { data: estoqueData } = await supabase
         .from("inventario")
@@ -396,11 +398,33 @@ serve(async (req) => {
         for (const item of estoqueData) {
           const cod = (item.enderecos_materiais as any).codigo;
           if (!estoqueDisponivel[cod]) estoqueDisponivel[cod] = 0;
+          // Available = quantidade - já reservado para outros pedidos
           estoqueDisponivel[cod] += (item.quantidade - (item.qtd_reservada || 0));
         }
       }
 
-      // Check which codes need priority
+      // VALIDATION: Check if there's any item with zero stock
+      const itensZeroStock: string[] = [];
+      for (const [codigo, info] of Object.entries(codigoMap)) {
+        const disponivel = estoqueDisponivel[codigo] || 0;
+        if (disponivel <= 0) {
+          itensZeroStock.push(codigo);
+        }
+      }
+
+      // Block submission if there are items with no available stock
+      if (itensZeroStock.length > 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Não é possível enviar a solicitação. Os seguintes itens não possuem saldo disponível em estoque: ${itensZeroStock.join(", ")}`,
+            itensZeroStock,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check which codes need priority (when multiple orders compete for insufficient stock)
       const needPriority: string[] = [];
       for (const [codigo, info] of Object.entries(codigoMap)) {
         const disponivel = estoqueDisponivel[codigo] || 0;
@@ -573,6 +597,52 @@ serve(async (req) => {
         .order("prioridade", { ascending: true, nullsFirst: false })
         .order("pedido_cliente", { ascending: true });
 
+      // Get descriptions and available stock for each line's codigo_item
+      const codigosUnicos = [...new Set((linhas || []).map((l: any) => l.codigo_item))];
+      
+      // Get descriptions from enderecos_materiais or catalogo_produtos
+      const { data: enderecosMateriais } = await supabase
+        .from("enderecos_materiais")
+        .select("codigo, descricao")
+        .in("codigo", codigosUnicos)
+        .eq("ativo", true);
+      
+      const { data: catalogoProdutos } = await supabase
+        .from("catalogo_produtos")
+        .select("codigo, descricao")
+        .in("codigo", codigosUnicos)
+        .eq("ativo", true);
+      
+      // Get available stock (quantidade - qtd_reservada)
+      const { data: inventarioData } = await supabase
+        .from("inventario")
+        .select("quantidade, qtd_reservada, enderecos_materiais!inner(codigo)")
+        .in("enderecos_materiais.codigo", codigosUnicos)
+        .gt("quantidade", 0);
+      
+      // Build lookup maps
+      const descricaoMap: Record<string, string> = {};
+      for (const em of enderecosMateriais || []) {
+        if (!descricaoMap[em.codigo]) descricaoMap[em.codigo] = em.descricao;
+      }
+      for (const cp of catalogoProdutos || []) {
+        if (!descricaoMap[cp.codigo]) descricaoMap[cp.codigo] = cp.descricao;
+      }
+      
+      const estoqueDisponivelMap: Record<string, number> = {};
+      for (const inv of inventarioData || []) {
+        const cod = (inv.enderecos_materiais as any).codigo;
+        if (!estoqueDisponivelMap[cod]) estoqueDisponivelMap[cod] = 0;
+        estoqueDisponivelMap[cod] += (inv.quantidade - (inv.qtd_reservada || 0));
+      }
+      
+      // Enrich lines with description and available stock
+      const linhasEnriquecidas = (linhas || []).map((linha: any) => ({
+        ...linha,
+        descricao: descricaoMap[linha.codigo_item] || null,
+        qtd_disponivel_atual: estoqueDisponivelMap[linha.codigo_item] || 0,
+      }));
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -582,7 +652,7 @@ serve(async (req) => {
               sla_inicio_min: calcSlaMinutes(sol.data_abertura, sol.data_inicio_estoque),
               sla_total_min: calcSlaMinutes(sol.data_abertura, sol.data_conclusao),
             },
-            linhas: linhas || [],
+            linhas: linhasEnriquecidas,
           },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
