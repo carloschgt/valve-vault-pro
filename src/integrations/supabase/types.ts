@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      area_separacao_resumo: {
+        Row: {
+          codigo_item: string
+          id: string
+          qtd_em_separacao: number
+          updated_at: string
+        }
+        Insert: {
+          codigo_item: string
+          id?: string
+          qtd_em_separacao?: number
+          updated_at?: string
+        }
+        Update: {
+          codigo_item?: string
+          id?: string
+          qtd_em_separacao?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       auth_events: {
         Row: {
           created_at: string
@@ -65,6 +86,86 @@ export type Database = {
         }
         Relationships: []
       }
+      cancelamentos: {
+        Row: {
+          created_at: string
+          criado_por: string
+          criado_por_id: string
+          data_cancelamento: string
+          id: string
+          motivo: string | null
+          pedido_cliente: string
+          status: Database["public"]["Enums"]["status_cancelamento"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por: string
+          criado_por_id: string
+          data_cancelamento?: string
+          id?: string
+          motivo?: string | null
+          pedido_cliente: string
+          status?: Database["public"]["Enums"]["status_cancelamento"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          criado_por_id?: string
+          data_cancelamento?: string
+          id?: string
+          motivo?: string | null
+          pedido_cliente?: string
+          status?: Database["public"]["Enums"]["status_cancelamento"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cancelamentos_linhas: {
+        Row: {
+          cancelamento_id: string
+          codigo_item: string
+          created_at: string
+          fornecedor: string | null
+          id: string
+          qtd_cancelada: number
+          qtd_devolvida_total: number
+          status_linha: Database["public"]["Enums"]["status_linha_cancelamento"]
+          updated_at: string
+        }
+        Insert: {
+          cancelamento_id: string
+          codigo_item: string
+          created_at?: string
+          fornecedor?: string | null
+          id?: string
+          qtd_cancelada: number
+          qtd_devolvida_total?: number
+          status_linha?: Database["public"]["Enums"]["status_linha_cancelamento"]
+          updated_at?: string
+        }
+        Update: {
+          cancelamento_id?: string
+          codigo_item?: string
+          created_at?: string
+          fornecedor?: string | null
+          id?: string
+          qtd_cancelada?: number
+          qtd_devolvida_total?: number
+          status_linha?: Database["public"]["Enums"]["status_linha_cancelamento"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancelamentos_linhas_cancelamento_id_fkey"
+            columns: ["cancelamento_id"]
+            isOneToOne: false
+            referencedRelation: "cancelamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalogo_produtos: {
         Row: {
           ativo: boolean
@@ -106,6 +207,63 @@ export type Database = {
           valor_unitario?: number | null
         }
         Relationships: []
+      }
+      devolucoes_alocacoes: {
+        Row: {
+          cancelamento_linha_id: string
+          coluna: number
+          created_at: string
+          data_hora: string
+          endereco_material_id: string
+          id: string
+          nivel: number
+          posicao: number
+          qtd_devolvida: number
+          rua: number
+          usuario_estoque: string
+        }
+        Insert: {
+          cancelamento_linha_id: string
+          coluna: number
+          created_at?: string
+          data_hora?: string
+          endereco_material_id: string
+          id?: string
+          nivel: number
+          posicao: number
+          qtd_devolvida: number
+          rua: number
+          usuario_estoque: string
+        }
+        Update: {
+          cancelamento_linha_id?: string
+          coluna?: number
+          created_at?: string
+          data_hora?: string
+          endereco_material_id?: string
+          id?: string
+          nivel?: number
+          posicao?: number
+          qtd_devolvida?: number
+          rua?: number
+          usuario_estoque?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devolucoes_alocacoes_cancelamento_linha_id_fkey"
+            columns: ["cancelamento_linha_id"]
+            isOneToOne: false
+            referencedRelation: "cancelamentos_linhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devolucoes_alocacoes_endereco_material_id_fkey"
+            columns: ["endereco_material_id"]
+            isOneToOne: false
+            referencedRelation: "enderecos_materiais"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enderecos_materiais: {
         Row: {
@@ -252,6 +410,7 @@ export type Database = {
           created_at: string
           endereco_material_id: string
           id: string
+          qtd_reservada: number
           quantidade: number
           updated_at: string
         }
@@ -262,6 +421,7 @@ export type Database = {
           created_at?: string
           endereco_material_id: string
           id?: string
+          qtd_reservada?: number
           quantidade?: number
           updated_at?: string
         }
@@ -272,6 +432,7 @@ export type Database = {
           created_at?: string
           endereco_material_id?: string
           id?: string
+          qtd_reservada?: number
           quantidade?: number
           updated_at?: string
         }
@@ -425,6 +586,51 @@ export type Database = {
         }
         Relationships: []
       }
+      material_transactions: {
+        Row: {
+          codigo_item: string
+          created_at: string
+          data_hora: string
+          endereco: string | null
+          fornecedor: string | null
+          id: string
+          local: string | null
+          observacao: string | null
+          qtd: number
+          referencia: string | null
+          tipo_transacao: Database["public"]["Enums"]["tipo_transacao"]
+          usuario: string
+        }
+        Insert: {
+          codigo_item: string
+          created_at?: string
+          data_hora?: string
+          endereco?: string | null
+          fornecedor?: string | null
+          id?: string
+          local?: string | null
+          observacao?: string | null
+          qtd: number
+          referencia?: string | null
+          tipo_transacao: Database["public"]["Enums"]["tipo_transacao"]
+          usuario: string
+        }
+        Update: {
+          codigo_item?: string
+          created_at?: string
+          data_hora?: string
+          endereco?: string | null
+          fornecedor?: string | null
+          id?: string
+          local?: string | null
+          observacao?: string | null
+          qtd?: number
+          referencia?: string | null
+          tipo_transacao?: Database["public"]["Enums"]["tipo_transacao"]
+          usuario?: string
+        }
+        Relationships: []
+      }
       notificacoes_usuario: {
         Row: {
           created_at: string
@@ -558,6 +764,182 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sep_alocacoes: {
+        Row: {
+          coluna: number
+          created_at: string
+          data_hora: string
+          destino_local: string
+          endereco_material_id: string
+          id: string
+          linha_id: string
+          nivel: number
+          posicao: number
+          qtd_devolvida: number
+          qtd_retirada: number
+          rua: number
+          status: Database["public"]["Enums"]["status_alocacao"]
+          usuario_estoque: string
+        }
+        Insert: {
+          coluna: number
+          created_at?: string
+          data_hora?: string
+          destino_local?: string
+          endereco_material_id: string
+          id?: string
+          linha_id: string
+          nivel: number
+          posicao: number
+          qtd_devolvida?: number
+          qtd_retirada: number
+          rua: number
+          status?: Database["public"]["Enums"]["status_alocacao"]
+          usuario_estoque: string
+        }
+        Update: {
+          coluna?: number
+          created_at?: string
+          data_hora?: string
+          destino_local?: string
+          endereco_material_id?: string
+          id?: string
+          linha_id?: string
+          nivel?: number
+          posicao?: number
+          qtd_devolvida?: number
+          qtd_retirada?: number
+          rua?: number
+          status?: Database["public"]["Enums"]["status_alocacao"]
+          usuario_estoque?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sep_alocacoes_endereco_material_id_fkey"
+            columns: ["endereco_material_id"]
+            isOneToOne: false
+            referencedRelation: "enderecos_materiais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sep_alocacoes_linha_id_fkey"
+            columns: ["linha_id"]
+            isOneToOne: false
+            referencedRelation: "sep_linhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sep_linhas: {
+        Row: {
+          codigo_item: string
+          created_at: string
+          fornecedor: string | null
+          id: string
+          item_cliente: string | null
+          obs_comercial: string | null
+          obs_estoque: string | null
+          pedido_cliente: string
+          prioridade: number | null
+          qtd_disponivel_snapshot: number | null
+          qtd_reservada: number
+          qtd_separada: number
+          qtd_solicitada: number
+          solicitacao_id: string
+          status_linha: Database["public"]["Enums"]["status_linha_sep"]
+          updated_at: string
+        }
+        Insert: {
+          codigo_item: string
+          created_at?: string
+          fornecedor?: string | null
+          id?: string
+          item_cliente?: string | null
+          obs_comercial?: string | null
+          obs_estoque?: string | null
+          pedido_cliente: string
+          prioridade?: number | null
+          qtd_disponivel_snapshot?: number | null
+          qtd_reservada?: number
+          qtd_separada?: number
+          qtd_solicitada: number
+          solicitacao_id: string
+          status_linha?: Database["public"]["Enums"]["status_linha_sep"]
+          updated_at?: string
+        }
+        Update: {
+          codigo_item?: string
+          created_at?: string
+          fornecedor?: string | null
+          id?: string
+          item_cliente?: string | null
+          obs_comercial?: string | null
+          obs_estoque?: string | null
+          pedido_cliente?: string
+          prioridade?: number | null
+          qtd_disponivel_snapshot?: number | null
+          qtd_reservada?: number
+          qtd_separada?: number
+          qtd_solicitada?: number
+          solicitacao_id?: string
+          status_linha?: Database["public"]["Enums"]["status_linha_sep"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sep_linhas_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "sep_solicitacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sep_solicitacoes: {
+        Row: {
+          codigo_lista: string
+          created_at: string
+          criado_por: string
+          criado_por_id: string
+          data_abertura: string | null
+          data_conclusao: string | null
+          data_inicio_estoque: string | null
+          id: string
+          observacoes_comercial: string | null
+          observacoes_estoque: string | null
+          status: Database["public"]["Enums"]["status_solicitacao"]
+          updated_at: string
+        }
+        Insert: {
+          codigo_lista: string
+          created_at?: string
+          criado_por: string
+          criado_por_id: string
+          data_abertura?: string | null
+          data_conclusao?: string | null
+          data_inicio_estoque?: string | null
+          id?: string
+          observacoes_comercial?: string | null
+          observacoes_estoque?: string | null
+          status?: Database["public"]["Enums"]["status_solicitacao"]
+          updated_at?: string
+        }
+        Update: {
+          codigo_lista?: string
+          created_at?: string
+          criado_por?: string
+          criado_por_id?: string
+          data_abertura?: string | null
+          data_conclusao?: string | null
+          data_inicio_estoque?: string | null
+          id?: string
+          observacoes_comercial?: string | null
+          observacoes_estoque?: string | null
+          status?: Database["public"]["Enums"]["status_solicitacao"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       session_tokens: {
         Row: {
@@ -837,6 +1219,39 @@ export type Database = {
       is_admin_user: { Args: { user_email: string }; Returns: boolean }
     }
     Enums: {
+      status_alocacao: "Reservado" | "Separado" | "Devolvido"
+      status_cancelamento: "Aberto" | "EmProcesso" | "Concluido" | "Cancelado"
+      status_linha_cancelamento:
+        | "PendenteDevolucao"
+        | "Devolvendo"
+        | "DevolvidoTotal"
+      status_linha_sep:
+        | "Pendente"
+        | "FaltaPrioridade"
+        | "Separando"
+        | "Parcial"
+        | "Separado"
+        | "CompraNecessaria"
+        | "Cancelado"
+      status_solicitacao:
+        | "Rascunho"
+        | "Enviada"
+        | "EmSeparacao"
+        | "Parcial"
+        | "Concluida"
+        | "Cancelada"
+      tipo_transacao:
+        | "RECEBIMENTO"
+        | "ARMAZENAGEM_ENTRADA"
+        | "RESERVA_SAIDA_ARMAZENAGEM"
+        | "ENTRADA_AREA_SEPARACAO"
+        | "SEPARACAO_INICIO"
+        | "SEPARACAO_CONFIRMADA"
+        | "SEPARACAO_FIM"
+        | "CANCELAMENTO_CRIADO"
+        | "SAIDA_AREA_SEPARACAO"
+        | "DEVOLUCAO_ENTRADA_ARMAZENAGEM"
+        | "AJUSTE"
       user_status: "pendente" | "ativo" | "suspenso" | "negado"
     }
     CompositeTypes: {
@@ -965,6 +1380,43 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      status_alocacao: ["Reservado", "Separado", "Devolvido"],
+      status_cancelamento: ["Aberto", "EmProcesso", "Concluido", "Cancelado"],
+      status_linha_cancelamento: [
+        "PendenteDevolucao",
+        "Devolvendo",
+        "DevolvidoTotal",
+      ],
+      status_linha_sep: [
+        "Pendente",
+        "FaltaPrioridade",
+        "Separando",
+        "Parcial",
+        "Separado",
+        "CompraNecessaria",
+        "Cancelado",
+      ],
+      status_solicitacao: [
+        "Rascunho",
+        "Enviada",
+        "EmSeparacao",
+        "Parcial",
+        "Concluida",
+        "Cancelada",
+      ],
+      tipo_transacao: [
+        "RECEBIMENTO",
+        "ARMAZENAGEM_ENTRADA",
+        "RESERVA_SAIDA_ARMAZENAGEM",
+        "ENTRADA_AREA_SEPARACAO",
+        "SEPARACAO_INICIO",
+        "SEPARACAO_CONFIRMADA",
+        "SEPARACAO_FIM",
+        "CANCELAMENTO_CRIADO",
+        "SAIDA_AREA_SEPARACAO",
+        "DEVOLUCAO_ENTRADA_ARMAZENAGEM",
+        "AJUSTE",
+      ],
       user_status: ["pendente", "ativo", "suspenso", "negado"],
     },
   },
