@@ -37,9 +37,11 @@ interface EstoqueItem {
     nivel: number;
     posicao: number;
     quantidade: number;
+    qtd_reservada: number;
     endereco_id: string;
   }[];
   qtd_total: number;
+  qtd_reservada_total: number;
   valor_unitario: number | null;
 }
 
@@ -512,7 +514,7 @@ const EstoqueAtual = () => {
           <>
             {/* Header fixo */}
             <div className="overflow-x-auto shrink-0 bg-card border-b-2 border-border">
-              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[900px]' : 'min-w-[700px]'}`}>
+              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[1000px]' : 'min-w-[800px]'}`}>
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
                   <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
@@ -522,6 +524,7 @@ const EstoqueAtual = () => {
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
                   {canSeeValues && (
@@ -542,6 +545,7 @@ const EstoqueAtual = () => {
                     <th className="px-1 py-2 text-center font-semibold bg-card">N</th>
                     <th className="px-1 py-2 text-center font-semibold bg-card">P</th>
                     <th className="px-1 py-2 text-center font-semibold bg-card">Qtd</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-amber-500/10" title="Quantidade reservada para separação">Res.</th>
                     <th className="px-1 py-2 text-center font-semibold bg-primary/10">Total</th>
                     {canSeeValues && (
                       <>
@@ -555,7 +559,7 @@ const EstoqueAtual = () => {
             </div>
             {/* Body com scroll */}
             <div className="flex-1 overflow-auto">
-              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[900px]' : 'min-w-[700px]'}`}>
+              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[1000px]' : 'min-w-[800px]'}`}>
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
                   <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
@@ -565,6 +569,7 @@ const EstoqueAtual = () => {
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
+                  <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
                   {canSeeValues && (
@@ -618,13 +623,16 @@ const EstoqueAtual = () => {
                         <td className="px-1 py-2 text-center">{String(end.nivel).padStart(2, '0')}</td>
                         <td className="px-1 py-2 text-center">{String(end.posicao).padStart(2, '0')}</td>
                         <td className="px-1 py-2 text-center font-medium">{end.quantidade}</td>
+                        <td className={`px-1 py-2 text-center font-medium ${end.qtd_reservada > 0 ? 'text-amber-600 bg-amber-500/5' : 'text-muted-foreground'}`}>
+                          {end.qtd_reservada || 0}
+                        </td>
                         {endIdx === 0 ? (
                           <>
                             <td 
                               className="px-1 py-2 text-center font-bold text-primary bg-primary/5 align-top"
                               rowSpan={enderecos.length}
                             >
-                              {item.qtd_total}
+                              {item.qtd_total + (item.qtd_reservada_total || 0)}
                             </td>
                             {canSeeValues && (
                               <>
