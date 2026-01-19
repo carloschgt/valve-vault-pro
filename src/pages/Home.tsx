@@ -324,12 +324,28 @@ const Home = () => {
         <section>
           <h2 className="mb-3 text-sm font-semibold text-foreground">Ações Rápidas</h2>
           <div className="grid grid-cols-2 gap-3">
+            {hasPermission('separacao_comercial') && (
+              <QuickActionCard
+                title="Separação (Comercial)"
+                icon={ClipboardList}
+                onClick={() => navigate('/separacao-comercial')}
+                variant="teal"
+              />
+            )}
+            {hasPermission('separacao_estoque') && (
+              <QuickActionCard
+                title="Separação (Estoque)"
+                icon={Warehouse}
+                onClick={() => navigate('/separacao-estoque')}
+                variant="blue"
+              />
+            )}
             {hasPermission(MENU_KEYS.enderecamento) && (
               <QuickActionCard
                 title="Endereçar Material"
                 icon={MapPin}
                 onClick={() => navigate('/enderecamento')}
-                variant="teal"
+                variant="secondary"
               />
             )}
             {hasPermission(MENU_KEYS.inventario) && (

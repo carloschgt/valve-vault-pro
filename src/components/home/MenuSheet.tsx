@@ -52,9 +52,9 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { key: 'separacao_comercial', label: 'Separação (Comercial)', icon: PackageSearch, path: '/separacao-comercial' },
-  { key: 'separacao_estoque', label: 'Separação (Estoque)', icon: Warehouse, path: '/separacao-estoque' },
-  { key: 'cancelamentos', label: 'Cancelamentos', icon: Undo2, path: '/cancelamentos' },
+  { key: MENU_KEYS.separacao_comercial, label: 'Separação (Comercial)', icon: PackageSearch, path: '/separacao-comercial' },
+  { key: MENU_KEYS.separacao_estoque, label: 'Separação (Estoque)', icon: Warehouse, path: '/separacao-estoque' },
+  { key: MENU_KEYS.cancelamentos, label: 'Cancelamentos', icon: Undo2, path: '/cancelamentos' },
   { key: MENU_KEYS.solicitar_codigo, label: 'Solicitar Código', icon: FilePlus, path: '/solicitacoes-codigo' },
   { key: MENU_KEYS.catalogo, label: 'Catálogo de Produtos', icon: BookOpen, path: '/catalogo', adminOnly: true },
   { key: MENU_KEYS.fabricantes, label: 'Fabricantes', icon: Factory, path: '/fabricantes', adminOnly: true },
