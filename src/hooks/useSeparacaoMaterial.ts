@@ -160,25 +160,32 @@ export async function adicionarLinha(
   solicitacaoId: string,
   linha: Omit<LinhaImportacao, 'codigo_item'> & { codigo_item: string }
 ): Promise<{ success: boolean; data?: LinhasSolicitacao; error?: string }> {
-  return invokeOperation<LinhasSolicitacao>('adicionar_linha', { solicitacaoId, linha });
+  return invokeOperation<LinhasSolicitacao>('adicionar_linha', {
+    solicitacao_id: solicitacaoId,
+    pedido_cliente: linha.pedido_cliente,
+    item_cliente: linha.item_cliente,
+    codigo_item: linha.codigo_item,
+    fornecedor: linha.fornecedor,
+    qtd_solicitada: linha.qtd,
+  });
 }
 
 export async function importarLinhas(
   solicitacaoId: string,
   linhas: LinhaImportacao[]
 ): Promise<{ success: boolean; data?: { inserted: number; errors: string[] }; error?: string }> {
-  return invokeOperation('importar_linhas', { solicitacaoId, linhas });
+  return invokeOperation('importar_linhas', { solicitacao_id: solicitacaoId, linhas });
 }
 
 export async function enviarSolicitacao(solicitacaoId: string): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('enviar_solicitacao', { solicitacaoId });
+  return invokeOperation('enviar_solicitacao', { solicitacao_id: solicitacaoId });
 }
 
 export async function definirPrioridade(
   linhaId: string,
   prioridade: number
 ): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('definir_prioridade', { linhaId, prioridade });
+  return invokeOperation('definir_prioridade', { prioridades: [{ linha_id: linhaId, prioridade }] });
 }
 
 export async function listarSolicitacoes(
@@ -204,15 +211,15 @@ export async function listarCancelamentos(
 export async function detalheCancelamento(
   cancelamentoId: string
 ): Promise<{ success: boolean; data?: Cancelamento; error?: string }> {
-  return invokeOperation<Cancelamento>('detalhe_cancelamento', { cancelamentoId });
+  return invokeOperation<Cancelamento>('detalhe_cancelamento', { cancelamento_id: cancelamentoId });
 }
 
 export async function excluirLinha(linhaId: string): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('excluir_linha', { linhaId });
+  return invokeOperation('excluir_linha', { linha_id: linhaId });
 }
 
 export async function excluirSolicitacao(solicitacaoId: string): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('excluir_solicitacao', { solicitacaoId });
+  return invokeOperation('excluir_solicitacao', { solicitacao_id: solicitacaoId });
 }
 
 // ============ ESTOQUE ============
@@ -224,17 +231,17 @@ export async function filaSeparacao(): Promise<{ success: boolean; data?: Solici
 export async function detalheSolicitacao(
   solicitacaoId: string
 ): Promise<{ success: boolean; data?: { solicitacao: Solicitacao; linhas: LinhasSolicitacao[] }; error?: string }> {
-  return invokeOperation('detalhe_solicitacao', { solicitacaoId });
+  return invokeOperation('detalhe_solicitacao', { solicitacao_id: solicitacaoId });
 }
 
 export async function iniciarSeparacao(solicitacaoId: string): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('iniciar_separacao', { solicitacaoId });
+  return invokeOperation('iniciar_separacao', { solicitacao_id: solicitacaoId });
 }
 
 export async function buscarEnderecosCodigo(
   codigoItem: string
 ): Promise<{ success: boolean; data?: EnderecoEstoque[]; error?: string }> {
-  return invokeOperation<EnderecoEstoque[]>('buscar_enderecos_codigo', { codigoItem });
+  return invokeOperation<EnderecoEstoque[]>('buscar_enderecos_codigo', { codigo_item: codigoItem });
 }
 
 export async function reservarEndereco(
@@ -242,7 +249,7 @@ export async function reservarEndereco(
   enderecoMaterialId: string,
   qtdRetirada: number
 ): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('reservar_endereco', { linhaId, enderecoMaterialId, qtdRetirada });
+  return invokeOperation('reservar_endereco', { linha_id: linhaId, endereco_material_id: enderecoMaterialId, qtd_retirada: qtdRetirada });
 }
 
 export async function confirmarSeparacao(
@@ -250,7 +257,7 @@ export async function confirmarSeparacao(
   qtdSeparada?: number,
   obsEstoque?: string
 ): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('confirmar_separacao', { linhaId, qtdSeparada, obsEstoque });
+  return invokeOperation('confirmar_separacao', { linha_id: linhaId, qtd_separada: qtdSeparada, obs_estoque: obsEstoque });
 }
 
 export async function enderecarDevolucao(
@@ -258,7 +265,7 @@ export async function enderecarDevolucao(
   enderecoMaterialId: string,
   qtdDevolvida: number
 ): Promise<{ success: boolean; error?: string }> {
-  return invokeOperation('enderecear_devolucao', { cancelamentoLinhaId, enderecoMaterialId, qtdDevolvida });
+  return invokeOperation('enderecear_devolucao', { cancelamento_linha_id: cancelamentoLinhaId, endereco_material_id: enderecoMaterialId, qtd_devolvida: qtdDevolvida });
 }
 
 export async function listarTransactions(filters?: {
@@ -268,7 +275,13 @@ export async function listarTransactions(filters?: {
   dataInicio?: string;
   dataFim?: string;
 }): Promise<{ success: boolean; data?: MaterialTransaction[]; error?: string }> {
-  return invokeOperation<MaterialTransaction[]>('listar_transactions', filters || {});
+  return invokeOperation<MaterialTransaction[]>('listar_transactions', {
+    codigo_item: filters?.codigoItem,
+    referencia: filters?.referencia,
+    tipo_transacao: filters?.tipoTransacao,
+    data_inicio: filters?.dataInicio,
+    data_fim: filters?.dataFim,
+  });
 }
 
 export async function areaSeparacao(): Promise<{ success: boolean; data?: { codigo_item: string; qtd_em_separacao: number }[]; error?: string }> {
@@ -278,7 +291,7 @@ export async function areaSeparacao(): Promise<{ success: boolean; data?: { codi
 export async function buscarEnderecosDevolucao(
   codigoItem: string
 ): Promise<{ success: boolean; data?: EnderecoEstoque[]; error?: string }> {
-  return invokeOperation<EnderecoEstoque[]>('buscar_enderecos_devolucao', { codigoItem });
+  return invokeOperation<EnderecoEstoque[]>('buscar_enderecos_devolucao', { codigo_item: codigoItem });
 }
 
 // ============ HOOK ============

@@ -549,9 +549,11 @@ serve(async (req) => {
         JSON.stringify({
           success: true,
           data: {
-            ...sol,
-            sla_inicio_min: calcSlaMinutes(sol.data_abertura, sol.data_inicio_estoque),
-            sla_total_min: calcSlaMinutes(sol.data_abertura, sol.data_conclusao),
+            solicitacao: {
+              ...sol,
+              sla_inicio_min: calcSlaMinutes(sol.data_abertura, sol.data_inicio_estoque),
+              sla_total_min: calcSlaMinutes(sol.data_abertura, sol.data_conclusao),
+            },
             linhas: linhas || [],
           },
         }),
