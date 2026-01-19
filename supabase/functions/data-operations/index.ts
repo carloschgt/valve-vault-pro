@@ -1708,12 +1708,13 @@ serve(async (req) => {
 
       const { search } = params;
       
-      // Buscar inventário com quantidade > 0, ordenado por código e rua
+      // Buscar inventário com quantidade > 0 OU qtd_reservada > 0, ordenado por código e rua
       let query = supabase
         .from("inventario")
         .select(`
           id,
           quantidade,
+          qtd_reservada,
           endereco_material_id,
           enderecos_materiais (
             id,
@@ -1727,7 +1728,7 @@ serve(async (req) => {
             posicao
           )
         `)
-        .gt("quantidade", 0);
+        .or("quantidade.gt.0,qtd_reservada.gt.0");
 
       const { data: inventarioData, error: invError } = await query;
       
@@ -1771,9 +1772,11 @@ serve(async (req) => {
           nivel: number;
           posicao: number;
           quantidade: number;
+          qtd_reservada: number;
           endereco_id: string;
         }[];
         qtd_total: number;
+        qtd_reservada_total: number;
         valor_unitario: number | null;
       }> = {};
 
@@ -1819,19 +1822,23 @@ serve(async (req) => {
             tipo_material: mat.tipo_material,
             enderecos: [],
             qtd_total: 0,
+            qtd_reservada_total: 0,
             valor_unitario: catInfo?.valor_unitario ?? null,
           };
         }
 
+        const qtdReservadaEndereco = inv.qtd_reservada || 0;
         grouped[matCodigo].enderecos.push({
           rua: mat.rua,
           coluna: mat.coluna,
           nivel: mat.nivel,
           posicao: mat.posicao,
           quantidade: inv.quantidade,
+          qtd_reservada: qtdReservadaEndereco,
           endereco_id: mat.id,
         });
         grouped[matCodigo].qtd_total += inv.quantidade;
+        grouped[matCodigo].qtd_reservada_total += qtdReservadaEndereco;
       }
 
       // Converter para array e ordenar por código (menor para maior) e rua (menor para maior)

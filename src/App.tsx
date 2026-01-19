@@ -35,6 +35,7 @@ import Configuracoes from "./pages/Configuracoes";
 import SeparacaoComercial from "./pages/SeparacaoComercial";
 import SeparacaoEstoque from "./pages/SeparacaoEstoque";
 import Cancelamentos from "./pages/Cancelamentos";
+import MaterialTransactions from "./pages/MaterialTransactions";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,7 @@ const App = () => (
             <Route path="/separacao-comercial" element={<ProtectedRoute allowRoles={['admin', 'comercial']}><SeparacaoComercial /></ProtectedRoute>} />
             <Route path="/separacao-estoque" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><SeparacaoEstoque /></ProtectedRoute>} />
             <Route path="/cancelamentos" element={<ProtectedRoute allowRoles={['admin', 'comercial', 'estoque']}><Cancelamentos /></ProtectedRoute>} />
+            <Route path="/movimentacoes" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><MaterialTransactions /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
