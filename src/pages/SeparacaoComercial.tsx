@@ -406,7 +406,17 @@ const SeparacaoComercial = () => {
         }
       }
     } else if (result.error) {
-      showError(result.error);
+      // Check if it's a stock validation error with specific items
+      if (result.itensZeroStock && result.itensZeroStock.length > 0) {
+        toast({
+          title: 'Saldo Insuficiente',
+          description: `Os seguintes itens não possuem saldo disponível: ${result.itensZeroStock.join(', ')}. Verifique o estoque antes de enviar.`,
+          variant: 'destructive',
+          duration: 8000,
+        });
+      } else {
+        showError(result.error);
+      }
     }
     setIsSending(false);
     setSendConfirm(null);

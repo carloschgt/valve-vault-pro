@@ -133,7 +133,7 @@ export interface ProdutoBusca {
   encontrado: boolean;
 }
 
-async function invokeOperation<T>(action: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: T; error?: string }> {
+async function invokeOperation<T>(action: string, params: Record<string, any> = {}): Promise<{ success: boolean; data?: T; error?: string; itensZeroStock?: string[] }> {
   const sessionToken = getSessionToken();
   if (!sessionToken) {
     return { success: false, error: 'Sessão expirada. Faça login novamente.' };
@@ -150,7 +150,11 @@ async function invokeOperation<T>(action: string, params: Record<string, any> = 
     }
 
     if (!data.success) {
-      return { success: false, error: data.error || 'Erro desconhecido' };
+      return { 
+        success: false, 
+        error: data.error || 'Erro desconhecido',
+        itensZeroStock: data.itensZeroStock,
+      };
     }
 
     return { success: true, data: data.data };
@@ -187,7 +191,7 @@ export async function importarLinhas(
   return invokeOperation('importar_linhas', { solicitacao_id: solicitacaoId, linhas });
 }
 
-export async function enviarSolicitacao(solicitacaoId: string): Promise<{ success: boolean; error?: string }> {
+export async function enviarSolicitacao(solicitacaoId: string): Promise<{ success: boolean; error?: string; itensZeroStock?: string[] }> {
   return invokeOperation('enviar_solicitacao', { solicitacao_id: solicitacaoId });
 }
 
