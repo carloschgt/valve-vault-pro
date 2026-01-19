@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.solicitacoes-codigo]
 verify_jwt = false
+
+[functions.separacao-material]
+verify_jwt = false
+
+[functions.password-reset]
+verify_jwt = false
