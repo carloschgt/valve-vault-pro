@@ -88,13 +88,54 @@ serve(async (req) => {
     }
 
     const user = authResult.user!;
-    const isAdmin = user.tipo === 'admin';
-    const isComercial = user.tipo === 'comercial';
-    const isUser = user.tipo === 'user';
-    const canRequestCode = isAdmin || isUser; // Quem pode solicitar códigos
-    const canProcessCode = isComercial || isAdmin; // Quem pode processar/gerar códigos (comercial e admin)
+    const PROTECTED_SUPER_ADMIN_EMAIL = "carlos.teixeira@imexsolutions.com.br";
+    const isSuperAdmin = user.role === 'SUPER_ADMIN' || 
+      (user.tipo === 'admin' && user.email?.toLowerCase() === PROTECTED_SUPER_ADMIN_EMAIL);
+    const isAdmin = user.tipo === 'admin' || isSuperAdmin;
 
-    console.log(`User: ${user.email}, Tipo: ${user.tipo}`);
+    console.log(`User: ${user.email}, Tipo: ${user.tipo}, Role: ${user.role}, IsSuperAdmin: ${isSuperAdmin}`);
+
+    // Buscar permissões do perfil do usuário dinamicamente
+    let canRequestCode = isAdmin; // Admin sempre pode
+    let canProcessCode = isAdmin; // Admin sempre pode
+    let canApproveCode = isAdmin; // Admin sempre pode
+
+    if (!isAdmin) {
+      // Buscar o profile_id baseado no tipo do usuário
+      const { data: userProfile } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("nome", user.tipo)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (userProfile) {
+        // Buscar permissões do perfil
+        const { data: permissions } = await supabase
+          .from("profile_permissions")
+          .select("menu_key, can_access")
+          .eq("profile_id", userProfile.id)
+          .eq("can_access", true);
+
+        if (permissions) {
+          const permissionMap = permissions.reduce((acc: Record<string, boolean>, p: any) => {
+            acc[p.menu_key] = p.can_access;
+            return acc;
+          }, {});
+
+          // Verificar permissão de solicitar código
+          canRequestCode = permissionMap['solicitar_codigo'] === true;
+          // Verificar permissão de processar códigos (comercial)
+          canProcessCode = permissionMap['processar_codigos'] === true;
+          // Verificar permissão de aprovar códigos (admin)
+          canApproveCode = permissionMap['aprovacao_codigos'] === true;
+          
+          console.log(`Permissions for ${user.tipo}:`, { canRequestCode, canProcessCode, canApproveCode });
+        }
+      } else {
+        console.log(`No active profile found for tipo: ${user.tipo}`);
+      }
+    }
 
     // ========== CRIAR SOLICITAÇÃO (user, admin) ==========
     if (action === "criar_solicitacao") {
@@ -213,11 +254,11 @@ serve(async (req) => {
       );
     }
 
-    // ========== LISTAR SOLICITAÇÕES PARA APROVAÇÃO (admin) ==========
+    // ========== LISTAR SOLICITAÇÕES PARA APROVAÇÃO (quem tem permissão) ==========
     if (action === "listar_para_aprovacao") {
-      if (!isAdmin) {
+      if (!canApproveCode) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Apenas administradores podem aprovar códigos' }),
+          JSON.stringify({ success: false, error: 'Você não tem permissão para aprovar códigos' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -486,11 +527,11 @@ serve(async (req) => {
       );
     }
 
-    // ========== APROVAR CÓDIGO (admin) ==========
+    // ========== APROVAR CÓDIGO (admin ou quem tem permissão) ==========
     if (action === "aprovar") {
-      if (!isAdmin) {
+      if (!canApproveCode) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Apenas administradores podem aprovar códigos' }),
+          JSON.stringify({ success: false, error: 'Você não tem permissão para aprovar códigos' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -577,9 +618,9 @@ serve(async (req) => {
 
     // ========== REJEITAR CÓDIGO (admin) ==========
     if (action === "rejeitar") {
-      if (!isAdmin) {
+      if (!canApproveCode) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Apenas administradores podem rejeitar códigos' }),
+          JSON.stringify({ success: false, error: 'Você não tem permissão para rejeitar códigos' }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
