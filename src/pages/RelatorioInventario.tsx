@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Loader2, Download, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Search, Loader2, Download, AlertTriangle, CheckCircle, Clock, FileQuestion } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { exportInventario } from '@/hooks/useDataOperations';
+import { exportInventario, getEnderecosSemInventario } from '@/hooks/useDataOperations';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
@@ -30,7 +30,20 @@ interface InventarioReportItem {
   contado_por_c3: string | null;
   divergencia_abs: number;
   divergencia_pct: number;
-  status: 'OK' | 'DIVERGENTE' | 'AGUARDANDO';
+  status: 'OK' | 'DIVERGENTE' | 'AGUARDANDO' | 'PENDENTE';
+}
+
+interface EnderecoSemInventario {
+  id: string;
+  codigo: string;
+  descricao: string;
+  descricao_imex: string | null;
+  tipo_material: string;
+  rua: number;
+  coluna: number;
+  nivel: number;
+  posicao: number;
+  fabricantes?: { nome: string } | null;
 }
 
 const RelatorioInventario = () => {
@@ -41,8 +54,9 @@ const RelatorioInventario = () => {
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'DIVERGENTE' | 'OK' | 'AGUARDANDO'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'DIVERGENTE' | 'OK' | 'AGUARDANDO' | 'PENDENTE'>('all');
   const [reportData, setReportData] = useState<InventarioReportItem[]>([]);
+  const [contagemAtiva, setContagemAtiva] = useState(1);
 
   const isAdmin = user?.tipo === 'admin';
 
@@ -58,14 +72,17 @@ const RelatorioInventario = () => {
   const loadReport = async () => {
     setIsLoading(true);
     try {
-      // Fetch all inventory grouped by material/address via edge function
-      const result = await exportInventario();
+      // Fetch both inventory data and addresses without inventory
+      const [inventarioResult, semInventarioResult] = await Promise.all([
+        exportInventario(),
+        getEnderecosSemInventario()
+      ]);
       
-      if (!result.success) {
-        throw new Error(result.error);
+      if (!inventarioResult.success) {
+        throw new Error(inventarioResult.error);
       }
 
-      const inventarioData = result.data || [];
+      const inventarioData = inventarioResult.data || [];
 
       // Group by endereco_material_id
       const grouped: Record<string, {
@@ -111,7 +128,7 @@ const RelatorioInventario = () => {
 
         let divergencia_abs = 0;
         let divergencia_pct = 0;
-        let status: 'OK' | 'DIVERGENTE' | 'AGUARDANDO' = 'AGUARDANDO';
+        let status: 'OK' | 'DIVERGENTE' | 'AGUARDANDO' | 'PENDENTE' = 'AGUARDANDO';
 
         if (qtd_c1 !== null && qtd_c2 !== null) {
           divergencia_abs = Math.abs(qtd_c1 - qtd_c2);
@@ -150,6 +167,35 @@ const RelatorioInventario = () => {
         };
       });
 
+      // Add addresses without inventory as PENDENTE
+      if (semInventarioResult.success && semInventarioResult.data) {
+        // Access contagem_ativa from the full response data
+        const responseData = semInventarioResult as any;
+        setContagemAtiva(responseData.contagem_ativa || 1);
+        
+        const pendentes: InventarioReportItem[] = (semInventarioResult.data as EnderecoSemInventario[]).map((end) => ({
+          endereco_material_id: end.id,
+          codigo: end.codigo,
+          descricao: end.descricao,
+          endereco_formatado: formatEndereco(end.rua, end.coluna, end.nivel, end.posicao),
+          rua: end.rua,
+          coluna: end.coluna,
+          nivel: end.nivel,
+          posicao: end.posicao,
+          qtd_c1: null,
+          qtd_c2: null,
+          qtd_c3: null,
+          contado_por_c1: null,
+          contado_por_c2: null,
+          contado_por_c3: null,
+          divergencia_abs: 0,
+          divergencia_pct: 0,
+          status: 'PENDENTE' as const,
+        }));
+
+        report.push(...pendentes);
+      }
+
       // Sort by code
       report.sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }));
 
@@ -181,6 +227,7 @@ const RelatorioInventario = () => {
     ok: reportData.filter((i) => i.status === 'OK').length,
     divergente: reportData.filter((i) => i.status === 'DIVERGENTE').length,
     aguardando: reportData.filter((i) => i.status === 'AGUARDANDO').length,
+    pendente: reportData.filter((i) => i.status === 'PENDENTE').length,
   };
 
   const handleExport = () => {
@@ -194,8 +241,8 @@ const RelatorioInventario = () => {
       'Contado por C2': item.contado_por_c2 ?? '',
       'Qtd C3': item.qtd_c3 ?? '',
       'Contado por C3': item.contado_por_c3 ?? '',
-      'Divergência': item.divergencia_abs,
-      'Divergência %': item.divergencia_pct.toFixed(1) + '%',
+      'Divergência': item.status === 'PENDENTE' ? '' : item.divergencia_abs,
+      'Divergência %': item.status === 'PENDENTE' ? '' : item.divergencia_pct.toFixed(1) + '%',
       'Status': item.status,
     }));
 
@@ -244,6 +291,9 @@ const RelatorioInventario = () => {
         </button>
         <img src={logoImex} alt="IMEX Solutions" className="h-8" />
         <h1 className="flex-1 text-lg font-bold">Relatório de Inventário</h1>
+        <span className="rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+          Contagem {contagemAtiva}
+        </span>
         <Button variant="outline" size="sm" onClick={handleExport} disabled={isLoading}>
           <Download className="h-4 w-4" />
           <span className="ml-2 hidden sm:inline">Exportar</span>
@@ -252,42 +302,51 @@ const RelatorioInventario = () => {
 
       {/* Stats */}
       <div className="border-b border-border bg-card p-4">
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <button
             onClick={() => setFilterStatus('all')}
-            className={`rounded-lg p-3 text-center transition-colors ${
+            className={`rounded-lg p-2 text-center transition-colors ${
               filterStatus === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'
             }`}
           >
-            <p className="text-xl font-bold">{stats.total}</p>
-            <p className="text-xs">Total</p>
+            <p className="text-lg font-bold">{stats.total}</p>
+            <p className="text-[10px]">Total</p>
           </button>
           <button
             onClick={() => setFilterStatus('OK')}
-            className={`rounded-lg p-3 text-center transition-colors ${
+            className={`rounded-lg p-2 text-center transition-colors ${
               filterStatus === 'OK' ? 'bg-mrx-success text-white' : 'bg-mrx-success/10 hover:bg-mrx-success/20'
             }`}
           >
-            <p className="text-xl font-bold">{stats.ok}</p>
-            <p className="text-xs">OK</p>
+            <p className="text-lg font-bold">{stats.ok}</p>
+            <p className="text-[10px]">OK</p>
           </button>
           <button
             onClick={() => setFilterStatus('DIVERGENTE')}
-            className={`rounded-lg p-3 text-center transition-colors ${
+            className={`rounded-lg p-2 text-center transition-colors ${
               filterStatus === 'DIVERGENTE' ? 'bg-destructive text-white' : 'bg-destructive/10 hover:bg-destructive/20'
             }`}
           >
-            <p className="text-xl font-bold">{stats.divergente}</p>
-            <p className="text-xs">Diverg.</p>
+            <p className="text-lg font-bold">{stats.divergente}</p>
+            <p className="text-[10px]">Diverg.</p>
           </button>
           <button
             onClick={() => setFilterStatus('AGUARDANDO')}
-            className={`rounded-lg p-3 text-center transition-colors ${
+            className={`rounded-lg p-2 text-center transition-colors ${
               filterStatus === 'AGUARDANDO' ? 'bg-yellow-500 text-white' : 'bg-yellow-500/10 hover:bg-yellow-500/20'
             }`}
           >
-            <p className="text-xl font-bold">{stats.aguardando}</p>
-            <p className="text-xs">Aguard.</p>
+            <p className="text-lg font-bold">{stats.aguardando}</p>
+            <p className="text-[10px]">Aguard.</p>
+          </button>
+          <button
+            onClick={() => setFilterStatus('PENDENTE')}
+            className={`rounded-lg p-2 text-center transition-colors ${
+              filterStatus === 'PENDENTE' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 hover:bg-orange-500/20'
+            }`}
+          >
+            <p className="text-lg font-bold">{stats.pendente}</p>
+            <p className="text-[10px]">Pendente</p>
           </button>
         </div>
       </div>
@@ -323,7 +382,11 @@ const RelatorioInventario = () => {
             {filteredData.map((item) => (
               <div
                 key={item.endereco_material_id}
-                className="rounded-xl border border-border bg-card p-4"
+                className={`rounded-xl border bg-card p-4 ${
+                  item.status === 'PENDENTE' 
+                    ? 'border-orange-500/50 bg-orange-500/5' 
+                    : 'border-border'
+                }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -337,47 +400,64 @@ const RelatorioInventario = () => {
                         ? 'default'
                         : item.status === 'DIVERGENTE'
                         ? 'destructive'
+                        : item.status === 'PENDENTE'
+                        ? 'outline'
                         : 'secondary'
                     }
-                    className="shrink-0"
+                    className={`shrink-0 ${
+                      item.status === 'PENDENTE' 
+                        ? 'border-orange-500 text-orange-500 bg-orange-500/10' 
+                        : ''
+                    }`}
                   >
                     {item.status === 'OK' && <CheckCircle className="mr-1 h-3 w-3" />}
                     {item.status === 'DIVERGENTE' && <AlertTriangle className="mr-1 h-3 w-3" />}
                     {item.status === 'AGUARDANDO' && <Clock className="mr-1 h-3 w-3" />}
+                    {item.status === 'PENDENTE' && <FileQuestion className="mr-1 h-3 w-3" />}
                     {item.status}
                   </Badge>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <div className={`rounded-lg p-2 ${item.qtd_c1 !== null ? 'bg-primary/10' : 'bg-muted/50'}`}>
-                    <p className="text-xs text-muted-foreground">C1</p>
-                    <p className="text-lg font-bold">{item.qtd_c1 ?? '-'}</p>
-                    {item.contado_por_c1 && (
-                      <p className="text-xs text-muted-foreground truncate">{item.contado_por_c1}</p>
-                    )}
-                  </div>
-                  <div className={`rounded-lg p-2 ${item.qtd_c2 !== null ? 'bg-primary/10' : 'bg-muted/50'}`}>
-                    <p className="text-xs text-muted-foreground">C2</p>
-                    <p className="text-lg font-bold">{item.qtd_c2 ?? '-'}</p>
-                    {item.contado_por_c2 && (
-                      <p className="text-xs text-muted-foreground truncate">{item.contado_por_c2}</p>
-                    )}
-                  </div>
-                  <div className={`rounded-lg p-2 ${item.qtd_c3 !== null ? 'bg-primary/10' : 'bg-muted/50'}`}>
-                    <p className="text-xs text-muted-foreground">C3</p>
-                    <p className="text-lg font-bold">{item.qtd_c3 ?? '-'}</p>
-                    {item.contado_por_c3 && (
-                      <p className="text-xs text-muted-foreground truncate">{item.contado_por_c3}</p>
-                    )}
-                  </div>
-                </div>
-
-                {item.status === 'DIVERGENTE' && (
-                  <div className="mt-3 rounded-lg bg-destructive/10 p-2 text-center">
-                    <p className="text-sm font-medium text-destructive">
-                      Divergência: {item.divergencia_abs} unidades ({item.divergencia_pct.toFixed(1)}%)
+                {item.status === 'PENDENTE' ? (
+                  <div className="mt-3 rounded-lg bg-orange-500/10 p-2 text-center">
+                    <p className="text-sm font-medium text-orange-600">
+                      Nenhuma contagem registrada para este item
                     </p>
                   </div>
+                ) : (
+                  <>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      <div className={`rounded-lg p-2 ${item.qtd_c1 !== null ? 'bg-primary/10' : 'bg-muted/50'}`}>
+                        <p className="text-xs text-muted-foreground">C1</p>
+                        <p className="text-lg font-bold">{item.qtd_c1 ?? '-'}</p>
+                        {item.contado_por_c1 && (
+                          <p className="text-xs text-muted-foreground truncate">{item.contado_por_c1}</p>
+                        )}
+                      </div>
+                      <div className={`rounded-lg p-2 ${item.qtd_c2 !== null ? 'bg-primary/10' : 'bg-muted/50'}`}>
+                        <p className="text-xs text-muted-foreground">C2</p>
+                        <p className="text-lg font-bold">{item.qtd_c2 ?? '-'}</p>
+                        {item.contado_por_c2 && (
+                          <p className="text-xs text-muted-foreground truncate">{item.contado_por_c2}</p>
+                        )}
+                      </div>
+                      <div className={`rounded-lg p-2 ${item.qtd_c3 !== null ? 'bg-primary/10' : 'bg-muted/50'}`}>
+                        <p className="text-xs text-muted-foreground">C3</p>
+                        <p className="text-lg font-bold">{item.qtd_c3 ?? '-'}</p>
+                        {item.contado_por_c3 && (
+                          <p className="text-xs text-muted-foreground truncate">{item.contado_por_c3}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {item.status === 'DIVERGENTE' && (
+                      <div className="mt-3 rounded-lg bg-destructive/10 p-2 text-center">
+                        <p className="text-sm font-medium text-destructive">
+                          Divergência: {item.divergencia_abs} unidades ({item.divergencia_pct.toFixed(1)}%)
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}

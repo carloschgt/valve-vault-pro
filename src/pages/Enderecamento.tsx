@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos, deleteEndereco, listCodigosSemEnderecamento, updateCatalogo } from '@/hooks/useDataOperations';
+import { listFabricantes, getCatalogoDescricao, insertEndereco, checkEnderecoDuplicado, getEnderecoById, listEnderecos, deleteEndereco, listCodigosSemEnderecamento, updateCatalogo, removerCodigoPendente } from '@/hooks/useDataOperations';
 import { supabase } from '@/integrations/supabase/client';
 import { formatEndereco } from '@/utils/formatEndereco';
 import logoImex from '@/assets/logo-imex.png';
@@ -131,6 +131,10 @@ const Enderecamento = () => {
   const [editingPendente, setEditingPendente] = useState<CodigoSemEndereco | null>(null);
   const [editPendenteCodigo, setEditPendenteCodigo] = useState('');
   const [isSavingPendente, setIsSavingPendente] = useState(false);
+  
+  // Estados para remoção de código pendente (Super Admin)
+  const [removingPendente, setRemovingPendente] = useState<CodigoSemEndereco | null>(null);
+  const [isRemovingPendente, setIsRemovingPendente] = useState(false);
 
   // Carregar fabricantes do banco
   useEffect(() => {
@@ -374,6 +378,46 @@ const Enderecamento = () => {
       });
     } finally {
       setIsSavingPendente(false);
+    }
+  };
+
+  // Abrir modal de remoção de código pendente (Super Admin)
+  const handleRemovePendente = (item: CodigoSemEndereco, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRemovingPendente(item);
+  };
+
+  // Confirmar remoção de código pendente
+  const handleConfirmRemovePendente = async () => {
+    if (!removingPendente || !isSuperAdmin) return;
+    
+    setIsRemovingPendente(true);
+    try {
+      const result = await removerCodigoPendente(removingPendente.codigo);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao remover código');
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: `Código ${removingPendente.codigo} removido da lista de pendências`,
+      });
+
+      // Remover da lista localmente
+      setCodigosSemEndereco(prev => 
+        prev.filter(item => item.codigo !== removingPendente.codigo)
+      );
+
+      setRemovingPendente(null);
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao remover código',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRemovingPendente(false);
     }
   };
 
@@ -945,15 +989,24 @@ const Enderecamento = () => {
                             </div>
                           </div>
                         </button>
-                        {/* Botão de editar código - apenas Super Admin */}
+                        {/* Botões Super Admin: editar código e remover da lista */}
                         {isSuperAdmin && (
-                          <button
-                            onClick={(e) => handleEditPendente(item, e)}
-                            className="p-1.5 rounded hover:bg-amber-500/20 text-amber-600"
-                            title="Editar código"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={(e) => handleEditPendente(item, e)}
+                              className="p-1.5 rounded hover:bg-amber-500/20 text-amber-600"
+                              title="Editar código"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => handleRemovePendente(item, e)}
+                              className="p-1.5 rounded hover:bg-destructive/20 text-destructive"
+                              title="Remover da lista de pendências"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -1082,6 +1135,47 @@ const Enderecamento = () => {
                 <Save className="mr-2 h-4 w-4" />
               )}
               Salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmação de remoção de código pendente (Super Admin) */}
+      <AlertDialog open={!!removingPendente} onOpenChange={(open) => !open && setRemovingPendente(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              Remover Código da Lista de Pendências
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <p>
+                Tem certeza que deseja remover este item da lista de pendências de endereçamento?
+              </p>
+              {removingPendente && (
+                <div className="rounded-lg border border-border bg-muted p-3">
+                  <p className="font-bold text-primary">{removingPendente.codigo}</p>
+                  <p className="text-sm">{removingPendente.descricao}</p>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                <strong>Nota:</strong> O código permanecerá no catálogo de produtos. 
+                Apenas será removido da lista de itens pendentes de endereçamento.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemovingPendente}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmRemovePendente}
+              disabled={isRemovingPendente}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isRemovingPendente ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Remover
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

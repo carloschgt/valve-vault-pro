@@ -3239,6 +3239,113 @@ serve(async (req) => {
       );
     }
 
+    // ========== ENDEREÇOS SEM INVENTÁRIO (PENDENTES DE CONTAGEM) ==========
+    if (action === "enderecos_sem_inventario") {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas administradores podem ver esta informação' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get current active counting phase
+      const { data: config } = await supabase
+        .from("inventario_config")
+        .select("contagem_ativa")
+        .single();
+      const contagemAtiva = config?.contagem_ativa || 1;
+
+      // Buscar todos os endereços ativos
+      const { data: todosEnderecos, error: endError } = await supabase
+        .from("enderecos_materiais")
+        .select("id, codigo, descricao, descricao_imex, tipo_material, rua, coluna, nivel, posicao, fabricantes(nome)")
+        .eq("ativo", true)
+        .order("codigo", { ascending: true });
+      
+      if (endError) throw endError;
+
+      // Buscar todos os IDs de endereços que já têm inventário na contagem ativa
+      const { data: inventarioExistente } = await supabase
+        .from("inventario")
+        .select("endereco_material_id")
+        .eq("contagem_num", contagemAtiva);
+      
+      const idsComInventario = new Set((inventarioExistente || []).map((i: any) => i.endereco_material_id));
+
+      // Filtrar endereços sem inventário
+      const semInventario = (todosEnderecos || []).filter((e: any) => !idsComInventario.has(e.id));
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: semInventario,
+          contagem_ativa: contagemAtiva,
+          total_enderecos: todosEnderecos?.length || 0,
+          total_com_inventario: idsComInventario.size,
+          total_sem_inventario: semInventario.length
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== REMOVER CÓDIGO PENDENTE DE ENDEREÇAMENTO (SUPER ADMIN) ==========
+    if (action === "remover_codigo_pendente") {
+      const PROTECTED_SUPER_ADMIN_EMAIL = "carlos.teixeira@imexsolutions.com.br";
+      const isSuperAdmin = user.role === 'SUPER_ADMIN' || 
+        (user.tipo === 'admin' && user.email?.toLowerCase() === PROTECTED_SUPER_ADMIN_EMAIL);
+      
+      if (!isSuperAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Apenas Super Administradores podem remover códigos pendentes' }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { codigo } = params;
+      if (!codigo) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código não fornecido' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Buscar a solicitação aprovada com este código
+      const { data: solicitacao, error: solError } = await supabase
+        .from("solicitacoes_codigo")
+        .select("id, codigo_gerado")
+        .eq("codigo_gerado", codigo.trim().toUpperCase())
+        .eq("status", "aprovado")
+        .maybeSingle();
+      
+      if (solError) throw solError;
+
+      if (!solicitacao) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código não encontrado na lista de pendentes' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Limpar o codigo_gerado para que não apareça mais na lista de pendentes
+      // Isso não exclui o código do catálogo, apenas remove da lista de pendência
+      const { error: updateError } = await supabase
+        .from("solicitacoes_codigo")
+        .update({ 
+          codigo_gerado: null,
+          status: 'removido_pendencia'
+        })
+        .eq("id", solicitacao.id);
+      
+      if (updateError) throw updateError;
+
+      console.log(`Código ${codigo} removido da lista de pendentes por ${user.nome} (Super Admin)`);
+
+      return new Response(
+        JSON.stringify({ success: true, message: `Código ${codigo} removido da lista de pendências` }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error(`Ação inválida: ${action}`);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro desconhecido";

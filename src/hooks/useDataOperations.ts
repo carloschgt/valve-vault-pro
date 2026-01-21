@@ -319,3 +319,13 @@ export async function getHomeStats(): Promise<DataOperationResult> {
 export async function listInventarioAudit(inventario_id?: string, limit?: number): Promise<DataOperationResult> {
   return invokeDataOperation('inventario_audit_list', { inventario_id, limit });
 }
+
+// ========== ENDEREÇOS SEM INVENTÁRIO ==========
+export async function getEnderecosSemInventario(): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_sem_inventario');
+}
+
+// ========== REMOVER CÓDIGO PENDENTE (SUPER ADMIN) ==========
+export async function removerCodigoPendente(codigo: string): Promise<DataOperationResult> {
+  return invokeDataOperation('remover_codigo_pendente', { codigo });
+}
