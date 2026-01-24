@@ -27,6 +27,7 @@ import {
   PackageSearch,
   Warehouse,
   Undo2,
+  Boxes,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MENU_KEYS } from '@/hooks/useUserPermissions';
@@ -61,6 +62,7 @@ const menuItems: MenuItem[] = [
   { key: MENU_KEYS.processar_codigos, label: 'Processar Códigos', icon: FileSpreadsheet, path: '/processar-codigos', adminOnly: true },
   { key: MENU_KEYS.aprovacao_codigos, label: 'Aprovação de Códigos', icon: ShieldCheck, path: '/aprovacao-codigos', adminOnly: true },
   { key: MENU_KEYS.relatorio_inventario, label: 'Relatório de Inventário', icon: BarChart3, path: '/relatorio-inventario', adminOnly: true },
+  { key: MENU_KEYS.inventario_alocacoes, label: 'Alocações Fora do Estoque', icon: Boxes, path: '/inventario-alocacoes', adminOnly: true },
   { key: MENU_KEYS.controle_inventario, label: 'Controle de Inventário', icon: ClipboardCheck, path: '/controle-inventario', adminOnly: true },
   { key: MENU_KEYS.gerenciamento_dados, label: 'Gerenciamento de Dados', icon: FileText, path: '/gerenciamento-dados', adminOnly: true },
   { key: MENU_KEYS.admin_panel, label: 'Configurações', icon: Settings, path: '/configuracoes', adminOnly: true },
