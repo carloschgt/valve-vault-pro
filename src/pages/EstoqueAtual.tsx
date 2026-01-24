@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search, Package, Loader2, ScanLine, X, MapPin, Scale, Tag, Factory, Download } from 'lucide-react';
+import { ArrowLeft, Search, Package, Loader2, ScanLine, X, MapPin, Scale, Tag, Factory, Download, Warehouse, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useUserPermissions, MENU_KEYS } from '@/hooks/useUserPermissions';
@@ -74,6 +76,32 @@ interface QRData {
   peso?: number;
 }
 
+interface ResumoEstoque {
+  codigo: string;
+  estoque_enderecado: {
+    endereco_id: string;
+    rua: number;
+    coluna: number;
+    nivel: number;
+    posicao: number;
+    quantidade: number;
+    qtd_reservada: number;
+    disponivel: number;
+  }[];
+  totais: {
+    total_estoque_enderecado: number;
+    total_reservado: number;
+    total_disponivel: number;
+  };
+  alocacoes: {
+    WIP: number;
+    QUALIDADE: number;
+    QUALIDADE_REPROVADO: number;
+    EXPEDICAO: number;
+  };
+  total_geral: number;
+}
+
 const EstoqueAtual = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -97,6 +125,11 @@ const EstoqueAtual = () => {
   const [bloqueadoParaUsuarios, setBloqueadoParaUsuarios] = useState(false);
   const [isCheckingConfig, setIsCheckingConfig] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  
+  // Detalhe por item (drawer com alocações)
+  const [selectedItem, setSelectedItem] = useState<EstoqueItem | null>(null);
+  const [resumoDetalhe, setResumoDetalhe] = useState<ResumoEstoque | null>(null);
+  const [isLoadingResumo, setIsLoadingResumo] = useState(false);
 
   // Check inventory config for stock view block
   useEffect(() => {
@@ -255,6 +288,28 @@ const EstoqueAtual = () => {
 
     return () => clearTimeout(timer);
   }, [search, isAdmin, canBypassInventoryBlock, isCheckingConfig, bloqueadoParaUsuarios]);
+
+  // Handler para abrir detalhe do item com alocações
+  const handleOpenDetail = async (item: EstoqueItem) => {
+    setSelectedItem(item);
+    setIsLoadingResumo(true);
+    try {
+      const sessionToken = getSessionToken();
+      if (!sessionToken) return;
+      
+      const { data, error } = await supabase.functions.invoke('data-operations', {
+        body: { action: 'estoque_resumo_codigo', sessionToken, codigo: item.codigo },
+      });
+      
+      if (!error && data?.success) {
+        setResumoDetalhe(data.data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar resumo:', err);
+    } finally {
+      setIsLoadingResumo(false);
+    }
+  };
 
   // Handler para exportar Excel
   const handleExportExcel = () => {
@@ -499,6 +554,85 @@ const EstoqueAtual = () => {
         />
       )}
 
+      {/* Drawer de Detalhe por Item */}
+      <Sheet open={!!selectedItem} onOpenChange={() => { setSelectedItem(null); setResumoDetalhe(null); }}>
+        <SheetContent className="w-full sm:max-w-md overflow-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              {selectedItem?.codigo}
+            </SheetTitle>
+          </SheetHeader>
+          
+          {isLoadingResumo ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : resumoDetalhe ? (
+            <div className="mt-4 space-y-4">
+              {/* Cards de saldo por local */}
+              <div className="grid grid-cols-2 gap-2">
+                <Card className="bg-blue-500/10">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground"><Warehouse className="h-3 w-3" />Endereçado</div>
+                    <p className="text-lg font-bold text-blue-600">{resumoDetalhe.totais.total_estoque_enderecado}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-amber-500/10">
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">WIP</div>
+                    <p className="text-lg font-bold text-amber-600">{resumoDetalhe.alocacoes.WIP}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-purple-500/10">
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Qualidade</div>
+                    <p className="text-lg font-bold text-purple-600">{resumoDetalhe.alocacoes.QUALIDADE}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-red-500/10">
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Reprovado</div>
+                    <p className="text-lg font-bold text-red-600">{resumoDetalhe.alocacoes.QUALIDADE_REPROVADO}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-green-500/10">
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Expedição</div>
+                    <p className="text-lg font-bold text-green-600">{resumoDetalhe.alocacoes.EXPEDICAO}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-primary/10">
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground font-semibold">TOTAL</div>
+                    <p className="text-xl font-bold text-primary">{resumoDetalhe.total_geral}</p>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Lista de endereços */}
+              {resumoDetalhe.estoque_enderecado.length > 0 && (
+                <div className="border rounded-lg">
+                  <div className="px-3 py-2 bg-muted/50 text-xs font-semibold">Endereços</div>
+                  <div className="divide-y">
+                    {resumoDetalhe.estoque_enderecado.map((e) => (
+                      <div key={e.endereco_id} className="px-3 py-2 flex justify-between text-sm">
+                        <span className="font-mono text-xs">R{String(e.rua).padStart(2,'0')}.C{String(e.coluna).padStart(2,'0')}.N{String(e.nivel).padStart(2,'0')}.P{String(e.posicao).padStart(2,'0')}</span>
+                        <span>Disp: <strong className="text-green-600">{e.disponivel}</strong></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <Button variant="outline" className="w-full" onClick={() => navigate('/inventario-alocacoes')}>
+                Gerenciar Alocações
+              </Button>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
       {/* Tabela */}
       <div className="flex-1 flex flex-col min-h-0">
         {isLoading ? (
@@ -584,6 +718,7 @@ const EstoqueAtual = () => {
                     // Os endereços já vêm ordenados do backend por rua, coluna, nivel, posicao
                     const enderecos = item.enderecos;
                     const valorTotal = item.valor_unitario !== null ? item.valor_unitario * item.qtd_total : null;
+                    const handleRowClick = () => handleOpenDetail(item);
                     
                     return enderecos.map((end, endIdx) => (
                       <tr 

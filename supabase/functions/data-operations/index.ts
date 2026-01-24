@@ -1647,12 +1647,14 @@ serve(async (req) => {
       
       if (error) throw error;
       
+      // Formatear itens do estoque endereçado com local='ESTOQUE'
       const formatted = (data || []).map((d: any) => ({
         id: d.id,
         codigo: d.enderecos_materiais?.codigo || '',
         descricao: d.enderecos_materiais?.descricao || '',
         fabricante_nome: d.enderecos_materiais?.fabricantes?.nome || 'N/A',
         peso: d.enderecos_materiais?.peso || 0,
+        local: 'ESTOQUE',
         rua: d.enderecos_materiais?.rua || 0,
         coluna: d.enderecos_materiais?.coluna || 0,
         nivel: d.enderecos_materiais?.nivel || 0,
@@ -1662,8 +1664,500 @@ serve(async (req) => {
         data_contagem: d.created_at,
       }));
       
+      // Buscar alocações fora do estoque (WIP, QUALIDADE, etc)
+      const { data: alocacoes, error: alocError } = await supabase
+        .from("estoque_alocacoes")
+        .select("codigo, local, quantidade, updated_by, updated_at")
+        .gt("quantidade", 0);
+      
+      if (alocError) {
+        console.warn("Erro ao buscar alocações:", alocError);
+      }
+      
+      // Se houver alocações, buscar descrições do catálogo
+      if (alocacoes && alocacoes.length > 0) {
+        const codigos = [...new Set(alocacoes.map((a: any) => a.codigo))];
+        const { data: catalogoData } = await supabase
+          .from("catalogo_produtos")
+          .select("codigo, descricao, peso_kg")
+          .in("codigo", codigos);
+        
+        const catalogoMap = new Map<string, { descricao: string; peso: number }>();
+        catalogoData?.forEach((c: any) => {
+          catalogoMap.set(c.codigo, { descricao: c.descricao || '-', peso: c.peso_kg || 0 });
+        });
+        
+        // Adicionar linhas de alocações
+        for (const aloc of alocacoes) {
+          const catInfo = catalogoMap.get(aloc.codigo);
+          formatted.push({
+            id: `aloc-${aloc.codigo}-${aloc.local}`,
+            codigo: aloc.codigo,
+            descricao: catInfo?.descricao || '-',
+            fabricante_nome: '-',
+            peso: catInfo?.peso || 0,
+            local: aloc.local,
+            rua: null,
+            coluna: null,
+            nivel: null,
+            posicao: null,
+            quantidade: aloc.quantidade,
+            contado_por: aloc.updated_by || 'system',
+            data_contagem: aloc.updated_at,
+          });
+        }
+      }
+      
       return new Response(
         JSON.stringify({ success: true, data: formatted }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== ESTOQUE RESUMO POR CÓDIGO (com alocações) ==========
+    if (action === "estoque_resumo_codigo") {
+      const { codigo } = params;
+      
+      if (!codigo) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código não fornecido' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const codigoUpper = codigo.trim().toUpperCase();
+
+      // Buscar saldo endereçado
+      const { data: enderecos, error: endError } = await supabase
+        .from("enderecos_materiais")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          rua,
+          coluna,
+          nivel,
+          posicao
+        `)
+        .eq("codigo", codigoUpper)
+        .eq("ativo", true);
+      
+      if (endError) throw endError;
+
+      // Buscar inventário para cada endereço
+      const enderecoIds = (enderecos || []).map((e: any) => e.id);
+      let inventarioMap: Map<string, { quantidade: number; qtd_reservada: number }> = new Map();
+      
+      if (enderecoIds.length > 0) {
+        const { data: invData } = await supabase
+          .from("inventario")
+          .select("endereco_material_id, quantidade, qtd_reservada")
+          .in("endereco_material_id", enderecoIds);
+        
+        invData?.forEach((inv: any) => {
+          inventarioMap.set(inv.endereco_material_id, {
+            quantidade: inv.quantidade || 0,
+            qtd_reservada: inv.qtd_reservada || 0
+          });
+        });
+      }
+
+      // Montar lista de endereços com saldo
+      const estoqueEnderecado = (enderecos || []).map((e: any) => {
+        const inv = inventarioMap.get(e.id) || { quantidade: 0, qtd_reservada: 0 };
+        return {
+          endereco_id: e.id,
+          rua: e.rua,
+          coluna: e.coluna,
+          nivel: e.nivel,
+          posicao: e.posicao,
+          quantidade: inv.quantidade,
+          qtd_reservada: inv.qtd_reservada,
+          disponivel: inv.quantidade - inv.qtd_reservada
+        };
+      });
+
+      const totalEstoqueEnderecado = estoqueEnderecado.reduce((sum, e) => sum + e.quantidade, 0);
+      const totalReservado = estoqueEnderecado.reduce((sum, e) => sum + e.qtd_reservada, 0);
+      const totalDisponivel = totalEstoqueEnderecado - totalReservado;
+
+      // Buscar alocações fora do estoque
+      const { data: alocacoes } = await supabase
+        .from("estoque_alocacoes")
+        .select("local, quantidade")
+        .eq("codigo", codigoUpper);
+      
+      const alocacoesMap: Record<string, number> = {
+        WIP: 0,
+        QUALIDADE: 0,
+        QUALIDADE_REPROVADO: 0,
+        EXPEDICAO: 0
+      };
+      
+      alocacoes?.forEach((a: any) => {
+        alocacoesMap[a.local] = a.quantidade || 0;
+      });
+
+      const totalAlocacoes = Object.values(alocacoesMap).reduce((sum, v) => sum + v, 0);
+      const totalGeral = totalEstoqueEnderecado + totalAlocacoes;
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: {
+            codigo: codigoUpper,
+            estoque_enderecado: estoqueEnderecado,
+            totais: {
+              total_estoque_enderecado: totalEstoqueEnderecado,
+              total_reservado: totalReservado,
+              total_disponivel: totalDisponivel
+            },
+            alocacoes: alocacoesMap,
+            total_geral: totalGeral
+          }
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== DEFINIR ALOCAÇÃO FORA DO ESTOQUE (contagem/inventário) ==========
+    if (action === "estoque_alocacao_set") {
+      const { codigo, local, quantidade, motivo } = params;
+      
+      if (!codigo || !local) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código e local são obrigatórios' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const locaisValidos = ['WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO'];
+      if (!locaisValidos.includes(local)) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Local inválido. Use: ${locaisValidos.join(', ')}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const qtd = parseInt(quantidade);
+      if (isNaN(qtd) || qtd < 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Quantidade deve ser um número >= 0' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const codigoUpper = codigo.trim().toUpperCase();
+
+      // UPSERT na tabela de alocações
+      const { error: upsertError } = await supabase
+        .from("estoque_alocacoes")
+        .upsert({
+          codigo: codigoUpper,
+          local: local,
+          quantidade: qtd,
+          updated_at: new Date().toISOString(),
+          updated_by: user.nome || user.email || 'system'
+        }, { onConflict: 'codigo,local' });
+      
+      if (upsertError) throw upsertError;
+
+      // Registrar movimento
+      await supabase.from("estoque_movimentos").insert({
+        codigo: codigoUpper,
+        origem_local: local,
+        destino_local: local,
+        quantidade: qtd > 0 ? qtd : 1, // CHECK exige > 0, então colocamos 1 para ajustes a zero
+        motivo: `AJUSTE_INVENTARIO_FORA_ESTOQUE${motivo ? ': ' + motivo : ''}`,
+        criado_por: user.nome || user.email || 'system'
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, message: `Alocação ${local} definida para ${qtd} unidades` }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== TRANSFERIR / BAIXAR ESTOQUE ==========
+    if (action === "estoque_transferir") {
+      const { 
+        codigo, 
+        quantidade, 
+        origem_local, 
+        origem_endereco_id, 
+        destino_local, 
+        destino_endereco_id,
+        motivo,
+        nf_numero,
+        referencia
+      } = params;
+
+      // Validações básicas
+      if (!codigo || !quantidade || !origem_local || !destino_local) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código, quantidade, origem e destino são obrigatórios' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const qtd = parseInt(quantidade);
+      if (isNaN(qtd) || qtd <= 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Quantidade deve ser maior que zero' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const origensValidas = ['ESTOQUE', 'WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO'];
+      const destinosValidos = ['ESTOQUE', 'WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO', 'SAIDA_CLIENTE'];
+
+      if (!origensValidas.includes(origem_local)) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Origem inválida. Use: ${origensValidas.join(', ')}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!destinosValidos.includes(destino_local)) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Destino inválido. Use: ${destinosValidos.join(', ')}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // NF obrigatório para SAIDA_CLIENTE
+      if (destino_local === 'SAIDA_CLIENTE') {
+        if (!nf_numero || nf_numero.trim().length === 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Número da NF é obrigatório para saída para cliente' }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      const codigoUpper = codigo.trim().toUpperCase();
+
+      // Validar origem e disponibilidade
+      if (origem_local === 'ESTOQUE') {
+        if (!origem_endereco_id) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Endereço de origem é obrigatório quando origem é ESTOQUE' }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Buscar inventário do endereço
+        const { data: invOrigem, error: invError } = await supabase
+          .from("inventario")
+          .select("id, quantidade, qtd_reservada")
+          .eq("endereco_material_id", origem_endereco_id)
+          .maybeSingle();
+        
+        if (invError) throw invError;
+        
+        const disponivel = (invOrigem?.quantidade || 0) - (invOrigem?.qtd_reservada || 0);
+        if (disponivel < qtd) {
+          return new Response(
+            JSON.stringify({ success: false, error: `Saldo insuficiente. Disponível: ${disponivel}` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Subtrair do inventário
+        const novaQtd = (invOrigem?.quantidade || 0) - qtd;
+        const { error: updateError } = await supabase
+          .from("inventario")
+          .update({ quantidade: novaQtd, updated_at: new Date().toISOString() })
+          .eq("id", invOrigem!.id);
+        
+        if (updateError) throw updateError;
+
+      } else {
+        // Origem é uma alocação (WIP, QUALIDADE, etc)
+        const { data: alocOrigem } = await supabase
+          .from("estoque_alocacoes")
+          .select("quantidade")
+          .eq("codigo", codigoUpper)
+          .eq("local", origem_local)
+          .maybeSingle();
+        
+        const saldoOrigem = alocOrigem?.quantidade || 0;
+        if (saldoOrigem < qtd) {
+          return new Response(
+            JSON.stringify({ success: false, error: `Saldo insuficiente em ${origem_local}. Disponível: ${saldoOrigem}` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Subtrair da alocação origem
+        const novoSaldo = saldoOrigem - qtd;
+        await supabase
+          .from("estoque_alocacoes")
+          .upsert({
+            codigo: codigoUpper,
+            local: origem_local,
+            quantidade: novoSaldo,
+            updated_at: new Date().toISOString(),
+            updated_by: user.nome || user.email || 'system'
+          }, { onConflict: 'codigo,local' });
+      }
+
+      // Processar destino
+      if (destino_local === 'ESTOQUE') {
+        if (!destino_endereco_id) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Endereço de destino é obrigatório quando destino é ESTOQUE' }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Buscar ou criar inventário do endereço destino
+        const { data: invDestino } = await supabase
+          .from("inventario")
+          .select("id, quantidade")
+          .eq("endereco_material_id", destino_endereco_id)
+          .maybeSingle();
+        
+        if (invDestino) {
+          // Atualizar existente
+          const novaQtd = (invDestino.quantidade || 0) + qtd;
+          await supabase
+            .from("inventario")
+            .update({ quantidade: novaQtd, updated_at: new Date().toISOString() })
+            .eq("id", invDestino.id);
+        } else {
+          // Criar novo
+          await supabase
+            .from("inventario")
+            .insert({
+              endereco_material_id: destino_endereco_id,
+              quantidade: qtd,
+              contado_por: user.nome || user.email || 'system'
+            });
+        }
+
+      } else if (destino_local !== 'SAIDA_CLIENTE') {
+        // Destino é uma alocação (WIP, QUALIDADE, etc)
+        const { data: alocDestino } = await supabase
+          .from("estoque_alocacoes")
+          .select("quantidade")
+          .eq("codigo", codigoUpper)
+          .eq("local", destino_local)
+          .maybeSingle();
+        
+        const novoSaldo = (alocDestino?.quantidade || 0) + qtd;
+        await supabase
+          .from("estoque_alocacoes")
+          .upsert({
+            codigo: codigoUpper,
+            local: destino_local,
+            quantidade: novoSaldo,
+            updated_at: new Date().toISOString(),
+            updated_by: user.nome || user.email || 'system'
+          }, { onConflict: 'codigo,local' });
+      }
+      // Se SAIDA_CLIENTE, não precisa adicionar em nenhum lugar
+
+      // Registrar movimento
+      await supabase.from("estoque_movimentos").insert({
+        codigo: codigoUpper,
+        origem_local,
+        origem_endereco_id: origem_endereco_id || null,
+        destino_local,
+        destino_endereco_id: destino_endereco_id || null,
+        quantidade: qtd,
+        motivo: motivo || null,
+        nf_numero: destino_local === 'SAIDA_CLIENTE' ? nf_numero.trim() : null,
+        referencia: referencia || null,
+        criado_por: user.nome || user.email || 'system'
+      });
+
+      // Registrar em material_transactions
+      const tipoTransacao = destino_local === 'SAIDA_CLIENTE' ? 'AJUSTE' : 'AJUSTE';
+      await supabase.from("material_transactions").insert({
+        codigo_item: codigoUpper,
+        tipo_transacao: tipoTransacao,
+        qtd: destino_local === 'SAIDA_CLIENTE' ? -qtd : 0,
+        endereco: origem_local === 'ESTOQUE' && origem_endereco_id ? origem_endereco_id : null,
+        local: `${origem_local} -> ${destino_local}`,
+        referencia: referencia || (nf_numero ? `NF: ${nf_numero}` : null),
+        usuario: user.nome || user.email || 'system',
+        observacao: motivo || `Transferência de ${origem_local} para ${destino_local}`
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, message: `Transferido ${qtd} un. de ${origem_local} para ${destino_local}` }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========== LISTAR ENDEREÇOS POR CÓDIGO (para seleção) ==========
+    if (action === "enderecos_por_codigo") {
+      const { codigo } = params;
+      
+      if (!codigo) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Código não fornecido' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const codigoUpper = codigo.trim().toUpperCase();
+
+      const { data: enderecos, error } = await supabase
+        .from("enderecos_materiais")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          rua,
+          coluna,
+          nivel,
+          posicao
+        `)
+        .eq("codigo", codigoUpper)
+        .eq("ativo", true)
+        .order("rua")
+        .order("coluna")
+        .order("nivel")
+        .order("posicao");
+      
+      if (error) throw error;
+
+      // Buscar inventário para cada endereço
+      const enderecoIds = (enderecos || []).map((e: any) => e.id);
+      let inventarioMap: Map<string, { quantidade: number; qtd_reservada: number }> = new Map();
+      
+      if (enderecoIds.length > 0) {
+        const { data: invData } = await supabase
+          .from("inventario")
+          .select("endereco_material_id, quantidade, qtd_reservada")
+          .in("endereco_material_id", enderecoIds);
+        
+        invData?.forEach((inv: any) => {
+          inventarioMap.set(inv.endereco_material_id, {
+            quantidade: inv.quantidade || 0,
+            qtd_reservada: inv.qtd_reservada || 0
+          });
+        });
+      }
+
+      const result = (enderecos || []).map((e: any) => {
+        const inv = inventarioMap.get(e.id) || { quantidade: 0, qtd_reservada: 0 };
+        return {
+          id: e.id,
+          rua: e.rua,
+          coluna: e.coluna,
+          nivel: e.nivel,
+          posicao: e.posicao,
+          quantidade: inv.quantidade,
+          qtd_reservada: inv.qtd_reservada,
+          disponivel: inv.quantidade - inv.qtd_reservada
+        };
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, data: result }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

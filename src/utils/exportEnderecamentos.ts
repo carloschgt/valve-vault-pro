@@ -20,10 +20,11 @@ interface InventarioItem {
   descricao: string;
   fabricante_nome?: string;
   peso: number;
-  rua: number;
-  coluna: number;
-  nivel: number;
-  posicao: number;
+  local?: string;
+  rua: number | null;
+  coluna: number | null;
+  nivel: number | null;
+  posicao: number | null;
   quantidade: number;
   contado_por: string;
   data_contagem: string;
@@ -116,6 +117,7 @@ export function exportInventarioToCSV(dados: InventarioItem[]): void {
     'Descricao',
     'Fabricante',
     'Peso (kg)',
+    'Local',
     'Rua',
     'Coluna',
     'Nivel',
@@ -130,10 +132,11 @@ export function exportInventarioToCSV(dados: InventarioItem[]): void {
     escapeCSV(d.descricao),
     escapeCSV(d.fabricante_nome || 'N/A'),
     d.peso,
-    d.rua,
-    d.coluna,
-    d.nivel,
-    d.posicao,
+    escapeCSV(d.local || 'ESTOQUE'),
+    d.rua !== null && d.rua !== undefined ? d.rua : '',
+    d.coluna !== null && d.coluna !== undefined ? d.coluna : '',
+    d.nivel !== null && d.nivel !== undefined ? d.nivel : '',
+    d.posicao !== null && d.posicao !== undefined ? d.posicao : '',
     d.quantidade,
     escapeCSV(d.contado_por),
     formatDate(d.data_contagem),
