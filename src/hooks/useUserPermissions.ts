@@ -27,6 +27,7 @@ export const MENU_KEYS = {
   separacao_comercial: 'separacao_comercial',
   separacao_estoque: 'separacao_estoque',
   cancelamentos: 'cancelamentos',
+  inventario_alocacoes: 'inventario_alocacoes',
   // Permissão especial para bypass do bloqueio de inventário
   bypass_inventario_block: 'bypass_inventario_block',
   // Permissão para visualizar valores financeiros (valor unitário e valor total)
