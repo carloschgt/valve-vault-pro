@@ -32,6 +32,8 @@ export const MENU_KEYS = {
   bypass_inventario_block: 'bypass_inventario_block',
   // Permissão para visualizar valores financeiros (valor unitário e valor total)
   ver_valores: 'ver_valores',
+  // Permissão para definir quantidade fora do estoque (ajuste de inventário)
+  definir_qtd_fora_estoque: 'definir_qtd_fora_estoque',
 } as const;
 
 export type MenuKey = keyof typeof MENU_KEYS;

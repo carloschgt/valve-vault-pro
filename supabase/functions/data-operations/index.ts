@@ -1791,7 +1791,8 @@ serve(async (req) => {
         WIP: 0,
         QUALIDADE: 0,
         QUALIDADE_REPROVADO: 0,
-        EXPEDICAO: 0
+        EXPEDICAO: 0,
+        OIA: 0
       };
       
       alocacoes?.forEach((a: any) => {
@@ -1831,7 +1832,7 @@ serve(async (req) => {
         );
       }
 
-      const locaisValidos = ['WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO'];
+      const locaisValidos = ['WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO', 'OIA'];
       if (!locaisValidos.includes(local)) {
         return new Response(
           JSON.stringify({ success: false, error: `Local inválido. Use: ${locaisValidos.join(', ')}` }),
@@ -1908,8 +1909,8 @@ serve(async (req) => {
         );
       }
 
-      const origensValidas = ['ESTOQUE', 'WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO'];
-      const destinosValidos = ['ESTOQUE', 'WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO', 'SAIDA_CLIENTE'];
+      const origensValidas = ['ESTOQUE', 'WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO', 'OIA'];
+      const destinosValidos = ['ESTOQUE', 'WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO', 'OIA', 'SAIDA_CLIENTE'];
 
       if (!origensValidas.includes(origem_local)) {
         return new Response(
