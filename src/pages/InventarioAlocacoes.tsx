@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Package, Loader2, MapPin, Warehouse, ArrowRightLeft, FileText, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Search, Package, Loader2, MapPin, Warehouse, ArrowRightLeft, FileText, RefreshCw, Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useUserPermissions, MENU_KEYS } from '@/hooks/useUserPermissions';
 import logoImex from '@/assets/logo-imex.png';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -50,11 +52,12 @@ interface ResumoEstoque {
     QUALIDADE: number;
     QUALIDADE_REPROVADO: number;
     EXPEDICAO: number;
+    OIA: number;
   };
   total_geral: number;
 }
 
-const LOCAIS_ALOCACAO = ['WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO'] as const;
+const LOCAIS_ALOCACAO = ['WIP', 'QUALIDADE', 'QUALIDADE_REPROVADO', 'EXPEDICAO', 'OIA'] as const;
 const LOCAIS_ORIGEM = ['ESTOQUE', ...LOCAIS_ALOCACAO] as const;
 const LOCAIS_DESTINO = [...LOCAIS_ORIGEM, 'SAIDA_CLIENTE'] as const;
 
@@ -62,10 +65,17 @@ const InventarioAlocacoes = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { hasPermission, isAdmin } = useUserPermissions();
+  
+  // Verifica se o usuário pode definir quantidades (ajuste de inventário fora do estoque)
+  const canDefineQuantity = hasPermission(MENU_KEYS.definir_qtd_fora_estoque);
   
   const [codigoBusca, setCodigoBusca] = useState('');
   const [resumo, setResumo] = useState<ResumoEstoque | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Collapsible state para Definir Quantidade
+  const [showDefinirQtd, setShowDefinirQtd] = useState(false);
   
   // Contagem fora do estoque
   const [localContagem, setLocalContagem] = useState<string>('');
@@ -85,7 +95,7 @@ const InventarioAlocacoes = () => {
   const [isTransferring, setIsTransferring] = useState(false);
   
   // Endereços disponíveis para seleção
-  const [enderecosDisponiveis, setEnderecosDisponiveis] = useState<EnderecoItem[]>([]);
+  const [enderecosDisponiveis, setEnderecosDisponiveis] = useState<EnderecoItem[]>();
 
   const buscarResumo = useCallback(async () => {
     if (!codigoBusca.trim()) return;
@@ -277,7 +287,7 @@ const InventarioAlocacoes = () => {
         {resumo && (
           <>
             {/* Cards de Resumo */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
               <Card className="bg-blue-500/10 border-blue-500/20">
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2 mb-1">
@@ -313,6 +323,13 @@ const InventarioAlocacoes = () => {
                 <CardContent className="p-3">
                   <span className="text-xs text-muted-foreground">Expedição</span>
                   <p className="text-xl font-bold text-green-600">{resumo.alocacoes.EXPEDICAO}</p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-cyan-500/10 border-cyan-500/20">
+                <CardContent className="p-3">
+                  <span className="text-xs text-muted-foreground">OIA</span>
+                  <p className="text-xl font-bold text-cyan-600">{resumo.alocacoes.OIA}</p>
                 </CardContent>
               </Card>
 
@@ -352,60 +369,7 @@ const InventarioAlocacoes = () => {
               </Card>
             )}
 
-            {/* Formulário de Contagem Fora do Estoque */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  Definir Quantidade (Inventário Fora do Estoque)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Local</Label>
-                    <Select value={localContagem} onValueChange={setLocalContagem}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LOCAIS_ALOCACAO.map((l) => (
-                          <SelectItem key={l} value={l}>{l}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Quantidade</Label>
-                    <Input 
-                      type="number" 
-                      min="0"
-                      value={qtdContagem}
-                      onChange={(e) => setQtdContagem(e.target.value)}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Motivo (opcional)</Label>
-                  <Input 
-                    value={motivoContagem}
-                    onChange={(e) => setMotivoContagem(e.target.value)}
-                    placeholder="Ex: Contagem física"
-                  />
-                </div>
-                <Button 
-                  onClick={handleDefinirAlocacao} 
-                  disabled={isSavingContagem || !localContagem || qtdContagem === ''}
-                  className="w-full"
-                >
-                  {isSavingContagem ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Definir Quantidade
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Formulário de Transferência */}
+            {/* Formulário de Transferência - PRIMEIRO (mais usado) */}
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -428,7 +392,7 @@ const InventarioAlocacoes = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    {origemLocal === 'ESTOQUE' && (
+                    {origemLocal === 'ESTOQUE' && enderecosDisponiveis && enderecosDisponiveis.length > 0 && (
                       <Select value={origemEnderecoId} onValueChange={setOrigemEnderecoId}>
                         <SelectTrigger>
                           <SelectValue placeholder="Endereço origem" />
@@ -457,7 +421,7 @@ const InventarioAlocacoes = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    {destinoLocal === 'ESTOQUE' && (
+                    {destinoLocal === 'ESTOQUE' && enderecosDisponiveis && enderecosDisponiveis.length > 0 && (
                       <Select value={destinoEnderecoId} onValueChange={setDestinoEnderecoId}>
                         <SelectTrigger>
                           <SelectValue placeholder="Endereço destino" />
@@ -530,6 +494,74 @@ const InventarioAlocacoes = () => {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Formulário de Definir Quantidade - Apenas para usuários com permissão */}
+            {canDefineQuantity && (
+              <Collapsible open={showDefinirQtd} onOpenChange={setShowDefinirQtd}>
+                <Card>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="py-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        Definir Quantidade (Ajuste de Inventário)
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {showDefinirQtd ? '▲' : '▼'}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="space-y-3 pt-0">
+                      <p className="text-xs text-muted-foreground bg-amber-500/10 p-2 rounded">
+                        ⚠️ Esta opção define diretamente a quantidade em um local. Use com cuidado, pois é um ajuste de inventário.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Local</Label>
+                          <Select value={localContagem} onValueChange={setLocalContagem}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {LOCAIS_ALOCACAO.map((l) => (
+                                <SelectItem key={l} value={l}>{l}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Quantidade</Label>
+                          <Input 
+                            type="number" 
+                            min="0"
+                            value={qtdContagem}
+                            onChange={(e) => setQtdContagem(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Motivo (opcional)</Label>
+                        <Input 
+                          value={motivoContagem}
+                          onChange={(e) => setMotivoContagem(e.target.value)}
+                          placeholder="Ex: Contagem física"
+                        />
+                      </div>
+                      <Button 
+                        onClick={handleDefinirAlocacao} 
+                        disabled={isSavingContagem || !localContagem || qtdContagem === ''}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        {isSavingContagem ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Definir Quantidade
+                      </Button>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            )}
           </>
         )}
       </div>
