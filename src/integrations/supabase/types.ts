@@ -378,6 +378,78 @@ export type Database = {
         }
         Relationships: []
       }
+      estoque_alocacoes: {
+        Row: {
+          codigo: string
+          id: string
+          local: string
+          quantidade: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          codigo: string
+          id?: string
+          local: string
+          quantidade?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          codigo?: string
+          id?: string
+          local?: string
+          quantidade?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      estoque_movimentos: {
+        Row: {
+          codigo: string
+          created_at: string
+          criado_por: string
+          destino_endereco_id: string | null
+          destino_local: string
+          id: string
+          motivo: string | null
+          nf_numero: string | null
+          origem_endereco_id: string | null
+          origem_local: string
+          quantidade: number
+          referencia: string | null
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          criado_por: string
+          destino_endereco_id?: string | null
+          destino_local: string
+          id?: string
+          motivo?: string | null
+          nf_numero?: string | null
+          origem_endereco_id?: string | null
+          origem_local: string
+          quantidade: number
+          referencia?: string | null
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          criado_por?: string
+          destino_endereco_id?: string | null
+          destino_local?: string
+          id?: string
+          motivo?: string | null
+          nf_numero?: string | null
+          origem_endereco_id?: string | null
+          origem_local?: string
+          quantidade?: number
+          referencia?: string | null
+        }
+        Relationships: []
+      }
       fabricantes: {
         Row: {
           cadastrado_por: string

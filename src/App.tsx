@@ -36,6 +36,7 @@ import SeparacaoComercial from "./pages/SeparacaoComercial";
 import SeparacaoEstoque from "./pages/SeparacaoEstoque";
 import Cancelamentos from "./pages/Cancelamentos";
 import MaterialTransactions from "./pages/MaterialTransactions";
+import InventarioAlocacoes from "./pages/InventarioAlocacoes";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/controle-inventario" element={<ProtectedRoute requiredPermission="controle_inventario"><ControleInventario /></ProtectedRoute>} />
             <Route path="/relatorio-inventario" element={<ProtectedRoute requiredPermission="relatorio_inventario"><RelatorioInventario /></ProtectedRoute>} />
             <Route path="/ajuste-inventario" element={<ProtectedRoute requiredPermission="ajuste_inventario"><AjusteInventario /></ProtectedRoute>} />
+            <Route path="/inventario-alocacoes" element={<ProtectedRoute allowRoles={['admin', 'estoque']}><InventarioAlocacoes /></ProtectedRoute>} />
             <Route path="/solicitacoes-codigo" element={<ProtectedRoute requiredPermission="solicitar_codigo"><NovaSolicitacao /></ProtectedRoute>} />
             <Route path="/processar-codigos" element={<ProtectedRoute requiredPermission="processar_codigos"><SolicitacoesCodigo /></ProtectedRoute>} />
             <Route path="/aprovacao-codigos" element={<ProtectedRoute requiredPermission="aprovacao_codigos"><AprovacaoCodigos /></ProtectedRoute>} />

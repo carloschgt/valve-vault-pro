@@ -329,3 +329,36 @@ export async function getEnderecosSemInventario(): Promise<DataOperationResult> 
 export async function removerCodigoPendente(codigo: string): Promise<DataOperationResult> {
   return invokeDataOperation('remover_codigo_pendente', { codigo });
 }
+
+// ========== ESTOQUE ALOCAÇÕES ==========
+
+export async function getEstoqueResumoCodigo(codigo: string): Promise<DataOperationResult> {
+  return invokeDataOperation('estoque_resumo_codigo', { codigo });
+}
+
+export async function setEstoqueAlocacao(
+  codigo: string, 
+  local: string, 
+  quantidade: number, 
+  motivo?: string
+): Promise<DataOperationResult> {
+  return invokeDataOperation('estoque_alocacao_set', { codigo, local, quantidade, motivo });
+}
+
+export async function transferirEstoque(params: {
+  codigo: string;
+  quantidade: number;
+  origem_local: string;
+  origem_endereco_id?: string;
+  destino_local: string;
+  destino_endereco_id?: string;
+  motivo?: string;
+  nf_numero?: string;
+  referencia?: string;
+}): Promise<DataOperationResult> {
+  return invokeDataOperation('estoque_transferir', params);
+}
+
+export async function getEnderecosPorCodigo(codigo: string): Promise<DataOperationResult> {
+  return invokeDataOperation('enderecos_por_codigo', { codigo });
+}
