@@ -52,11 +52,18 @@ const AVAILABLE_MENUS = [
   { key: 'fabricantes', label: 'Fabricantes', description: 'Gerenciar fabricantes', category: 'Administrativo' },
   { key: 'gerenciamento_dados', label: 'Gerenciamento de Dados', description: 'Importar/exportar dados', category: 'Administrativo' },
   { key: 'admin_panel', label: 'Painel Administrativo', description: 'Acesso ao painel de administração', category: 'Administrativo' },
-  // Permissão especial para visualizar estoque durante inventário
+  // Separação de Material
+  { key: 'separacao_comercial', label: 'Separação Comercial', description: 'Criar e gerenciar listas de separação', category: 'Separação' },
+  { key: 'separacao_estoque', label: 'Separação Estoque', description: 'Realizar separação de materiais', category: 'Separação' },
+  { key: 'cancelamentos', label: 'Cancelamentos', description: 'Gerenciar devoluções de cancelamentos', category: 'Separação' },
+  { key: 'inventario_alocacoes', label: 'Alocações Fora do Estoque', description: 'Gerenciar saldos em WIP, Qualidade, OIA, etc.', category: 'Separação' },
+  // Permissões Especiais
   { key: 'bypass_inventario_block', label: 'Ver Estoque Durante Inventário', description: 'Permite visualizar estoque mesmo com inventário em andamento', category: 'Permissões Especiais' },
+  { key: 'ver_valores', label: 'Ver Valores Financeiros', description: 'Permite visualizar valor unitário e valor total nos relatórios', category: 'Permissões Especiais' },
+  { key: 'definir_qtd_fora_estoque', label: 'Definir Qtd Fora Estoque', description: 'Permite definir quantidade diretamente em locais fora do estoque (ajuste)', category: 'Permissões Especiais' },
 ];
 
-const MENU_CATEGORIES = ['Geral', 'Operacional', 'Consultas', 'Solicitações', 'Administrativo', 'Permissões Especiais'];
+const MENU_CATEGORIES = ['Geral', 'Operacional', 'Consultas', 'Solicitações', 'Separação', 'Administrativo', 'Permissões Especiais'];
 
 interface UserProfile {
   id: string;

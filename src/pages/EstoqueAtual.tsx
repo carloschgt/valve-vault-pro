@@ -45,6 +45,14 @@ interface EstoqueItem {
   qtd_total: number;
   qtd_reservada_total: number;
   valor_unitario: number | null;
+  // Saldos fora do estoque
+  alocacoes: {
+    WIP: number;
+    QUALIDADE: number;
+    QUALIDADE_REPROVADO: number;
+    EXPEDICAO: number;
+    OIA: number;
+  };
 }
 
 interface MaterialDetail {
@@ -98,6 +106,7 @@ interface ResumoEstoque {
     QUALIDADE: number;
     QUALIDADE_REPROVADO: number;
     EXPEDICAO: number;
+    OIA: number;
   };
   total_geral: number;
 }
@@ -571,7 +580,7 @@ const EstoqueAtual = () => {
           ) : resumoDetalhe ? (
             <div className="mt-4 space-y-4">
               {/* Cards de saldo por local */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Card className="bg-blue-500/10">
                   <CardContent className="p-3">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground"><Warehouse className="h-3 w-3" />Endereçado</div>
@@ -602,13 +611,21 @@ const EstoqueAtual = () => {
                     <p className="text-lg font-bold text-green-600">{resumoDetalhe.alocacoes.EXPEDICAO}</p>
                   </CardContent>
                 </Card>
-                <Card className="bg-primary/10">
+                <Card className="bg-cyan-500/10">
                   <CardContent className="p-3">
-                    <div className="text-xs text-muted-foreground font-semibold">TOTAL</div>
-                    <p className="text-xl font-bold text-primary">{resumoDetalhe.total_geral}</p>
+                    <div className="text-xs text-muted-foreground">OIA</div>
+                    <p className="text-lg font-bold text-cyan-600">{resumoDetalhe.alocacoes.OIA || 0}</p>
                   </CardContent>
                 </Card>
               </div>
+              
+              {/* Card de total geral */}
+              <Card className="bg-primary/10">
+                <CardContent className="p-3">
+                  <div className="text-xs text-muted-foreground font-semibold">TOTAL GERAL</div>
+                  <p className="text-2xl font-bold text-primary">{resumoDetalhe.total_geral}</p>
+                </CardContent>
+              </Card>
               
               {/* Lista de endereços */}
               {resumoDetalhe.estoque_enderecado.length > 0 && (
@@ -648,7 +665,7 @@ const EstoqueAtual = () => {
           <>
             {/* Header fixo */}
             <div className="overflow-x-auto shrink-0 bg-card border-b-2 border-border">
-              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[1000px]' : 'min-w-[800px]'}`}>
+              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[1300px]' : 'min-w-[1100px]'}`}>
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
                   <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
@@ -660,6 +677,12 @@ const EstoqueAtual = () => {
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
+                  {/* Colunas de alocações fora do estoque */}
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
                   <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
                   {canSeeValues && (
                     <>
@@ -680,6 +703,12 @@ const EstoqueAtual = () => {
                     <th className="px-1 py-2 text-center font-semibold bg-card">P</th>
                     <th className="px-1 py-2 text-center font-semibold bg-card">Qtd</th>
                     <th className="px-1 py-2 text-center font-semibold bg-amber-500/10" title="Quantidade reservada para separação">Res.</th>
+                    {/* Colunas de alocações fora do estoque */}
+                    <th className="px-1 py-2 text-center font-semibold bg-orange-500/10 text-[10px]" title="WIP">WIP</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-purple-500/10 text-[10px]" title="Qualidade">QUA</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-red-500/10 text-[10px]" title="Qualidade Reprovado">REP</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-green-500/10 text-[10px]" title="Expedição">EXP</th>
+                    <th className="px-1 py-2 text-center font-semibold bg-cyan-500/10 text-[10px]" title="OIA">OIA</th>
                     <th className="px-1 py-2 text-center font-semibold bg-primary/10">Total</th>
                     {canSeeValues && (
                       <>
@@ -693,7 +722,7 @@ const EstoqueAtual = () => {
             </div>
             {/* Body com scroll */}
             <div className="flex-1 overflow-auto">
-              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[1000px]' : 'min-w-[800px]'}`}>
+              <table className={`w-full text-xs sm:text-sm table-fixed ${canSeeValues ? 'min-w-[1300px]' : 'min-w-[1100px]'}`}>
                 <colgroup>
                   <col className="w-[70px] sm:w-[90px] lg:w-[100px]" />
                   <col className="w-[90px] sm:w-[120px] lg:w-[150px]" />
@@ -705,6 +734,12 @@ const EstoqueAtual = () => {
                   <col className="w-[32px] sm:w-[40px] lg:w-[50px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
                   <col className="w-[38px] sm:w-[50px] lg:w-[60px]" />
+                  {/* Colunas de alocações fora do estoque */}
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
+                  <col className="w-[35px] sm:w-[45px]" />
                   <col className="w-[45px] sm:w-[55px] lg:w-[65px]" />
                   {canSeeValues && (
                     <>
@@ -717,7 +752,10 @@ const EstoqueAtual = () => {
                   {estoque.map((item, idx) => {
                     // Os endereços já vêm ordenados do backend por rua, coluna, nivel, posicao
                     const enderecos = item.enderecos;
-                    const valorTotal = item.valor_unitario !== null ? item.valor_unitario * item.qtd_total : null;
+                    const alocacoes = item.alocacoes || { WIP: 0, QUALIDADE: 0, QUALIDADE_REPROVADO: 0, EXPEDICAO: 0, OIA: 0 };
+                    const totalAlocacoes = alocacoes.WIP + alocacoes.QUALIDADE + alocacoes.QUALIDADE_REPROVADO + alocacoes.EXPEDICAO + alocacoes.OIA;
+                    const totalGeral = item.qtd_total + (item.qtd_reservada_total || 0) + totalAlocacoes;
+                    const valorTotal = item.valor_unitario !== null ? item.valor_unitario * totalGeral : null;
                     const handleRowClick = () => handleOpenDetail(item);
                     
                     return enderecos.map((end, endIdx) => (
@@ -763,11 +801,42 @@ const EstoqueAtual = () => {
                         </td>
                         {endIdx === 0 ? (
                           <>
+                            {/* Colunas de alocações fora do estoque */}
+                            <td 
+                              className={`px-1 py-2 text-center text-xs font-medium align-top ${alocacoes.WIP > 0 ? 'text-orange-600 bg-orange-500/5' : 'text-muted-foreground/50'}`}
+                              rowSpan={enderecos.length}
+                            >
+                              {alocacoes.WIP || '-'}
+                            </td>
+                            <td 
+                              className={`px-1 py-2 text-center text-xs font-medium align-top ${alocacoes.QUALIDADE > 0 ? 'text-purple-600 bg-purple-500/5' : 'text-muted-foreground/50'}`}
+                              rowSpan={enderecos.length}
+                            >
+                              {alocacoes.QUALIDADE || '-'}
+                            </td>
+                            <td 
+                              className={`px-1 py-2 text-center text-xs font-medium align-top ${alocacoes.QUALIDADE_REPROVADO > 0 ? 'text-red-600 bg-red-500/5' : 'text-muted-foreground/50'}`}
+                              rowSpan={enderecos.length}
+                            >
+                              {alocacoes.QUALIDADE_REPROVADO || '-'}
+                            </td>
+                            <td 
+                              className={`px-1 py-2 text-center text-xs font-medium align-top ${alocacoes.EXPEDICAO > 0 ? 'text-green-600 bg-green-500/5' : 'text-muted-foreground/50'}`}
+                              rowSpan={enderecos.length}
+                            >
+                              {alocacoes.EXPEDICAO || '-'}
+                            </td>
+                            <td 
+                              className={`px-1 py-2 text-center text-xs font-medium align-top ${alocacoes.OIA > 0 ? 'text-cyan-600 bg-cyan-500/5' : 'text-muted-foreground/50'}`}
+                              rowSpan={enderecos.length}
+                            >
+                              {alocacoes.OIA || '-'}
+                            </td>
                             <td 
                               className="px-1 py-2 text-center font-bold text-primary bg-primary/5 align-top"
                               rowSpan={enderecos.length}
                             >
-                              {item.qtd_total + (item.qtd_reservada_total || 0)}
+                              {totalGeral}
                             </td>
                             {canSeeValues && (
                               <>
