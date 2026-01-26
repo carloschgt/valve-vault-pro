@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Loader2, History, User, Calendar, Edit, Plus, FileText, Package, TrendingUp, TrendingDown, MapPin } from 'lucide-react';
+import { ArrowLeft, Search, Loader2, History, User, Calendar, Edit, Plus, FileText, Package, TrendingUp, TrendingDown, MapPin, ArrowRightLeft, Truck, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -87,12 +87,26 @@ interface InventarioAuditEntry {
   motivo: string;
 }
 
+interface MaterialTransaction {
+  id: string;
+  data_hora: string;
+  tipo_transacao: string;
+  qtd: number;
+  endereco: string | null;
+  local: string | null;
+  referencia: string | null;
+  usuario: string;
+  observacao: string | null;
+  fornecedor: string | null;
+}
+
 interface AuditResponse {
   data: AuditEntry[];
   itemInfo: ItemInfo | null;
   solicitacaoInfo: SolicitacaoInfo | null;
   inventarioData: InventarioEntry[];
   inventarioAuditData: InventarioAuditEntry[];
+  materialTransactions: MaterialTransaction[];
 }
 
 const ACAO_LABELS: Record<string, { label: string; color: string }> = {
@@ -105,6 +119,20 @@ const ACAO_LABELS: Record<string, { label: string; color: string }> = {
   alteracao_peso: { label: 'Alteração de Peso', color: 'bg-pink-100 text-pink-800' },
   alteracao_tipo_material: { label: 'Alteração de Tipo', color: 'bg-indigo-100 text-indigo-800' },
   alteracao_fabricante: { label: 'Alteração de Fabricante', color: 'bg-teal-100 text-teal-800' },
+};
+
+const TIPO_TRANSACAO_LABELS: Record<string, { label: string; color: string; icon: 'in' | 'out' | 'move' | 'alert' }> = {
+  RECEBIMENTO: { label: 'Recebimento', color: 'bg-green-100 text-green-800', icon: 'in' },
+  ARMAZENAGEM_ENTRADA: { label: 'Entrada Armazenagem', color: 'bg-green-100 text-green-800', icon: 'in' },
+  RESERVA_SAIDA_ARMAZENAGEM: { label: 'Reserva Saída', color: 'bg-amber-100 text-amber-800', icon: 'out' },
+  ENTRADA_AREA_SEPARACAO: { label: 'Entrada Área Sep.', color: 'bg-blue-100 text-blue-800', icon: 'move' },
+  SEPARACAO_INICIO: { label: 'Separação Início', color: 'bg-blue-100 text-blue-800', icon: 'move' },
+  SEPARACAO_CONFIRMADA: { label: 'Separação Confirmada', color: 'bg-blue-100 text-blue-800', icon: 'move' },
+  SEPARACAO_FIM: { label: 'Separação Fim', color: 'bg-blue-100 text-blue-800', icon: 'out' },
+  CANCELAMENTO_CRIADO: { label: 'Cancelamento Criado', color: 'bg-red-100 text-red-800', icon: 'alert' },
+  SAIDA_AREA_SEPARACAO: { label: 'Saída Área Sep.', color: 'bg-red-100 text-red-800', icon: 'out' },
+  DEVOLUCAO_ENTRADA_ARMAZENAGEM: { label: 'Devolução Armazenagem', color: 'bg-purple-100 text-purple-800', icon: 'in' },
+  AJUSTE: { label: 'Ajuste', color: 'bg-orange-100 text-orange-800', icon: 'move' },
 };
 
 const AuditoriaItens = () => {
@@ -120,7 +148,7 @@ const AuditoriaItens = () => {
   const { data: auditResponse, isLoading, refetch } = useQuery({
     queryKey: ['auditoria_itens', searchCodigo],
     queryFn: async (): Promise<AuditResponse> => {
-      if (!searchCodigo) return { data: [], itemInfo: null, solicitacaoInfo: null, inventarioData: [], inventarioAuditData: [] };
+      if (!searchCodigo) return { data: [], itemInfo: null, solicitacaoInfo: null, inventarioData: [], inventarioAuditData: [], materialTransactions: [] };
       
       const sessionToken = getSessionToken();
       console.log('[Auditoria] Searching for:', searchCodigo, 'with token:', sessionToken ? 'present' : 'missing');
@@ -145,6 +173,7 @@ const AuditoriaItens = () => {
         solicitacaoInfo: data.solicitacaoInfo as SolicitacaoInfo | null,
         inventarioData: (data.inventarioData || []) as InventarioEntry[],
         inventarioAuditData: (data.inventarioAuditData || []) as InventarioAuditEntry[],
+        materialTransactions: (data.materialTransactions || []) as MaterialTransaction[],
       };
     },
     enabled: !!searchCodigo,
@@ -157,6 +186,7 @@ const AuditoriaItens = () => {
   const solicitacaoInfo = auditResponse?.solicitacaoInfo;
   const inventarioData = auditResponse?.inventarioData || [];
   const inventarioAuditData = auditResponse?.inventarioAuditData || [];
+  const materialTransactions = auditResponse?.materialTransactions || [];
 
   const handleSearch = () => {
     if (!searchInput.trim()) {
@@ -506,6 +536,80 @@ const AuditoriaItens = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Material Transactions (Movimentações) */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Truck className="h-5 w-5 text-primary" />
+                Movimentações de Material
+              </h2>
+              <Badge variant="secondary">{materialTransactions.length} movimentação(ões)</Badge>
+            </div>
+
+            {materialTransactions.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground bg-muted/30 rounded-lg">
+                <ArrowRightLeft className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nenhuma movimentação registrada para este item.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {materialTransactions.map((tx) => {
+                  const tipoInfo = TIPO_TRANSACAO_LABELS[tx.tipo_transacao] || { label: tx.tipo_transacao, color: 'bg-gray-100 text-gray-800', icon: 'move' };
+                  
+                  return (
+                    <div key={tx.id} className="bg-card border border-border rounded-lg p-3 shadow-sm">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {tipoInfo.icon === 'in' ? (
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                          ) : tipoInfo.icon === 'out' ? (
+                            <TrendingDown className="h-4 w-4 text-red-600" />
+                          ) : tipoInfo.icon === 'alert' ? (
+                            <AlertCircle className="h-4 w-4 text-amber-600" />
+                          ) : (
+                            <ArrowRightLeft className="h-4 w-4 text-blue-600" />
+                          )}
+                          <Badge className={tipoInfo.color}>{tipoInfo.label}</Badge>
+                          <span className={`font-bold text-sm ${tx.qtd >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {tx.qtd >= 0 ? '+' : ''}{tx.qtd}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(tx.data_hora)}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {(tx.endereco || tx.local) && (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Local:</span>
+                            <span className="font-medium">{tx.endereco || tx.local}</span>
+                          </div>
+                        )}
+                        {tx.referencia && (
+                          <div className="flex items-center gap-1">
+                            <FileText className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Ref:</span>
+                            <span className="font-medium">{tx.referencia}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3 text-muted-foreground" />
+                          <span className="font-medium">{tx.usuario}</span>
+                        </div>
+                        {tx.observacao && (
+                          <div className="col-span-2 text-muted-foreground italic">
+                            💬 {tx.observacao}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

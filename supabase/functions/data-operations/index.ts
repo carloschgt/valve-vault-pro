@@ -2273,6 +2273,13 @@ serve(async (req) => {
         qtd_total: number;
         qtd_reservada_total: number;
         valor_unitario: number | null;
+        alocacoes: {
+          WIP: number;
+          QUALIDADE: number;
+          QUALIDADE_REPROVADO: number;
+          EXPEDICAO: number;
+          OIA: number;
+        };
       }> = {};
 
       // Collect all unique codes for catalog lookup
@@ -2300,6 +2307,27 @@ serve(async (req) => {
         }
       }
 
+      // Fetch all off-inventory allocations (WIP, QUALIDADE, OIA, etc.) for these codes
+      const alocacoesMap: Record<string, { WIP: number; QUALIDADE: number; QUALIDADE_REPROVADO: number; EXPEDICAO: number; OIA: number }> = {};
+      if (uniqueCodes.size > 0) {
+        const { data: alocData } = await supabase
+          .from("estoque_alocacoes")
+          .select("codigo, local, quantidade")
+          .in("codigo", Array.from(uniqueCodes))
+          .gt("quantidade", 0);
+        
+        if (alocData) {
+          for (const aloc of alocData) {
+            if (!alocacoesMap[aloc.codigo]) {
+              alocacoesMap[aloc.codigo] = { WIP: 0, QUALIDADE: 0, QUALIDADE_REPROVADO: 0, EXPEDICAO: 0, OIA: 0 };
+            }
+            if (aloc.local in alocacoesMap[aloc.codigo]) {
+              (alocacoesMap[aloc.codigo] as any)[aloc.local] = aloc.quantidade || 0;
+            }
+          }
+        }
+      }
+
       for (const inv of filteredData) {
         const mat = inv.enderecos_materiais as any;
         if (!mat) continue;
@@ -2319,6 +2347,7 @@ serve(async (req) => {
             qtd_total: 0,
             qtd_reservada_total: 0,
             valor_unitario: catInfo?.valor_unitario ?? null,
+            alocacoes: alocacoesMap[matCodigo] || { WIP: 0, QUALIDADE: 0, QUALIDADE_REPROVADO: 0, EXPEDICAO: 0, OIA: 0 },
           };
         }
 
@@ -3502,6 +3531,14 @@ serve(async (req) => {
         }
       }
 
+      // Get material transactions (movements) for this code
+      const { data: materialTransactions } = await supabase
+        .from('material_transactions')
+        .select('id, data_hora, tipo_transacao, qtd, endereco, local, referencia, usuario, observacao, fornecedor')
+        .eq('codigo_item', codigoUpper)
+        .order('data_hora', { ascending: false })
+        .limit(200);
+
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -3519,7 +3556,8 @@ serve(async (req) => {
             aprovado_em: solicitacaoData.aprovado_em
           } : null,
           inventarioData,
-          inventarioAuditData
+          inventarioAuditData,
+          materialTransactions: materialTransactions || []
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
